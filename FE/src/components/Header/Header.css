@@ -1,0 +1,216 @@
+/* =========================================
+   Header Component
+   ========================================= */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: var(--color-white);
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem;
+}
+
+/* Logo */
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.header-logo-icon {
+  width: 2rem;
+  height: 2rem;
+  background-color: var(--color-neutral-900);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+  font-size: 0.875rem;
+}
+
+.header-logo-text {
+  font-size: 1.25rem;
+  color: var(--color-neutral-900);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Desktop Nav */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.header-nav a {
+  font-size: 0.875rem;
+  color: var(--color-neutral-600);
+  transition: color var(--transition-base);
+  position: relative;
+}
+
+.header-nav a:hover {
+  color: var(--color-neutral-900);
+}
+
+.header-nav a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1.5px;
+  background-color: var(--color-neutral-900);
+  transition: width var(--transition-base);
+}
+
+.header-nav a:hover::after {
+  width: 100%;
+}
+
+/* Auth Buttons */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.header-sign-in {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--color-neutral-900);
+  font-weight: var(--font-weight-medium);
+  transition: color var(--transition-base);
+}
+
+.header-sign-in:hover {
+  color: var(--color-neutral-600);
+}
+
+.header-get-started {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background-color: var(--color-neutral-900);
+  color: var(--color-white);
+  font-weight: var(--font-weight-medium);
+  transition: background-color var(--transition-base);
+}
+
+.header-get-started:hover {
+  background-color: var(--color-neutral-800);
+}
+
+/* Mobile menu button */
+.header-menu-btn {
+  display: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-neutral-900);
+  font-size: 1.25rem;
+}
+
+/* Mobile overlay */
+.header-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+}
+
+.header-mobile-overlay.active {
+  opacity: 1;
+}
+
+/* Mobile drawer */
+.header-mobile-drawer {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 280px;
+  height: 100%;
+  background-color: var(--color-white);
+  z-index: 300;
+  transform: translateX(100%);
+  transition: transform var(--transition-slow);
+  flex-direction: column;
+  padding: var(--space-6);
+}
+
+.header-mobile-drawer.active {
+  transform: translateX(0);
+}
+
+.header-mobile-close {
+  align-self: flex-end;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: var(--color-neutral-600);
+  margin-bottom: var(--space-6);
+}
+
+.header-mobile-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.header-mobile-nav a {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  font-size: 1rem;
+  color: var(--color-neutral-700);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-base);
+}
+
+.header-mobile-nav a:hover {
+  background-color: var(--color-neutral-100);
+}
+
+.header-mobile-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-neutral-200);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header-nav,
+  .header-sign-in {
+    display: none;
+  }
+
+  .header-menu-btn {
+    display: flex;
+  }
+
+  .header-mobile-overlay,
+  .header-mobile-drawer {
+    display: block;
+  }
+
+  .header-mobile-drawer {
+    display: flex;
+  }
+}
