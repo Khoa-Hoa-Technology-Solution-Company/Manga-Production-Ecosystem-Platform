@@ -1,0 +1,14 @@
+{
+  "name": "manga-production-ecosystem-platform",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo root for the Manga Production Ecosystem Platform.",
+  "scripts": {
+    "dev:fe": "npm --prefix FE run dev",
+    "build:fe": "npm --prefix FE run build",
+    "lint:fe": "npm --prefix FE run lint",
+    "dev:be": "npm --prefix BE run start",
+    "dev:mb": "npm --prefix MB run start",
+    "lint:mb": "npm --prefix MB run lint"
+  }
+}
