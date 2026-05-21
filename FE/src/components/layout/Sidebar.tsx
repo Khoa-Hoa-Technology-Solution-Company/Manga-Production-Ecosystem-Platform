@@ -1,5 +1,7 @@
-import { BookMarked, Briefcase, Compass, Home, LayoutDashboard, PenTool, Settings, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
 import { Avatar, AvatarFallback, Button } from '../ui'
+import { useAuth } from '../../lib/auth'
 
 type SidebarKey = 'home' | 'dashboard' | 'studio' | 'tasks' | 'discover' | 'settings'
 
@@ -12,26 +14,37 @@ type SidebarProps = {
 
 const navigation: Array<{
   key: SidebarKey
-  label: string
+  labelKey: string
   icon: typeof LayoutDashboard
-  section?: string
+  section: string
 }> = [
-  { key: 'home', label: 'Home', icon: Home, section: 'main' },
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'main' },
-  { key: 'studio', label: 'Studio', icon: PenTool, section: 'create' },
-  { key: 'tasks', label: 'Assistant', icon: Briefcase, section: 'create' },
-  { key: 'discover', label: 'Discover', icon: Compass, section: 'explore' },
-  { key: 'settings', label: 'Settings', icon: Settings, section: 'other' },
+  { key: 'home', labelKey: 'sidebar.home', icon: Home, section: 'main' },
+  { key: 'dashboard', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, section: 'main' },
+  { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create' },
+  { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create' },
+  { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
+  { key: 'settings', labelKey: 'sidebar.settings', icon: Settings, section: 'other' },
 ]
 
 const sections = [
-  { key: 'main', label: '' },
-  { key: 'create', label: 'CREATE' },
-  { key: 'explore', label: 'EXPLORE' },
-  { key: 'other', label: '' },
+  { key: 'main', labelKey: '' },
+  { key: 'create', labelKey: 'sidebar.create' },
+  { key: 'explore', labelKey: 'sidebar.explore' },
+  { key: 'other', labelKey: '' },
 ]
 
-export function Sidebar({ active = 'home', onChange, mobileOpen = false, onMobileClose }: SidebarProps) {
+export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, onMobileClose }: SidebarProps) {
+  const { t, i18n } = useTranslation()
+  const { user, logout } = useAuth()
+
+  const toggleLang = () => {
+    i18n.changeLanguage(i18n.language === 'en' ? 'vi' : 'en')
+  }
+
+  const initials = user?.displayName
+    ? user.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : '??'
+
   return (
     <>
       {/* Backdrop overlay for mobile */}
@@ -73,12 +86,12 @@ export function Sidebar({ active = 'home', onChange, mobileOpen = false, onMobil
 
             return (
               <div key={section.key} className="mb-1">
-                {section.label && (
+                {section.labelKey && (
                   <p className="mb-1 mt-4 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
-                    {section.label}
+                    {t(section.labelKey)}
                   </p>
                 )}
-                {sectionItems.map(({ key, label, icon: Icon }) => {
+                {sectionItems.map(({ key, labelKey, icon: Icon }) => {
                   const isActive = key === active
                   return (
                     <Button
@@ -92,7 +105,7 @@ export function Sidebar({ active = 'home', onChange, mobileOpen = false, onMobil
                       onClick={() => onChange?.(key)}
                     >
                       <Icon className="size-4" />
-                      {label}
+                      {t(labelKey)}
                     </Button>
                   )
                 })}
@@ -101,13 +114,36 @@ export function Sidebar({ active = 'home', onChange, mobileOpen = false, onMobil
           })}
         </nav>
 
-        <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl bg-neutral-100 p-2.5">
-          <Avatar className="size-8 bg-neutral-200">
-            <AvatarFallback className="text-xs leading-4">HK</AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs font-medium leading-4 truncate">Hiro Kazuo</span>
-            <span className="text-[10px] text-neutral-500">Pro Plan</span>
+        {/* Bottom section: Language + User */}
+        <div className="px-3 pb-3 space-y-2">
+          {/* Language toggle */}
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-100 transition-colors"
+          >
+            <Globe className="size-4" />
+            {i18n.language === 'en' ? '🇺🇸 English' : '🇻🇳 Tiếng Việt'}
+          </button>
+
+          {/* User card */}
+          <div className="flex items-center gap-2 rounded-xl bg-neutral-100 p-2.5">
+            <Avatar className="size-8 bg-neutral-200">
+              <AvatarFallback className="text-xs leading-4">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-xs font-medium leading-4 truncate">{user?.displayName}</span>
+              <span className="text-[10px] text-neutral-500 capitalize">{user?.role?.replace('_', ' ')}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="size-7 p-0 rounded-lg text-neutral-400 hover:text-red-500"
+              onClick={logout}
+              aria-label="Log out"
+            >
+              <LogOut className="size-3.5" />
+            </Button>
           </div>
         </div>
       </aside>

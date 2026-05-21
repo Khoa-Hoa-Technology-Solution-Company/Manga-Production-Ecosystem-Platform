@@ -4,10 +4,11 @@ import { cn } from '../utils/cn'
 type CardProps = {
   children: ReactNode
   className?: string
+  onClick?: () => void
 }
 
-export function Card({ children, className }: CardProps) {
-  return <div className={cn('rounded-3xl border border-neutral-200 bg-white', className)}>{children}</div>
+export function Card({ children, className, onClick }: CardProps) {
+  return <div className={cn('rounded-3xl border border-neutral-200 bg-white', className)} onClick={onClick} role={onClick ? 'button' : undefined}>{children}</div>
 }
 
 export function CardHeader({ children, className }: CardProps) {

@@ -12,7 +12,7 @@ import {
   Search,
   TrendingUp,
 } from 'lucide-react'
-import { Avatar, AvatarFallback, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Progress, Tabs } from '../ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Progress, Tabs } from '../ui'
 
 /* ── Stats ───────────────────────────────────────────── */
 const stats = [
