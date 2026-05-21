@@ -11,11 +11,31 @@ import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
+import { LoginPage } from './components/sections/LoginPage'
+import { useAuth } from './lib/auth'
 
 function App() {
-  const [activeTab, setActiveTab] = useState<SidebarKey>('home')
+  const { isAuthenticated, loading } = useAuth()
+  const [activeTab, setActiveTab] = useState<SidebarKey>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [readingView, setReadingView] = useState(false)
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+          <span className="text-sm text-neutral-500">Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage />
+  }
 
   const handleNavigate = (key: SidebarKey) => {
     setActiveTab(key)

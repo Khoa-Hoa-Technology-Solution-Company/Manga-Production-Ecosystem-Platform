@@ -10,7 +10,7 @@ import {
   Star,
   ThumbsUp,
 } from 'lucide-react'
-import { Avatar, AvatarFallback, Badge, Button, Card, Textarea } from '../ui'
+import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
 
 /* ── Chapter data ────────────────────────────────────── */
 const chapterInfo = {
