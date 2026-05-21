@@ -1,121 +1,102 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { Menu } from 'lucide-react'
+import { Button } from './components/ui'
+import { Shell } from './components/layout/Shell'
+import { Sidebar, type SidebarKey } from './components/layout/Sidebar'
+import { Header } from './components/layout/Header'
+import { Footer } from './components/layout/Footer'
+import { DashboardPage } from './components/sections/DashboardPage'
+import { StudioPage } from './components/sections/StudioPage'
+import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
+import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
+import { ReaderHubPage } from './components/sections/ReaderHubPage'
+import { ReadingViewPage } from './components/sections/ReadingViewPage'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activeTab, setActiveTab] = useState<SidebarKey>('home')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [readingView, setReadingView] = useState(false)
+
+  const handleNavigate = (key: SidebarKey) => {
+    setActiveTab(key)
+    setSidebarOpen(false)
+    setReadingView(false)
+  }
+
+  /* ── Render page content based on active tab ───── */
+  function renderContent() {
+    // Reading view (opened from Discover page)
+    if (readingView) {
+      return <ReadingViewPage onBack={() => setReadingView(false)} />
+    }
+
+    switch (activeTab) {
+      case 'home':
+        return <StudioPage />
+      case 'dashboard':
+        return (
+          <>
+            <Header />
+            <DashboardPage />
+          </>
+        )
+      case 'studio':
+        return <StudioWorkspacePage />
+      case 'tasks':
+        return <AssistantPortalPage />
+      case 'discover':
+        return (
+          <ReaderHubPage
+            onReadSeries={() => setReadingView(true)}
+          />
+        )
+      case 'settings':
+        return (
+          <div className="flex flex-1 items-center justify-center p-8">
+            <div className="text-center space-y-3">
+              <div className="grid size-16 place-items-center rounded-2xl bg-neutral-100 mx-auto">
+                <span className="text-2xl">⚙️</span>
+              </div>
+              <h2 className="text-lg font-semibold">Settings</h2>
+              <p className="text-sm text-neutral-500 max-w-sm">
+                Account settings, notification preferences, and workspace configuration will be available here.
+              </p>
+            </div>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <Shell
+      sidebar={
+        <Sidebar
+          active={readingView ? 'discover' : activeTab}
+          onChange={handleNavigate}
+          mobileOpen={sidebarOpen}
+          onMobileClose={() => setSidebarOpen(false)}
+        />
+      }
+      header={
+        <div className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2 lg:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="size-9 p-0 rounded-lg"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
+          >
+            <Menu className="size-5" />
+          </Button>
+          <span className="text-sm font-semibold">MangaFlow</span>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      }
+      footer={!readingView && activeTab !== 'studio' ? <Footer /> : undefined}
+    >
+      {renderContent()}
+    </Shell>
   )
 }
 
