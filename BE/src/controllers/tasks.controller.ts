@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { Task } from '../models/Task';
+import { User } from '../models/User';
+import { notifyTaskAssigned, notifyTaskSubmitted } from '../services/notification.service';
 
 export async function getAll(req: Request, res: Response): Promise<void> {
   try {
@@ -41,12 +43,42 @@ export async function getAll(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function getById(req: Request, res: Response): Promise<void> {
+  try {
+    const task = await Task.findById(req.params.id)
+      .populate('seriesId', 'title coverImage')
+      .populate('chapterId', 'chapterNumber title')
+      .populate('assignedTo', 'displayName avatar skills rating')
+      .populate('assignedBy', 'displayName avatar');
+
+    if (!task) {
+      res.status(404).json({ error: 'Task not found.' });
+      return;
+    }
+    res.json({ task });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const task = await Task.create({
       ...req.body,
       assignedBy: req.user?._id,
     });
+
+    // Notify assigned assistant if specified
+    if (req.body.assignedTo) {
+      const series = await (await import('../models/Series')).Series.findById(req.body.seriesId);
+      await notifyTaskAssigned(
+        req.body.assignedTo,
+        req.body.title,
+        series?.title || 'Unknown Series',
+        task._id.toString()
+      );
+    }
+
     res.status(201).json({ task });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -69,6 +101,39 @@ export async function acceptTask(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function submitTask(req: Request, res: Response): Promise<void> {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) { res.status(404).json({ error: 'Task not found.' }); return; }
+
+    if (task.assignedTo?.toString() !== req.user?._id) {
+      res.status(403).json({ error: 'Only the assigned assistant can submit.' });
+      return;
+    }
+
+    // Handle file upload
+    if (req.file) {
+      task.submittedFile = `/uploads/${req.file.filename}`;
+    }
+
+    task.status = 'review';
+    await task.save();
+
+    // Notify mangaka
+    const assistant = await User.findById(req.user?._id);
+    await notifyTaskSubmitted(
+      task.assignedBy.toString(),
+      assistant?.displayName || 'Assistant',
+      task.title,
+      task._id.toString()
+    );
+
+    res.json({ task, message: 'Task submitted for review.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function updateStatus(req: Request, res: Response): Promise<void> {
   try {
     const { status } = req.body;
@@ -78,6 +143,41 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
       { new: true, runValidators: true }
     );
     if (!task) { res.status(404).json({ error: 'Task not found.' }); return; }
+
+    // If task is done, update assistant earnings
+    if (status === 'done' && task.assignedTo) {
+      await User.findByIdAndUpdate(task.assignedTo, {
+        $inc: { totalEarnings: task.wage },
+      });
+    }
+
+    res.json({ task });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function update(req: Request, res: Response): Promise<void> {
+  try {
+    const updateData: any = {};
+    const allowed = ['title', 'description', 'type', 'wage', 'deadline', 'reviewNotes', 'assignedTo'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updateData[key] = req.body[key];
+    }
+
+    const task = await Task.findByIdAndUpdate(req.params.id, updateData, {
+      new: true,
+      runValidators: true,
+    })
+      .populate('seriesId', 'title coverImage')
+      .populate('chapterId', 'chapterNumber title')
+      .populate('assignedTo', 'displayName avatar')
+      .populate('assignedBy', 'displayName avatar');
+
+    if (!task) {
+      res.status(404).json({ error: 'Task not found.' });
+      return;
+    }
     res.json({ task });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

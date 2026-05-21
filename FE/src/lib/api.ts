@@ -62,9 +62,15 @@ export const chaptersAPI = {
 // ── Tasks API ───────────────────────────────────────
 export const tasksAPI = {
   getAll: (params?: any) => api.get('/tasks', { params }),
+  getById: (id: string) => api.get(`/tasks/${id}`),
   create: (data: any) => api.post('/tasks', data),
+  update: (id: string, data: any) => api.put(`/tasks/${id}`, data),
   accept: (id: string) => api.patch(`/tasks/${id}/accept`),
   updateStatus: (id: string, status: string) => api.patch(`/tasks/${id}/status`, { status }),
+  submit: (id: string, formData: FormData) =>
+    api.post(`/tasks/${id}/submit`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 };
 
 // ── Dashboard API ───────────────────────────────────
@@ -72,4 +78,42 @@ export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
   getWorkflow: () => api.get('/dashboard/workflow'),
   getRankings: () => api.get('/dashboard/rankings'),
+};
+
+// ── Pages API ───────────────────────────────────────
+export const pagesAPI = {
+  getByChapter: (chapterId: string) => api.get(`/pages/chapter/${chapterId}`),
+  upload: (chapterId: string, formData: FormData) =>
+    api.post(`/pages/chapter/${chapterId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  delete: (id: string) => api.delete(`/pages/${id}`),
+};
+
+// ── Zones API ───────────────────────────────────────
+export const zonesAPI = {
+  getByPage: (pageId: string) => api.get(`/zones/page/${pageId}`),
+  create: (pageId: string, data: any) => api.post(`/zones/page/${pageId}`, data),
+  update: (id: string, data: any) => api.put(`/zones/${id}`, data),
+  delete: (id: string) => api.delete(`/zones/${id}`),
+};
+
+// ── Votes API ───────────────────────────────────────
+export const votesAPI = {
+  vote: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/vote`, data),
+  getVotes: (chapterId: string) => api.get(`/chapters/${chapterId}/votes`),
+};
+
+// ── Comments API ────────────────────────────────────
+export const commentsAPI = {
+  getByChapter: (chapterId: string, params?: any) => api.get(`/chapters/${chapterId}/comments`, { params }),
+  create: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/comments`, data),
+  like: (commentId: string) => api.post(`/comments/${commentId}/like`),
+};
+
+// ── Notifications API ───────────────────────────────
+export const notificationsAPI = {
+  getAll: (params?: any) => api.get('/notifications', { params }),
+  markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.patch('/notifications/read-all'),
 };

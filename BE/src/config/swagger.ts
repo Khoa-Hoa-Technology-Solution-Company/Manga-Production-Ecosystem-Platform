@@ -377,4 +377,236 @@ swaggerSpec.paths = {
       responses: { 200: { description: 'Server is running' } },
     },
   },
+
+  // ═══ Phase 2 Endpoints ═══════════════════════════
+
+  // ── Pages ─────────────────────────────────────────
+  '/pages/chapter/{chapterId}': {
+    get: {
+      tags: ['Pages'],
+      summary: 'List pages by chapter',
+      parameters: [{ in: 'path', name: 'chapterId', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Pages list' } },
+    },
+    post: {
+      tags: ['Pages'],
+      summary: 'Upload a manga page (Mangaka only)',
+      parameters: [{ in: 'path', name: 'chapterId', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'multipart/form-data': {
+            schema: {
+              type: 'object',
+              required: ['image', 'pageNumber'],
+              properties: {
+                image: { type: 'string', format: 'binary' },
+                pageNumber: { type: 'integer' },
+                width: { type: 'integer' },
+                height: { type: 'integer' },
+              },
+            },
+          },
+        },
+      },
+      responses: { 201: { description: 'Page uploaded' } },
+    },
+  },
+  '/pages/{id}': {
+    delete: {
+      tags: ['Pages'],
+      summary: 'Delete a page (Mangaka only)',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Page deleted' } },
+    },
+  },
+
+  // ── Zones ─────────────────────────────────────────
+  '/zones/page/{pageId}': {
+    get: {
+      tags: ['Zones'],
+      summary: 'List zones for a page',
+      parameters: [{ in: 'path', name: 'pageId', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Zones list' } },
+    },
+    post: {
+      tags: ['Zones'],
+      summary: 'Create a zone on a page (Mangaka only)',
+      parameters: [{ in: 'path', name: 'pageId', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['name', 'type', 'boundingBox'],
+              properties: {
+                name: { type: 'string', example: 'Background' },
+                type: { type: 'string', enum: ['background', 'characters', 'effects', 'dialog', 'sfx'] },
+                color: { type: 'string', example: '#3b82f6' },
+                boundingBox: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' }, y: { type: 'number' },
+                    width: { type: 'number' }, height: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: { 201: { description: 'Zone created' } },
+    },
+  },
+  '/zones/{id}': {
+    put: {
+      tags: ['Zones'],
+      summary: 'Update a zone (Mangaka only)',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Zone updated' } },
+    },
+    delete: {
+      tags: ['Zones'],
+      summary: 'Delete a zone (Mangaka only)',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Zone deleted' } },
+    },
+  },
+
+  // ── Tasks (extended) ──────────────────────────────
+  '/tasks/{id}': {
+    get: {
+      tags: ['Tasks'],
+      summary: 'Get task by ID',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Task details' } },
+    },
+    put: {
+      tags: ['Tasks'],
+      summary: 'Update task (Mangaka/Assistant)',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Task updated' } },
+    },
+  },
+  '/tasks/{id}/submit': {
+    post: {
+      tags: ['Tasks'],
+      summary: 'Submit task work (Assistant only)',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        content: {
+          'multipart/form-data': {
+            schema: {
+              type: 'object',
+              properties: { file: { type: 'string', format: 'binary' } },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: 'Task submitted for review' } },
+    },
+  },
+
+  // ── Votes & Comments (under chapters) ─────────────
+  '/chapters/{id}/vote': {
+    post: {
+      tags: ['Votes'],
+      summary: 'Vote for a chapter',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                seriesId: { type: 'string' },
+                rating: { type: 'integer', minimum: 1, maximum: 5 },
+                reaction: { type: 'string', example: '🔥' },
+              },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: 'Vote recorded' } },
+    },
+  },
+  '/chapters/{id}/votes': {
+    get: {
+      tags: ['Votes'],
+      summary: 'Get vote stats for a chapter',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Vote statistics' } },
+    },
+  },
+  '/chapters/{id}/comments': {
+    get: {
+      tags: ['Comments'],
+      summary: 'List comments for a chapter',
+      parameters: [
+        { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+        { in: 'query', name: 'page', schema: { type: 'integer', default: 1 } },
+        { in: 'query', name: 'limit', schema: { type: 'integer', default: 20 } },
+      ],
+      responses: { 200: { description: 'Comments list' } },
+    },
+    post: {
+      tags: ['Comments'],
+      summary: 'Post a comment',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['text'],
+              properties: {
+                text: { type: 'string' },
+                parentId: { type: 'string', description: 'For reply threads' },
+              },
+            },
+          },
+        },
+      },
+      responses: { 201: { description: 'Comment posted' } },
+    },
+  },
+  '/comments/{id}/like': {
+    post: {
+      tags: ['Comments'],
+      summary: 'Like/Unlike a comment (toggle)',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Like toggled' } },
+    },
+  },
+
+  // ── Notifications ─────────────────────────────────
+  '/notifications': {
+    get: {
+      tags: ['Notifications'],
+      summary: 'List notifications',
+      parameters: [
+        { in: 'query', name: 'unreadOnly', schema: { type: 'boolean' } },
+        { in: 'query', name: 'page', schema: { type: 'integer', default: 1 } },
+        { in: 'query', name: 'limit', schema: { type: 'integer', default: 20 } },
+      ],
+      responses: { 200: { description: 'Notifications list with unread count' } },
+    },
+  },
+  '/notifications/{id}/read': {
+    patch: {
+      tags: ['Notifications'],
+      summary: 'Mark notification as read',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Marked as read' } },
+    },
+  },
+  '/notifications/read-all': {
+    patch: {
+      tags: ['Notifications'],
+      summary: 'Mark all notifications as read',
+      responses: { 200: { description: 'All marked as read' } },
+    },
+  },
 };

@@ -3,7 +3,12 @@ import { connectDB } from '../config/db';
 import { User } from '../models/User';
 import { Series } from '../models/Series';
 import { Chapter } from '../models/Chapter';
+import { Page } from '../models/Page';
+import { Zone } from '../models/Zone';
 import { Task } from '../models/Task';
+import { Vote } from '../models/Vote';
+import { Comment } from '../models/Comment';
+import { Notification } from '../models/Notification';
 
 async function seed() {
   await connectDB();
@@ -14,7 +19,12 @@ async function seed() {
     User.deleteMany({}),
     Series.deleteMany({}),
     Chapter.deleteMany({}),
+    Page.deleteMany({}),
+    Zone.deleteMany({}),
     Task.deleteMany({}),
+    Vote.deleteMany({}),
+    Comment.deleteMany({}),
+    Notification.deleteMany({}),
   ]);
 
   // ── Users (1 per role) ────────────────────────────
@@ -86,13 +96,119 @@ async function seed() {
 
   console.log('  ✅ Chapters created (8)');
 
+  // ── Pages for Chapter 42 (The Blade Awakens) ──────
+  const mangaImages = [
+    '/manga/page-panels.png',
+    '/manga/cover-action.png',
+    '/manga/cover-scifi.png',
+    '/manga/cover-fantasy.png',
+    '/manga/cover-horror.png',
+  ];
+
+  const ch42Pages = await Page.create(
+    mangaImages.map((img, idx) => ({
+      chapterId: chapters[2]._id, // Chapter 42
+      pageNumber: idx + 1,
+      originalImage: img,
+      width: 1200,
+      height: 1800,
+    }))
+  );
+
+  // Also add pages for Chapter 44 (Draft - being worked on)
+  const ch44Pages = await Page.create(
+    mangaImages.slice(0, 3).map((img, idx) => ({
+      chapterId: chapters[4]._id, // Chapter 44
+      pageNumber: idx + 1,
+      originalImage: img,
+      width: 1200,
+      height: 1800,
+    }))
+  );
+
+  console.log(`  ✅ Pages created (${ch42Pages.length + ch44Pages.length})`);
+
+  // ── Zones for Ch42 Page 1 ─────────────────────────
+  const ch42Zones = await Zone.create([
+    {
+      pageId: ch42Pages[0]._id,
+      name: 'Background',
+      type: 'background',
+      color: '#3b82f6',
+      boundingBox: { x: 10, y: 10, width: 480, height: 200 },
+      status: 'done',
+      progress: 100,
+    },
+    {
+      pageId: ch42Pages[0]._id,
+      name: 'Characters',
+      type: 'characters',
+      color: '#f54900',
+      boundingBox: { x: 50, y: 220, width: 400, height: 300 },
+      assignedTo: assistant._id,
+      status: 'in_progress',
+      progress: 72,
+    },
+    {
+      pageId: ch42Pages[0]._id,
+      name: 'Effects',
+      type: 'effects',
+      color: '#a855f7',
+      boundingBox: { x: 100, y: 540, width: 300, height: 120 },
+      status: 'open',
+      progress: 0,
+    },
+    {
+      pageId: ch42Pages[0]._id,
+      name: 'Dialog',
+      type: 'dialog',
+      color: '#22c55e',
+      boundingBox: { x: 20, y: 680, width: 200, height: 80 },
+      status: 'done',
+      progress: 100,
+    },
+    {
+      pageId: ch42Pages[0]._id,
+      name: 'SFX',
+      type: 'sfx',
+      color: '#eab308',
+      boundingBox: { x: 350, y: 400, width: 130, height: 100 },
+      status: 'open',
+      progress: 0,
+    },
+  ]);
+
+  // Zones for Ch44 Page 1
+  await Zone.create([
+    {
+      pageId: ch44Pages[0]._id,
+      name: 'Background',
+      type: 'background',
+      color: '#3b82f6',
+      boundingBox: { x: 0, y: 0, width: 500, height: 250 },
+      status: 'open',
+      progress: 0,
+    },
+    {
+      pageId: ch44Pages[0]._id,
+      name: 'Characters',
+      type: 'characters',
+      color: '#f54900',
+      boundingBox: { x: 60, y: 260, width: 380, height: 350 },
+      status: 'open',
+      progress: 0,
+    },
+  ]);
+
+  console.log(`  ✅ Zones created (${ch42Zones.length + 2})`);
+
   // ── Tasks ─────────────────────────────────────────
   const now = new Date();
   const dayMs = 86400000;
 
   await Task.create([
-    { chapterId: chapters[4]._id, seriesId: s1._id, type: 'inking', title: 'Ink character outlines Ch.44', assignedTo: assistant._id, assignedBy: mangaka._id, status: 'in_progress', wage: 45000, deadline: new Date(now.getTime() + 2 * dayMs) },
-    { chapterId: chapters[4]._id, seriesId: s1._id, type: 'background', title: 'Draw mountain scenery backgrounds', assignedBy: mangaka._id, status: 'open', wage: 38000, deadline: new Date(now.getTime() + 4 * dayMs) },
+    { chapterId: chapters[4]._id, seriesId: s1._id, pageId: ch44Pages[0]._id, type: 'inking', title: 'Ink character outlines Ch.44', assignedTo: assistant._id, assignedBy: mangaka._id, status: 'in_progress', wage: 45000, deadline: new Date(now.getTime() + 2 * dayMs) },
+    { chapterId: chapters[4]._id, seriesId: s1._id, pageId: ch44Pages[1]._id, type: 'background', title: 'Draw mountain scenery backgrounds', assignedBy: mangaka._id, status: 'open', wage: 38000, deadline: new Date(now.getTime() + 4 * dayMs) },
     { chapterId: chapters[4]._id, seriesId: s1._id, type: 'tone', title: 'Apply screentone shading', assignedBy: mangaka._id, status: 'open', wage: 28000, deadline: new Date(now.getTime() + 5 * dayMs) },
     { chapterId: chapters[6]._id, seriesId: s2._id, type: 'effects', title: 'Add neon glow effects', assignedBy: mangaka._id, status: 'open', wage: 40000, deadline: new Date(now.getTime() + 7 * dayMs) },
     { chapterId: chapters[6]._id, seriesId: s2._id, type: 'lettering', title: 'Place dialog text Ch.106', assignedTo: assistant._id, assignedBy: mangaka._id, status: 'assigned', wage: 22000, deadline: new Date(now.getTime() + 3 * dayMs) },
@@ -102,6 +218,30 @@ async function seed() {
   ]);
 
   console.log('  ✅ Tasks created (8)');
+
+  // ── Votes & Comments for Published chapters ───────
+  await Vote.create([
+    { userId: reader._id, chapterId: chapters[0]._id, seriesId: s1._id, rating: 5, reaction: '🔥' },
+    { userId: reader._id, chapterId: chapters[1]._id, seriesId: s1._id, rating: 5, reaction: '❤️' },
+    { userId: eb._id, chapterId: chapters[0]._id, seriesId: s1._id, rating: 4, reaction: '👏' },
+  ]);
+
+  await Comment.create([
+    { userId: reader._id, chapterId: chapters[0]._id, text: 'Incredible battle sequence! The panel composition is masterful.', likes: 42 },
+    { userId: reader._id, chapterId: chapters[1]._id, text: 'Best chapter yet! The character development is amazing.', likes: 28 },
+    { userId: eb._id, chapterId: chapters[0]._id, text: 'Great work on the art quality. Keep it up!', likes: 15 },
+  ]);
+
+  console.log('  ✅ Votes & Comments created');
+
+  // ── Notifications ─────────────────────────────────
+  await Notification.create([
+    { userId: assistant._id, type: 'task_assigned', title: 'New Task', message: 'You have been assigned "Ink character outlines Ch.44"', read: false },
+    { userId: mangaka._id, type: 'chapter_status', title: 'Chapter Approved', message: '"The Blade Awakens" has been approved by editor', read: true },
+    { userId: editor._id, type: 'chapter_status', title: 'Chapter Ready for Review', message: '"Storm of Souls" is ready for review', read: false },
+  ]);
+
+  console.log('  ✅ Notifications created');
 
   console.log('\n🎉 Seed complete!');
   console.log('\n📋 Demo accounts:');
