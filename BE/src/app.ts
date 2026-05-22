@@ -26,7 +26,42 @@ const app = express();
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },  // Allow FE (port 5173) to load images from BE (port 3000)
 }));
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = ['http://localhost:5173', 'http://localhost:8081'];
+    if (env.CORS_ORIGIN) {
+      env.CORS_ORIGIN.split(',').forEach(o => {
+        const trimmed = o.trim();
+        if (trimmed && !allowedOrigins.includes(trimmed)) {
+          allowedOrigins.push(trimmed);
+        }
+      });
+    }
+
+    const isAllowed = allowedOrigins.includes(origin) || 
+                      origin.includes('localhost') || 
+                      origin.includes('127.0.0.1') || 
+                      origin.startsWith('http://192.168.');
+                      
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
+  credentials: true
+}));
+
+// Request Logger
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl || req.url}`);
+  res.on('finish', () => {
+    console.log(`  └─ Response: ${res.statusCode}`);
+  });
+  next();
+});
 
 // ── Rate limiting ───────────────────────────────────
 const limiter = rateLimit({

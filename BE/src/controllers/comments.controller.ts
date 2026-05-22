@@ -19,7 +19,7 @@ export async function getByChapter(req: Request, res: Response): Promise<void> {
       .sort({ createdAt: 1 });
 
     const comments = parents.map(p => {
-      const pObj = p.toObject();
+      const pObj = p.toObject() as any;
       pObj.replies = children.filter(c => c.parentId?.toString() === p._id.toString());
       return pObj;
     });
