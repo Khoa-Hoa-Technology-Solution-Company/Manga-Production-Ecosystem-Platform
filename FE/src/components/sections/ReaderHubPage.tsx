@@ -47,11 +47,10 @@ const newReleases = [
 
 const categories = ['All', 'Action', 'Romance', 'Sci-Fi', 'Fantasy', 'Horror', 'Slice of Life']
 
-type ReaderHubProps = {
-  onReadSeries?: (seriesId: string) => void
-}
+import { useNavigate } from 'react-router-dom'
 
-export function ReaderHubPage({ onReadSeries }: ReaderHubProps) {
+export function ReaderHubPage() {
+  const navigate = useNavigate()
   const [activeCategory, setActiveCategory] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -127,8 +126,8 @@ export function ReaderHubPage({ onReadSeries }: ReaderHubProps) {
             <div className="flex gap-2 pt-1">
               <Button
                 variant="secondary"
+                onClick={() => navigate('/read/s1')}
                 className="gap-1.5"
-                onClick={() => onReadSeries?.('s1')}
               >
                 <Play className="size-3.5" /> Read Now
               </Button>
@@ -156,7 +155,7 @@ export function ReaderHubPage({ onReadSeries }: ReaderHubProps) {
               <Card
                 key={series.id}
                 className="group cursor-pointer overflow-hidden shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5"
-                onClick={() => onReadSeries?.(series.id)}
+                onClick={() => navigate(`/read/${series.id}`)}
               >
                 <div className="relative h-48 overflow-hidden">
                   <img
@@ -212,7 +211,7 @@ export function ReaderHubPage({ onReadSeries }: ReaderHubProps) {
               <Card
                 key={idx}
                 className="flex-none w-44 cursor-pointer overflow-hidden shadow-sm transition-all hover:shadow-md group"
-                onClick={() => onReadSeries?.('s1')}
+                onClick={() => navigate(`/read/s1`)}
               >
                 <div className="relative h-24 overflow-hidden">
                   <img src={release.cover} alt={release.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />

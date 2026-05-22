@@ -17,6 +17,7 @@ import {
 import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
 import { commentsAPI, seriesAPI, chaptersAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
+import { useNavigate } from 'react-router-dom'
 
 /* ── Chapter data ────────────────────────────────────── */
 const chapterInfo = {
@@ -103,11 +104,9 @@ const reactions = [
   { emoji: '👏', label: 'Clap', count: 1205 },
 ]
 
-type ReadingViewProps = {
-  onBack?: () => void
-}
-
-export function ReadingViewPage({ onBack }: ReadingViewProps) {
+export function ReadingViewPage() {
+  const navigate = useNavigate()
+  
   const [currentPage, setCurrentPage] = useState(0)
   const [userRating, setUserRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
@@ -339,7 +338,7 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
       {/* ── Top bar ──────────────────────────────────── */}
       <header className="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="size-8 p-0 rounded-lg" onClick={onBack}>
+          <Button variant="ghost" size="sm" className="size-8 p-0 rounded-lg" onClick={() => navigate(-1)}>
             <ArrowLeft className="size-4" />
           </Button>
           <div className="min-w-0">

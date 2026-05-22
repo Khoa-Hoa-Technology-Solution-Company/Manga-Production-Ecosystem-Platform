@@ -5,12 +5,11 @@ import { Avatar, AvatarFallback, Button } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { notificationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 type SidebarKey = 'home' | 'dashboard' | 'studio' | 'tasks' | 'discover' | 'settings'
 
 type SidebarProps = {
-  active?: SidebarKey
-  onChange?: (key: SidebarKey) => void
   mobileOpen?: boolean
   onMobileClose?: () => void
 }
@@ -36,9 +35,13 @@ const sections = [
   { key: 'other', labelKey: '' },
 ]
 
-export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, onMobileClose }: SidebarProps) {
+export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const { t, i18n } = useTranslation()
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  
+  const active = location.pathname === '/' ? 'home' : location.pathname.split('/')[1] || 'home'
 
   const toggleLang = () => {
     i18n.changeLanguage(i18n.language === 'en' ? 'vi' : 'en')
@@ -83,7 +86,7 @@ export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, on
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-neutral-50 shadow-xl transition-transform duration-300 ease-in-out lg:static lg:z-auto lg:w-55 lg:translate-x-0 lg:shadow-none lg:border-r lg:border-neutral-200
+          fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-neutral-50 shadow-xl transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:w-55 lg:translate-x-0 lg:shadow-none lg:border-r lg:border-neutral-200
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
@@ -107,7 +110,14 @@ export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, on
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
           {sections.map((section) => {
-            const sectionItems = navigation.filter((n) => n.section === section.key)
+            const isReader = user?.role?.toLowerCase() === 'reader'
+            const restrictedForReader = ['dashboard', 'studio', 'tasks']
+            
+            const sectionItems = navigation.filter((n) => {
+              if (n.section !== section.key) return false
+              if (isReader && restrictedForReader.includes(n.key)) return false
+              return true
+            })
             if (sectionItems.length === 0) return null
 
             return (
@@ -128,7 +138,10 @@ export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, on
                           ? 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 font-medium'
                           : 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 text-neutral-500 font-normal'
                       }
-                      onClick={() => onChange?.(key)}
+                      onClick={() => {
+                        navigate(key === 'home' ? '/' : `/${key}`)
+                        onMobileClose?.()
+                      }}
                     >
                       <Icon className="size-4" />
                       {t(labelKey)}
