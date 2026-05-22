@@ -98,17 +98,17 @@ export const zonesAPI = {
   delete: (id: string) => api.delete(`/zones/${id}`),
 };
 
-// ── Votes API ───────────────────────────────────────
-export const votesAPI = {
-  vote: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/vote`, data),
-  getVotes: (chapterId: string) => api.get(`/chapters/${chapterId}/votes`),
-};
-
 // ── Comments API ────────────────────────────────────
 export const commentsAPI = {
   getByChapter: (chapterId: string, params?: any) => api.get(`/chapters/${chapterId}/comments`, { params }),
   create: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/comments`, data),
   like: (commentId: string) => api.post(`/comments/${commentId}/like`),
+};
+
+// ── Votes API ───────────────────────────────────────
+export const votesAPI = {
+  getByChapter: (chapterId: string) => api.get(`/chapters/${chapterId}/votes`),
+  vote: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/vote`, data),
 };
 
 // ── Notifications API ───────────────────────────────
@@ -117,3 +117,4 @@ export const notificationsAPI = {
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   markAllRead: () => api.patch('/notifications/read-all'),
 };
+

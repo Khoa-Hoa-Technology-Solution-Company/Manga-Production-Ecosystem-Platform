@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
+import { Bell, BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
 import { Avatar, AvatarFallback, Button } from '../ui'
 import { useAuth } from '../../lib/auth'
+import { notificationsAPI } from '../../lib/api'
+import { socketService } from '../../lib/socket'
 
 type SidebarKey = 'home' | 'dashboard' | 'studio' | 'tasks' | 'discover' | 'settings'
 
@@ -44,6 +47,29 @@ export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, on
   const initials = user?.displayName
     ? user.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '??'
+
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+
+    // Initial fetch
+    notificationsAPI.getAll({ unreadOnly: true }).then((res) => {
+      setUnreadCount(res.data.unread || 0)
+    }).catch(console.error)
+
+    // Listen for real-time notifications
+    const handleNewNotification = () => {
+      setUnreadCount((prev) => prev + 1)
+      // Optional: Add a toast notification here
+    }
+
+    socketService.on('notification:new', handleNewNotification)
+
+    return () => {
+      socketService.off('notification:new', handleNewNotification)
+    }
+  }, [user])
 
   return (
     <>
@@ -124,6 +150,28 @@ export function Sidebar({ active = 'dashboard', onChange, mobileOpen = false, on
           >
             <Globe className="size-4" />
             {i18n.language === 'en' ? '🇺🇸 English' : '🇻🇳 Tiếng Việt'}
+          </button>
+
+          {/* Notifications */}
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-100 transition-colors"
+            onClick={() => {
+              setUnreadCount(0)
+              notificationsAPI.markAllRead()
+            }}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <Bell className="size-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
+              Notifications
+            </div>
           </button>
 
           {/* User card */}
