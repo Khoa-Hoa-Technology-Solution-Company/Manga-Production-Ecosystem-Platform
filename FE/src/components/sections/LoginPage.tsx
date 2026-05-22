@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BookMarked, Eye, EyeOff, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { Button, Input } from '../ui';
 
@@ -14,11 +15,23 @@ const roleOptions = [
 
 export function LoginPage() {
   const { t, i18n } = useTranslation();
-  const { login, register } = useAuth();
+  const { login, register, isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Auto redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role?.toLowerCase() === 'reader') {
+        navigate('/discover', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // Form state
   const [email, setEmail] = useState('');
