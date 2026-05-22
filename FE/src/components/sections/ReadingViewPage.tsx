@@ -1,16 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
+  ArrowDown,
   ArrowLeft,
+  BookOpen,
   Bookmark,
   ChevronLeft,
   ChevronRight,
   Heart,
+  Maximize,
+  Minimize,
   MessageCircle,
   Share2,
   Star,
   ThumbsUp,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
+import { commentsAPI, seriesAPI, chaptersAPI } from '../../lib/api'
+import { socketService } from '../../lib/socket'
 
 /* ── Chapter data ────────────────────────────────────── */
 const chapterInfo = {
@@ -109,6 +115,215 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
   const [bookmarked, setBookmarked] = useState(false)
   const [voted, setVoted] = useState(false)
   const [activeReactions, setActiveReactions] = useState<Set<string>>(new Set())
+  const [readingMode, setReadingMode] = useState<'scroll' | 'paged'>('scroll')
+  const [replyingToId, setReplyingToId] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const viewerRef = useRef<HTMLDivElement>(null)
+
+  // Fullscreen event listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      viewerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`)
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  // Dynamic state for real-time updates
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
+  const [commentsList, setCommentsList] = useState<any[]>([]) // Initial empty, will load static + API
+  const [voteCount, setVoteCount] = useState(chapterInfo.voteCount)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Resolve a real chapter ID from the backend to ensure Mongoose ObjectId validity
+  useEffect(() => {
+    const initRealChapter = async () => {
+      try {
+        const seriesRes = await seriesAPI.getAll()
+        const series = seriesRes.data.series
+        if (series && series.length > 0) {
+          const chaptersRes = await chaptersAPI.getBySeries(series[0]._id)
+          const chapters = chaptersRes.data.chapters
+          if (chapters && chapters.length > 0) {
+            setActiveChapterId(chapters[0]._id)
+            return
+          }
+        }
+      } catch (e) {
+        console.error('Failed to resolve real chapter ID', e)
+      }
+      // Fallback
+      setActiveChapterId('fallback')
+    }
+    initRealChapter()
+  }, [])
+
+  // Setup Socket.io and fetch initial comments
+  useEffect(() => {
+    if (!activeChapterId || activeChapterId === 'fallback') {
+      setCommentsList(comments) // Load static mock data
+      return
+    }
+
+    // Fetch existing comments from API
+    commentsAPI.getByChapter(activeChapterId).then((res) => {
+      if (res.data.comments) {
+        const formatComment = (c: any) => ({
+          id: c._id,
+          user: c.userId?.displayName || 'Reader',
+          initials: (c.userId?.displayName || 'R').substring(0, 2).toUpperCase(),
+          color: 'bg-indigo-500',
+          time: new Date(c.createdAt).toLocaleDateString(),
+          text: c.text,
+          likes: c.likes || 0,
+          liked: false,
+          parentId: c.parentId,
+        })
+        
+        const apiComments = res.data.comments.map((c: any) => ({
+          ...formatComment(c),
+          replies: (c.replies || []).map(formatComment),
+        }))
+        setCommentsList(apiComments)
+      }
+    }).catch(console.error)
+
+    socketService.joinChapterRoom(activeChapterId)
+
+    const handleNewComment = (newComment: any) => {
+      const formatted = {
+        id: newComment._id,
+        user: newComment.userId?.displayName || 'Reader',
+        initials: (newComment.userId?.displayName || 'R').substring(0, 2).toUpperCase(),
+        color: 'bg-indigo-500',
+        time: 'Just now',
+        text: newComment.text,
+        likes: 0,
+        liked: false,
+        parentId: newComment.parentId,
+      }
+
+      setCommentsList((prev) => {
+        if (formatted.parentId) {
+          return prev.map(p => {
+            if (p.id === formatted.parentId) {
+              return { ...p, replies: [...(p.replies || []), formatted] }
+            }
+            return p
+          })
+        }
+        return [{ ...formatted, replies: [] }, ...prev]
+      })
+    }
+
+    const handleNewVote = (data: any) => {
+      if (data.totalVotes !== undefined) {
+        setVoteCount(data.totalVotes.toLocaleString())
+      }
+    }
+
+    socketService.on('comment:new', handleNewComment)
+    socketService.on('vote:new', handleNewVote)
+
+    return () => {
+      socketService.leaveChapterRoom(activeChapterId)
+      socketService.off('comment:new', handleNewComment)
+      socketService.off('vote:new', handleNewVote)
+    }
+  }, [activeChapterId])
+
+  // Keyboard navigation for Paged View
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Allow navigation only in paged mode
+      if (readingMode !== 'paged') return
+      
+      // Don't trigger if user is typing in an input or textarea
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+        return
+      }
+
+      if (e.key === 'ArrowLeft') {
+        setCurrentPage((prev) => Math.max(0, prev - 1))
+      } else if (e.key === 'ArrowRight') {
+        setCurrentPage((prev) => Math.min(chapterInfo.totalPages - 1, prev + 1))
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [readingMode])
+
+  const handlePostComment = async () => {
+    if (!commentText.trim()) return
+    setIsSubmitting(true)
+    try {
+      if (activeChapterId && activeChapterId !== 'fallback') {
+        await commentsAPI.create(activeChapterId, { text: commentText })
+      }
+      setCommentText('')
+    } catch (error) {
+      console.error('Failed to post comment', error)
+      alert('Lỗi: Không thể gửi bình luận. Vui lòng thử lại.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handlePostReply = async (parentId: string) => {
+    if (!replyText.trim()) return
+    setIsSubmitting(true)
+    try {
+      if (activeChapterId && activeChapterId !== 'fallback') {
+        await commentsAPI.create(activeChapterId, { text: replyText, parentId })
+      }
+      setReplyText('')
+      setReplyingToId(null)
+    } catch (error) {
+      console.error('Failed to post reply', error)
+      alert('Lỗi: Không thể gửi trả lời. Vui lòng thử lại.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLikeComment = async (commentId: string, parentId?: string) => {
+    try {
+      if (activeChapterId && activeChapterId !== 'fallback') {
+        const res = await commentsAPI.like(commentId)
+        
+        setCommentsList(prev => prev.map(p => {
+          if (parentId && p.id === parentId) {
+            return {
+              ...p,
+              replies: p.replies?.map((r: any) => 
+                r.id === commentId ? { ...r, liked: res.data.liked, likes: res.data.comment.likes } : r
+              )
+            }
+          }
+          if (!parentId && p.id === commentId) {
+            return { ...p, liked: res.data.liked, likes: res.data.comment.likes }
+          }
+          return p
+        }))
+      }
+    } catch (e) {
+      console.error('Failed to like comment', e)
+    }
+  }
+
+
 
   const toggleReaction = (emoji: string) => {
     setActiveReactions((prev) => {
@@ -120,7 +335,7 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
       {/* ── Top bar ──────────────────────────────────── */}
       <header className="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
@@ -134,6 +349,24 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-[10px] gap-1 px-2 h-8 rounded-lg bg-neutral-100/50 hover:bg-neutral-200"
+            onClick={toggleFullscreen}
+          >
+            <Maximize className="size-3.5"/>
+            Fullscreen
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-[10px] gap-1 px-2 h-8 rounded-lg bg-neutral-100/50 hover:bg-neutral-200"
+            onClick={() => setReadingMode(readingMode === 'scroll' ? 'paged' : 'scroll')}
+          >
+            {readingMode === 'scroll' ? <BookOpen className="size-3.5"/> : <ArrowDown className="size-3.5"/>}
+            {readingMode === 'scroll' ? 'Paged View' : 'Scroll View'}
+          </Button>
           <Button
             variant={bookmarked ? 'secondary' : 'ghost'}
             size="sm"
@@ -149,46 +382,72 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
       </header>
 
       {/* ── Main content ─────────────────────────────── */}
-      <div className="flex flex-1 flex-col lg:flex-row">
+      <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
         {/* ── Manga Viewer (Left) ─────────────────── */}
-        <div className="flex-1 flex flex-col bg-neutral-100">
-          {/* Page display */}
-          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-            <div className="relative w-full max-w-lg">
-              <img
-                src={pages[currentPage % pages.length]}
-                alt={`Page ${currentPage + 1}`}
-                className="w-full rounded-lg shadow-2xl"
-              />
+        <div ref={viewerRef} className={`flex-1 flex flex-col bg-neutral-100 overflow-hidden relative ${isFullscreen ? 'bg-neutral-900' : ''}`}>
+          
+          {isFullscreen && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-4 right-6 z-50 size-10 p-0 rounded-full shadow-lg opacity-30 hover:opacity-100 transition-opacity flex items-center justify-center"
+              onClick={toggleFullscreen}
+            >
+              <Minimize className="size-5" />
+            </Button>
+          )}
 
-              {/* Page navigation overlay */}
-              <button
-                type="button"
-                className="absolute inset-y-0 left-0 w-1/3 cursor-pointer group"
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-              >
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="grid size-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur">
-                    <ChevronLeft className="size-5" />
+          {/* Page display */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center relative">
+            {readingMode === 'paged' ? (
+              <div className="relative w-full max-w-lg flex flex-col items-center justify-center min-h-full">
+                <img
+                  src={pages[currentPage % pages.length]}
+                  alt={`Page ${currentPage + 1}`}
+                  className="w-full rounded-lg shadow-2xl"
+                />
+
+                {/* Page navigation overlay */}
+                <button
+                  type="button"
+                  className="absolute inset-y-0 left-0 w-1/3 cursor-pointer group"
+                  onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                >
+                  <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="grid size-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur">
+                      <ChevronLeft className="size-5" />
+                    </div>
                   </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 w-1/3 cursor-pointer group"
-                onClick={() => setCurrentPage(Math.min(chapterInfo.totalPages - 1, currentPage + 1))}
-              >
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="grid size-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur">
-                    <ChevronRight className="size-5" />
+                </button>
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 w-1/3 cursor-pointer group"
+                  onClick={() => setCurrentPage(Math.min(chapterInfo.totalPages - 1, currentPage + 1))}
+                >
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="grid size-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur">
+                      <ChevronRight className="size-5" />
+                    </div>
                   </div>
-                </div>
-              </button>
-            </div>
+                </button>
+              </div>
+            ) : (
+              <div className="w-full max-w-lg flex flex-col gap-2 pb-20">
+                {pages.map((p, idx) => (
+                  <img
+                    key={idx}
+                    src={p}
+                    alt={`Page ${idx + 1}`}
+                    className="w-full rounded-lg shadow-xl"
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Page navigation bar */}
-          <div className="flex items-center justify-between border-t border-neutral-200 bg-white px-4 py-2.5">
+          {readingMode === 'paged' && (
+            <div className="flex items-center justify-between border-t border-neutral-200 bg-white px-4 py-2.5 shrink-0 z-10">
             <Button
               variant="ghost"
               size="sm"
@@ -227,11 +486,12 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
               Next <ChevronRight className="size-3.5" />
             </Button>
           </div>
+          )}
         </div>
 
         {/* ── Right Sidebar (Info + Comments) ─────── */}
-        <div className="w-full border-t border-neutral-200 lg:w-96 lg:border-l lg:border-t-0 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 57px)' }}>
-          <div className="p-4 sm:p-5 space-y-5">
+        <div className="w-full border-t border-neutral-200 lg:w-96 lg:border-l lg:border-t-0 overflow-y-auto shrink-0 bg-white h-full flex flex-col">
+          <div className="p-4 sm:p-5 space-y-5 flex-1">
             {/* Chapter Info */}
             <div className="space-y-3">
               <div>
@@ -289,7 +549,7 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold">Reader Votes</span>
-                  <p className="text-lg font-bold mt-0.5">{chapterInfo.voteCount}</p>
+                  <p className="text-lg font-bold mt-0.5">{voteCount}</p>
                 </div>
                 <Button
                   variant={voted ? 'secondary' : 'default'}
@@ -330,7 +590,7 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <MessageCircle className="size-4 text-neutral-500" />
-                <span className="text-xs font-semibold">{comments.length + 42} Comments</span>
+                <span className="text-xs font-semibold">{commentsList.length} Comments</span>
               </div>
 
               {/* Comment form */}
@@ -346,40 +606,127 @@ export function ReadingViewPage({ onBack }: ReadingViewProps) {
                     onChange={(e) => setCommentText(e.target.value)}
                   />
                   <div className="flex justify-end">
-                    <Button size="sm" className="h-7 text-xs rounded-lg" disabled={!commentText.trim()}>
-                      Post Comment
+                    <Button 
+                      size="sm" 
+                      className="h-7 text-xs rounded-lg" 
+                      disabled={!commentText.trim() || isSubmitting}
+                      onClick={handlePostComment}
+                    >
+                      {isSubmitting ? 'Posting...' : 'Post Comment'}
                     </Button>
                   </div>
                 </div>
               </div>
 
               {/* Comments list */}
-              <div className="space-y-3">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-2.5">
-                    <Avatar className={`size-7 shrink-0 text-white ${comment.color}`}>
-                      <AvatarFallback className="text-[8px] text-white">{comment.initials}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">{comment.user}</span>
-                        <span className="text-[10px] text-neutral-400">{comment.time}</span>
-                      </div>
-                      <p className="text-xs leading-5 text-neutral-700 mt-0.5">{comment.text}</p>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <button
-                          type="button"
-                          className={`flex items-center gap-1 text-[10px] transition-colors ${
-                            comment.liked ? 'text-blue-600 font-medium' : 'text-neutral-400 hover:text-neutral-600'
-                          }`}
-                        >
-                          <ThumbsUp className="size-3" /> {comment.likes}
-                        </button>
-                        <button type="button" className="text-[10px] text-neutral-400 hover:text-neutral-600 transition-colors">
-                          Reply
-                        </button>
+              <div className="space-y-4">
+                {commentsList.map((comment) => (
+                  <div key={comment.id} className="flex flex-col gap-3">
+                    {/* Parent Comment */}
+                    <div className="flex gap-2.5">
+                      <Avatar className={`size-7 shrink-0 text-white ${comment.color}`}>
+                        <AvatarFallback className="text-[8px] text-white">{comment.initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold">{comment.user}</span>
+                          <span className="text-[10px] text-neutral-400">{comment.time}</span>
+                        </div>
+                        <p className="text-xs leading-5 text-neutral-700 mt-0.5">{comment.text}</p>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleLikeComment(comment.id)}
+                            className={`flex items-center gap-1 text-[10px] transition-colors ${
+                              comment.liked ? 'text-blue-600 font-medium' : 'text-neutral-400 hover:text-neutral-600'
+                            }`}
+                          >
+                            <ThumbsUp className="size-3" /> {comment.likes}
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setReplyingToId(replyingToId === comment.id ? null : comment.id)
+                              setReplyText('')
+                            }}
+                            className="text-[10px] text-neutral-400 hover:text-neutral-600 transition-colors"
+                          >
+                            Reply
+                          </button>
+                        </div>
+
+                        {/* Reply Input */}
+                        {replyingToId === comment.id && (
+                          <div className="flex gap-2 mt-3">
+                            <Textarea
+                              placeholder="Write a reply..."
+                              className="min-h-12 text-xs rounded-lg"
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                            />
+                            <div className="flex flex-col gap-2">
+                              <Button 
+                                size="sm" 
+                                className="h-7 text-[10px] rounded-lg px-3" 
+                                disabled={!replyText.trim() || isSubmitting}
+                                onClick={() => handlePostReply(comment.id)}
+                              >
+                                {isSubmitting ? '...' : 'Reply'}
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-[10px] rounded-lg px-3"
+                                onClick={() => setReplyingToId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
+
+                    {/* Child Comments (Replies) */}
+                    {comment.replies && comment.replies.length > 0 && (
+                      <div className="flex flex-col gap-3 pl-9 border-l-2 border-neutral-100 ml-3.5">
+                        {comment.replies.map((reply: any) => (
+                          <div key={reply.id} className="flex gap-2.5">
+                            <Avatar className={`size-6 shrink-0 text-white ${reply.color}`}>
+                              <AvatarFallback className="text-[7px] text-white">{reply.initials}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold">{reply.user}</span>
+                                <span className="text-[10px] text-neutral-400">{reply.time}</span>
+                              </div>
+                              <p className="text-xs leading-5 text-neutral-700 mt-0.5">{reply.text}</p>
+                              <div className="flex items-center gap-3 mt-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLikeComment(reply.id, comment.id)}
+                                  className={`flex items-center gap-1 text-[10px] transition-colors ${
+                                    reply.liked ? 'text-blue-600 font-medium' : 'text-neutral-400 hover:text-neutral-600'
+                                  }`}
+                                >
+                                  <ThumbsUp className="size-3" /> {reply.likes}
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setReplyingToId(comment.id)
+                                    setReplyText(`@${reply.user} `)
+                                  }}
+                                  className="text-[10px] text-neutral-400 hover:text-neutral-600 transition-colors"
+                                >
+                                  Reply
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Menu } from 'lucide-react'
 import { Button } from './components/ui'
 import { Shell } from './components/layout/Shell'
@@ -13,12 +13,40 @@ import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
 import { useAuth } from './lib/auth'
+import { socketService } from './lib/socket'
 
 function App() {
   const { isAuthenticated, loading } = useAuth()
-  const [activeTab, setActiveTab] = useState<SidebarKey>('dashboard')
+  const [activeTab, setActiveTab] = useState<SidebarKey>(() => {
+    return (sessionStorage.getItem('mangaflow-tab') as SidebarKey) || 'dashboard'
+  })
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [readingView, setReadingView] = useState(false)
+  const [readingView, setReadingView] = useState<string | false>(() => {
+    return sessionStorage.getItem('mangaflow-reading') || false
+  })
+
+  // Sync state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('mangaflow-tab', activeTab)
+  }, [activeTab])
+
+  useEffect(() => {
+    if (readingView) {
+      sessionStorage.setItem('mangaflow-reading', readingView)
+    } else {
+      sessionStorage.removeItem('mangaflow-reading')
+    }
+  }, [readingView])
+
+
+  // Socket connection management
+  useEffect(() => {
+    if (isAuthenticated) {
+      socketService.connect()
+    } else {
+      socketService.disconnect()
+    }
+  }, [isAuthenticated])
 
   // Show loading while checking auth
   if (loading) {
@@ -67,7 +95,7 @@ function App() {
       case 'discover':
         return (
           <ReaderHubPage
-            onReadSeries={() => setReadingView(true)}
+            onReadSeries={(id) => setReadingView(id)}
           />
         )
       case 'settings':

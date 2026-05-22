@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Vote } from '../models/Vote';
 import { Series } from '../models/Series';
+import { emitToRoom } from '../socket';
 
 export async function voteForChapter(req: Request, res: Response): Promise<void> {
   try {
@@ -20,6 +21,26 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
       const totalVotes = await Vote.countDocuments({ seriesId: req.body.seriesId });
       await Series.findByIdAndUpdate(req.body.seriesId, { totalVotes });
     }
+
+    // Emit the updated stats to the chapter room
+    const [newTotalVotes, avgRatingData, reactions] = await Promise.all([
+      Vote.countDocuments({ chapterId }),
+      Vote.aggregate([
+        { $match: { chapterId: chapterId as any } },
+        { $group: { _id: null, avg: { $avg: '$rating' } } },
+      ]),
+      Vote.aggregate([
+        { $match: { chapterId: chapterId as any, reaction: { $ne: null } } },
+        { $group: { _id: '$reaction', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+    ]);
+
+    emitToRoom(`chapter:${chapterId}`, 'vote:new', {
+      totalVotes: newTotalVotes,
+      avgRating: avgRatingData[0]?.avg || 0,
+      reactions,
+    });
 
     res.json({ vote, message: 'Vote recorded.' });
   } catch (error: any) {
