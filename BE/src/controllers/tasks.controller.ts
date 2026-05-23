@@ -113,7 +113,9 @@ export async function submitTask(req: Request, res: Response): Promise<void> {
 
     // Handle file upload
     if (req.file) {
-      task.submittedFile = `/uploads/${req.file.filename}`;
+      const { uploadToR2 } = await import('../services/storage.service');
+      const fileUrl = await uploadToR2(req.file, 'tasks');
+      task.submittedFile = fileUrl;
     }
 
     task.status = 'review';

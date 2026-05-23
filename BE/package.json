@@ -11,6 +11,7 @@
     "seed": "ts-node-dev src/utils/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1053.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -23,7 +24,8 @@
     "multer": "^1.4.5-lts.1",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -34,6 +36,7 @@
     "@types/node": "^22.10.5",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.14",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.7.3"

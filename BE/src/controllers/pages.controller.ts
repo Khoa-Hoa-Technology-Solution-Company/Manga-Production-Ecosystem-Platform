@@ -12,6 +12,8 @@ export async function getByChapterId(req: Request, res: Response): Promise<void>
   }
 }
 
+import { uploadToR2 } from '../services/storage.service';
+
 export async function upload(req: Request, res: Response): Promise<void> {
   try {
     const { chapterId } = req.params;
@@ -22,10 +24,13 @@ export async function upload(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Upload to Cloudflare R2
+    const fileUrl = await uploadToR2(req.file, 'pages');
+
     const page = await Page.create({
       chapterId,
       pageNumber: parseInt(pageNumber),
-      originalImage: `/uploads/${req.file.filename}`,
+      originalImage: fileUrl,
       width: parseInt(width) || 0,
       height: parseInt(height) || 0,
     });
