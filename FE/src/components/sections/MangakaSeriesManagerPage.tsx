@@ -136,10 +136,19 @@ export function MangakaSeriesManagerPage() {
         setSelectedSeriesId('')
         setChapters([])
       }
+      setSeriesMenuOpenId('')
       await loadData()
     } finally {
       setDeletingSeriesId('')
     }
+  }
+
+  const handleSubmitSeries = async () => {
+    if (!selectedSeriesId) return
+    await seriesAPI.submit(selectedSeriesId, {
+      submissionNotes: seriesDescription,
+    })
+    await loadData()
   }
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -269,6 +278,24 @@ export function MangakaSeriesManagerPage() {
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-neutral-200 p-4 md:col-span-2">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Submit for editor review</h3>
+                  <Badge variant="secondary" className="text-[10px]">{selectedSeries?.status || 'Draft'}</Badge>
+                </div>
+                <p className="text-sm text-neutral-500">Send the current series package to Tantou Editor with notes for the review board.</p>
+                <textarea
+                  className="mt-3 min-h-28 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-900"
+                  value={seriesDescription}
+                  onChange={(e) => setSeriesDescription(e.target.value)}
+                  placeholder="Submission notes"
+                />
+                <div className="mt-3 flex justify-end">
+                  <Button onClick={handleSubmitSeries} disabled={!selectedSeriesId}>Submit for review</Button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 p-4">
               <div className="rounded-2xl border border-neutral-200 p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Upload cover</h3>

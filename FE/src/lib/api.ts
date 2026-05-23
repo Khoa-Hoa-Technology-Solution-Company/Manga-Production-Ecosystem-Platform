@@ -47,6 +47,8 @@ export const seriesAPI = {
   getAll: (params?: Record<string, unknown>) => api.get('/series', { params }),
   getById: (id: string) => api.get(`/series/${id}`),
   create: (data: FormData | Record<string, unknown>) => api.post('/series', data, data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined),
+  submit: (id: string, data?: Record<string, unknown>) => api.post(`/series/${id}/submit`, data || {}),
+  review: (id: string, data: Record<string, unknown>) => api.patch(`/series/${id}/review`, data),
   update: (id: string, data: FormData | Record<string, unknown>) => api.put(`/series/${id}`, data, data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined),
   delete: (id: string) => api.delete(`/series/${id}`),
 };
