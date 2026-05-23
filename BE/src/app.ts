@@ -30,7 +30,7 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = ['http://localhost:5173', 'http://localhost:8081'];
+    const allowedOrigins = ['http://localhost:5173','http://localhost:3000', 'http://localhost:8081'];
     if (env.CORS_ORIGIN) {
       env.CORS_ORIGIN.split(',').forEach(o => {
         const trimmed = o.trim();

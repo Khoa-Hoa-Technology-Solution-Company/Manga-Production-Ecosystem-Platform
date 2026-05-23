@@ -2,6 +2,17 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type ChapterStatus = 'Draft' | 'Reviewing' | 'Approved' | 'Published';
 
+export interface IChapterMember {
+  userId: mongoose.Types.ObjectId;
+  role: 'mangaka' | 'assistant' | 'editor';
+  canEdit: boolean;
+  canComment: boolean;
+  canInvite: boolean;
+  invitedBy?: mongoose.Types.ObjectId;
+  invitedAt?: Date;
+  acceptedAt?: Date;
+}
+
 export interface IChapter extends Document {
   seriesId: mongoose.Types.ObjectId;
   chapterNumber: number;
@@ -9,6 +20,7 @@ export interface IChapter extends Document {
   status: ChapterStatus;
   mangakaId: mongoose.Types.ObjectId;
   editorId?: mongoose.Types.ObjectId;
+  collaborators: IChapterMember[];
   totalPages: number;
   progress: number;
   publishedAt?: Date;
@@ -24,6 +36,18 @@ const chapterSchema = new Schema<IChapter>(
     status: { type: String, enum: ['Draft', 'Reviewing', 'Approved', 'Published'], default: 'Draft' },
     mangakaId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     editorId: { type: Schema.Types.ObjectId, ref: 'User' },
+    collaborators: [
+      {
+        userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        role: { type: String, enum: ['mangaka', 'assistant', 'editor'], required: true },
+        canEdit: { type: Boolean, default: true },
+        canComment: { type: Boolean, default: true },
+        canInvite: { type: Boolean, default: false },
+        invitedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        invitedAt: { type: Date },
+        acceptedAt: { type: Date },
+      },
+    ],
     totalPages: { type: Number, default: 0 },
     progress: { type: Number, default: 0, min: 0, max: 100 },
     publishedAt: { type: Date },
