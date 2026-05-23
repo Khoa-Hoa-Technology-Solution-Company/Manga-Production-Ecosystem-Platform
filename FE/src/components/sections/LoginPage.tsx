@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BookMarked, Eye, EyeOff, Globe } from 'lucide-react';

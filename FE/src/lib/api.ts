@@ -39,32 +39,32 @@ export const authAPI = {
   register: (data: { email: string; password: string; displayName: string; role?: string }) =>
     api.post('/auth/register', data),
   getMe: () => api.get('/auth/me'),
-  updateProfile: (data: any) => api.put('/auth/profile', data),
+  updateProfile: (data: unknown) => api.put('/auth/profile', data),
 };
 
 // ── Series API ──────────────────────────────────────
 export const seriesAPI = {
-  getAll: (params?: any) => api.get('/series', { params }),
+  getAll: (params?: Record<string, unknown>) => api.get('/series', { params }),
   getById: (id: string) => api.get(`/series/${id}`),
-  create: (data: any) => api.post('/series', data),
-  update: (id: string, data: any) => api.put(`/series/${id}`, data),
+  create: (data: unknown) => api.post('/series', data),
+  update: (id: string, data: unknown) => api.put(`/series/${id}`, data),
   delete: (id: string) => api.delete(`/series/${id}`),
 };
 
 // ── Chapters API ────────────────────────────────────
 export const chaptersAPI = {
   getBySeries: (seriesId: string) => api.get(`/chapters/series/${seriesId}`),
-  create: (seriesId: string, data: any) => api.post(`/chapters/series/${seriesId}`, data),
-  update: (id: string, data: any) => api.put(`/chapters/${id}`, data),
+  create: (seriesId: string, data: unknown) => api.post(`/chapters/series/${seriesId}`, data),
+  update: (id: string, data: unknown) => api.put(`/chapters/${id}`, data),
   updateStatus: (id: string, status: string) => api.patch(`/chapters/${id}/status`, { status }),
 };
 
 // ── Tasks API ───────────────────────────────────────
 export const tasksAPI = {
-  getAll: (params?: any) => api.get('/tasks', { params }),
+  getAll: (params?: Record<string, unknown>) => api.get('/tasks', { params }),
   getById: (id: string) => api.get(`/tasks/${id}`),
-  create: (data: any) => api.post('/tasks', data),
-  update: (id: string, data: any) => api.put(`/tasks/${id}`, data),
+  create: (data: unknown) => api.post('/tasks', data),
+  update: (id: string, data: unknown) => api.put(`/tasks/${id}`, data),
   accept: (id: string) => api.patch(`/tasks/${id}/accept`),
   updateStatus: (id: string, status: string) => api.patch(`/tasks/${id}/status`, { status }),
   submit: (id: string, formData: FormData) =>
@@ -93,27 +93,27 @@ export const pagesAPI = {
 // ── Zones API ───────────────────────────────────────
 export const zonesAPI = {
   getByPage: (pageId: string) => api.get(`/zones/page/${pageId}`),
-  create: (pageId: string, data: any) => api.post(`/zones/page/${pageId}`, data),
-  update: (id: string, data: any) => api.put(`/zones/${id}`, data),
+  create: (pageId: string, data: unknown) => api.post(`/zones/page/${pageId}`, data),
+  update: (id: string, data: unknown) => api.put(`/zones/${id}`, data),
   delete: (id: string) => api.delete(`/zones/${id}`),
 };
 
 // ── Comments API ────────────────────────────────────
 export const commentsAPI = {
-  getByChapter: (chapterId: string, params?: any) => api.get(`/chapters/${chapterId}/comments`, { params }),
-  create: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/comments`, data),
+  getByChapter: (chapterId: string, params?: Record<string, unknown>) => api.get(`/chapters/${chapterId}/comments`, { params }),
+  create: (chapterId: string, data: unknown) => api.post(`/chapters/${chapterId}/comments`, data),
   like: (commentId: string) => api.post(`/comments/${commentId}/like`),
 };
 
 // ── Votes API ───────────────────────────────────────
 export const votesAPI = {
   getByChapter: (chapterId: string) => api.get(`/chapters/${chapterId}/votes`),
-  vote: (chapterId: string, data: any) => api.post(`/chapters/${chapterId}/vote`, data),
+  vote: (chapterId: string, data: unknown) => api.post(`/chapters/${chapterId}/vote`, data),
 };
 
 // ── Notifications API ───────────────────────────────
 export const notificationsAPI = {
-  getAll: (params?: any) => api.get('/notifications', { params }),
+  getAll: (params?: Record<string, unknown>) => api.get('/notifications', { params }),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   markAllRead: () => api.patch('/notifications/read-all'),
 };

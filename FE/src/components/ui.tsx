@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 export { Avatar, AvatarFallback } from './ui/avatar'
 export { Badge } from './ui/badge'
 export { Button } from './ui/button'

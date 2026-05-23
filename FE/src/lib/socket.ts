@@ -40,13 +40,12 @@ class SocketService {
   }
 
   // Event listeners
-  on(event: string, callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on(event, callback);
-    }
+  on(event: string, callback: (data: unknown) => void) {
+    if (!this.socket) return;
+    this.socket.on(event, callback);
   }
 
-  off(event: string, callback?: (data: any) => void) {
+  off(event: string, callback?: (data: unknown) => void) {
     if (this.socket) {
       if (callback) this.socket.off(event, callback);
       else this.socket.off(event);

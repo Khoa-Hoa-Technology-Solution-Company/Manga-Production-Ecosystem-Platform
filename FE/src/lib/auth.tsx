@@ -22,21 +22,19 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('mangaflow-user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('mangaflow-token'));
+  const [loading] = useState(false);
 
-  // Load saved auth on mount
-  useEffect(() => {
-    const savedToken = localStorage.getItem('mangaflow-token');
-    const savedUser = localStorage.getItem('mangaflow-user');
-
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('mangaflow-token');
+    localStorage.removeItem('mangaflow-user');
+  };
 
   // Listen for auth:logout events (from API interceptor)
   useEffect(() => {
@@ -61,13 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('mangaflow-user', JSON.stringify(data.user));
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('mangaflow-token');
-    localStorage.removeItem('mangaflow-user');
-  };
-
   return (
     <AuthContext.Provider
       value={{ user, token, loading, login, register, logout, isAuthenticated: !!token }}
@@ -77,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
