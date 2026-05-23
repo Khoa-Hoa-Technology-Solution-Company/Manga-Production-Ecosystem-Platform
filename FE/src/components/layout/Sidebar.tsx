@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bell, BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
+import { Bell, BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X, Library } from 'lucide-react'
 import { Avatar, AvatarFallback, Button } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { notificationsAPI } from '../../lib/api'
@@ -23,6 +23,7 @@ const navigation: Array<{
   { key: 'home', labelKey: 'sidebar.home', icon: Home, section: 'main' },
   { key: 'dashboard', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, section: 'main' },
   { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create' },
+  { key: 'series', labelKey: 'sidebar.seriesManager', icon: Library, section: 'create' },
   { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create' },
   { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
   { key: 'settings', labelKey: 'sidebar.settings', icon: Settings, section: 'other' },
@@ -139,7 +140,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                           : 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 text-neutral-500 font-normal'
                       }
                       onClick={() => {
-                        navigate(key === 'home' ? '/' : `/${key}`)
+                        navigate(key === 'home' ? '/' : `/${key === 'series' ? 'studio/series' : key}`)
                         onMobileClose?.()
                       }}
                     >

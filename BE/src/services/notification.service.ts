@@ -72,3 +72,20 @@ export async function notifyChapterStatusChange(
     relatedType: 'Chapter',
   });
 }
+
+export async function notifySeriesReview(
+  userId: string,
+  seriesTitle: string,
+  reviewStatus: string,
+  seriesId: string,
+  notes?: string
+): Promise<void> {
+  await createNotification({
+    userId,
+    type: 'review',
+    title: `Series ${reviewStatus}`,
+    message: notes ? `"${seriesTitle}" is now ${reviewStatus}. ${notes}` : `"${seriesTitle}" is now ${reviewStatus}.`,
+    relatedId: seriesId,
+    relatedType: 'Series',
+  });
+}

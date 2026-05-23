@@ -8,6 +8,7 @@ import { Footer } from './components/layout/Footer'
 import { DashboardPage } from './components/sections/DashboardPage'
 import { StudioPage } from './components/sections/StudioPage'
 import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
+import { MangakaSeriesManagerPage } from './components/sections/MangakaSeriesManagerPage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
@@ -80,6 +81,7 @@ function App() {
             <Route element={<ProtectedReaderRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/studio" element={<StudioWorkspacePage />} />
+              <Route path="/studio/series" element={<MangakaSeriesManagerPage />} />
               <Route path="/tasks" element={<AssistantPortalPage />} />
             </Route>
             

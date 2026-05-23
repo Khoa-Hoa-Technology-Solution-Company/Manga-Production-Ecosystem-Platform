@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Chapter } from '../models/Chapter';
+import { Series } from '../models/Series';
 import { transitionChapterStatus } from '../services/workflow.service';
 
 export async function getBySeriesId(req: Request, res: Response): Promise<void> {
@@ -17,12 +18,38 @@ export async function getBySeriesId(req: Request, res: Response): Promise<void> 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { chapterNumber, title } = req.body;
+    const series = await Series.findOne({ _id: req.params.seriesId, mangakaId: req.user?._id });
+    if (!series) {
+      res.status(404).json({ error: 'Series not found or you do not own it.' });
+      return;
+    }
+
+    const nextChapterNumber =
+      Number.isFinite(Number(chapterNumber)) && Number(chapterNumber) > 0
+        ? Number(chapterNumber)
+        : ((await Chapter.countDocuments({ seriesId: req.params.seriesId })) + 1);
+
+    const existingChapter = await Chapter.findOne({
+      seriesId: req.params.seriesId,
+      chapterNumber: nextChapterNumber,
+    });
+
+    if (existingChapter) {
+      res.status(409).json({ error: 'Chapter number already exists in this series.' });
+      return;
+    }
+
     const chapter = await Chapter.create({
       seriesId: req.params.seriesId,
-      chapterNumber,
+      chapterNumber: nextChapterNumber,
       title,
       mangakaId: req.user?._id,
     });
+
+    await Series.findByIdAndUpdate(req.params.seriesId, {
+      $inc: { totalChapters: 1 },
+    });
+
     res.status(201).json({ chapter });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -42,6 +69,27 @@ export async function update(req: Request, res: Response): Promise<void> {
       return;
     }
     res.json({ chapter });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function remove(req: Request, res: Response): Promise<void> {
+  try {
+    const chapter = await Chapter.findOneAndDelete({
+      _id: req.params.id,
+      mangakaId: req.user?._id,
+    });
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found or you do not own it.' });
+      return;
+    }
+
+    await Series.findByIdAndUpdate(chapter.seriesId, {
+      $inc: { totalChapters: -1 },
+    });
+
+    res.json({ message: 'Chapter deleted.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
