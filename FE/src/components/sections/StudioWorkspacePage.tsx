@@ -26,6 +26,7 @@ import {
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI } from '../../lib/api'
+import { socketService } from '../../lib/socket'
 
 /* ── Types ────────────────────────────────────────────── */
 type ZoneData = {
@@ -93,6 +94,17 @@ export function StudioWorkspacePage() {
   const [pageTasks, setPageTasks] = useState<TaskData[]>([])
   const [zoneVisibility, setZoneVisibility] = useState<Record<string, boolean>>({})
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; color: string; name: string }>>({})
+  const [roomMembers, setRoomMembers] = useState<Array<{ userId: string; role: string }>>([])
+  const [focusedObjects, setFocusedObjects] = useState<Record<string, { userId: string; role: string }>>({})
+  const [lockedObjects, setLockedObjects] = useState<Record<string, { userId: string; role: string }>>({})
+  const [shareUserId, setShareUserId] = useState('')
+  const [shareUserQuery, setShareUserQuery] = useState('')
+  const [shareUserResults, setShareUserResults] = useState<any[]>([])
+  const [shareRole, setShareRole] = useState<'assistant' | 'editor'>('assistant')
+  const [shareCanEdit, setShareCanEdit] = useState(true)
+  const [shareCanComment, setShareCanComment] = useState(true)
+  const [shareCanInvite, setShareCanInvite] = useState(false)
 
   // ── Zone creation dialog ──────────────────────────
   const [showNewZoneDialog, setShowNewZoneDialog] = useState(false)
@@ -107,9 +119,13 @@ export function StudioWorkspacePage() {
   const bgImageRef = useRef<FabricImage | null>(null)
   const isPanning = useRef(false)
   const lastPanPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const isApplyingRemoteChange = useRef(false)
+  const objectSyncCounter = useRef(0)
+  const syncIdRegistry = useRef(new Set<string>())
   
   // History for manual tools (draw, text)
   type HistoryRecord = { type: 'manual_change', prevState: string, nextState: string }
+  type SyncableObject = any & { _syncId?: string }
   const historyStack = useRef<HistoryRecord[]>([])
   const redoStack = useRef<HistoryRecord[]>([])
   const currentManualState = useRef<string>('[]')
@@ -117,12 +133,15 @@ export function StudioWorkspacePage() {
   
   const [drawColor, setDrawColor] = useState('#000000')
   const [drawSize, setDrawSize] = useState(2)
+  const [brushMode, setBrushMode] = useState<'ink' | 'marker' | 'pencil' | 'eraser'>('ink')
   const drawColorRef = useRef(drawColor)
   const drawSizeRef = useRef(drawSize)
+  const brushModeRef = useRef(brushMode)
   useEffect(() => {
     drawColorRef.current = drawColor
     drawSizeRef.current = drawSize
-  }, [drawColor, drawSize])
+    brushModeRef.current = brushMode
+  }, [drawColor, drawSize, brushMode])
 
   // Sync color/size changes to active objects immediately
   useEffect(() => {
@@ -153,6 +172,147 @@ export function StudioWorkspacePage() {
   const currentPage = pages[currentPageIdx]
   const isMangaka = user?.role === 'mangaka'
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+  const chapterRoom = selectedChapterId ? `chapter:${selectedChapterId}` : ''
+
+  useEffect(() => {
+    socketService.connect()
+    return () => socketService.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!chapterRoom) return
+    socketService.joinRoom(chapterRoom)
+    const onCursorMove = (payload: any) => {
+      if (!payload?.userId || payload.userId === user?._id) return
+      setRemoteCursors(prev => ({
+        ...prev,
+        [payload.userId]: {
+          x: payload.x ?? 0,
+          y: payload.y ?? 0,
+          color: payload.color || '#ef4444',
+          name: payload.name || payload.userId,
+        },
+      }))
+    }
+    const onPresenceJoined = (payload: any) => {
+      if (!payload?.userId || payload.userId === user?._id) return
+      setRemoteCursors(prev => ({
+        ...prev,
+        [payload.userId]: prev[payload.userId] || {
+          x: 0,
+          y: 0,
+          color: '#22c55e',
+          name: payload.userId,
+        },
+      }))
+    }
+    const onPresenceLeft = (payload: any) => {
+      if (!payload?.userId) return
+      setRemoteCursors(prev => {
+        const next = { ...prev }
+        delete next[payload.userId]
+        return next
+      })
+    }
+
+    const onPresenceList = (payload: any) => {
+      if (payload?.room !== chapterRoom) return
+      setRoomMembers(payload.members || [])
+    }
+    const onObjectFocus = (payload: any) => {
+      if (!payload?.objectId || payload.userId === user?._id) return
+      setFocusedObjects(prev => {
+        const next = { ...prev }
+        if (payload.action === 'blur') delete next[payload.objectId]
+        else next[payload.objectId] = { userId: payload.userId, role: payload.role }
+        return next
+      })
+    }
+    const onObjectLock = (payload: any) => {
+      if (!payload?.objectId || payload.userId === user?._id) return
+      setLockedObjects(prev => {
+        const next = { ...prev }
+        if (payload.action === 'unlock') delete next[payload.objectId]
+        else next[payload.objectId] = { userId: payload.userId, role: payload.role }
+        return next
+      })
+    }
+
+    socketService.on('cursor:move', onCursorMove)
+    socketService.on('presence:joined', onPresenceJoined)
+    socketService.on('presence:left', onPresenceLeft)
+    socketService.on('presence:list', onPresenceList)
+    socketService.on('object:focus', onObjectFocus)
+    socketService.on('object:lock', onObjectLock)
+    return () => {
+      socketService.off('cursor:move', onCursorMove)
+      socketService.off('presence:joined', onPresenceJoined)
+      socketService.off('presence:left', onPresenceLeft)
+      socketService.off('presence:list', onPresenceList)
+      socketService.off('object:focus', onObjectFocus)
+      socketService.off('object:lock', onObjectLock)
+      socketService.leaveRoom(chapterRoom)
+    }
+  }, [chapterRoom, user?._id])
+
+  const connectedCollaborators = roomMembers.filter(m => m.userId !== user?._id)
+  const collaboratorCount = connectedCollaborators.length
+
+  useEffect(() => {
+    const fc = fabricRef.current
+    if (!fc || !chapterRoom) return
+    const sendCursor = (opt: any) => {
+      const p = fc.getScenePoint(opt.e)
+      socketService.emit('cursor:move', {
+        room: chapterRoom,
+        payload: {
+          x: p.x,
+          y: p.y,
+          color: user?.avatarColor || '#ef4444',
+          name: user?.displayName || user?.email || 'User',
+        },
+      })
+    }
+    const onObjectSync = async (message: any) => {
+      if (!message || message.pageId !== currentPage?._id) return
+      const data = message.payload?.object || message.payload?.payload || message.payload
+      if (!data) return
+      isApplyingRemoteChange.current = true
+      try {
+        if (message.kind === 'object:removed') {
+          const syncId = data._syncId || message.id
+          const target = fc.getObjects().find((o: any) => (o as SyncableObject)._syncId === syncId)
+          if (target) fc.remove(target)
+        } else if (message.kind === 'object:added') {
+          const syncId = data._syncId || message.id
+          const existing = fc.getObjects().find((o: any) => (o as SyncableObject)._syncId === syncId)
+          if (!existing) {
+            const [obj] = await util.enlivenObjects([data])
+            if (obj) {
+              ;(obj as SyncableObject)._syncId = syncId
+              obj.selectable = activeTool === 'select'
+              fc.add(obj)
+            }
+          }
+        } else if (message.kind === 'object:modified') {
+          const syncId = data._syncId || message.id
+          const target = fc.getObjects().find((o: any) => (o as SyncableObject)._syncId === syncId)
+          if (target) {
+            target.set(data)
+          }
+        }
+        fc.requestRenderAll()
+      } finally {
+        isApplyingRemoteChange.current = false
+      }
+    }
+    fc.on('mouse:move', sendCursor)
+    socketService.on('object:sync', onObjectSync)
+    return () => {
+      fc.off('mouse:move', sendCursor)
+      socketService.off('object:sync', onObjectSync)
+    }
+  }, [chapterRoom, currentPage?._id, activeTool, user?.avatarColor, user?.displayName, user?.email])
 
   // ═══════════════════════════════════════════════════
   // DATA LOADING
@@ -180,6 +340,19 @@ export function StudioWorkspacePage() {
       setCurrentPageIdx(0)
     }).catch(() => {})
   }, [selectedChapterId])
+
+  const emitCanvasSync = useCallback((kind: 'object:added' | 'object:removed' | 'object:modified' | 'canvas:snapshot', payload: any) => {
+    if (!chapterRoom) return
+    socketService.emit('object:sync', {
+      room: chapterRoom,
+      payload: {
+        id: `${user?._id || 'u'}-${Date.now()}-${objectSyncCounter.current += 1}`,
+        kind,
+        pageId: currentPage?._id,
+        payload,
+      },
+    })
+  }, [chapterRoom, currentPage?._id, user?._id])
 
   const loadZones = useCallback(() => {
     if (!currentPage?._id) { setZones([]); return }
@@ -418,13 +591,20 @@ export function StudioWorkspacePage() {
 
     // Track manual user actions for history
     fc.on('object:added', (opt) => {
+      if (isApplyingRemoteChange.current) return
       if (opt.target && !(opt.target as any)._zoneId && opt.target !== bgImageRef.current) {
+        const target = opt.target as SyncableObject
+        if (!target._syncId) target._syncId = `${user?._id || 'u'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         saveManualHistory()
+        emitCanvasSync('object:added', target.toObject())
       }
     })
     fc.on('object:removed', (opt) => {
+      if (isApplyingRemoteChange.current) return
       if (opt.target && !(opt.target as any)._zoneId && opt.target !== bgImageRef.current) {
+        const target = opt.target as SyncableObject
         saveManualHistory()
+        emitCanvasSync('object:removed', { object: { ...target.toObject(), _syncId: target._syncId } })
       }
     })
 
@@ -449,7 +629,10 @@ export function StudioWorkspacePage() {
         }).then(() => loadZones()).catch(console.error)
       } else if (target !== bgImageRef.current) {
         // Manual modify
+        const syncTarget = target as SyncableObject
+        if (!syncTarget._syncId) syncTarget._syncId = `${user?._id || 'u'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         saveManualHistory()
+        emitCanvasSync('object:modified', { object: { ...target.toObject(), _syncId: syncTarget._syncId } })
       }
     })
 
@@ -482,6 +665,15 @@ export function StudioWorkspacePage() {
           obj.lockMovementX = false
           obj.lockMovementY = false
         }
+        const syncObj = obj as SyncableObject
+        if (syncObj._syncId && focusedObjects[syncObj._syncId]) {
+          obj.set({ strokeDashArray: [4, 2], borderColor: '#f59e0b' })
+        }
+        if (syncObj._syncId && lockedObjects[syncObj._syncId]) {
+          const owner = lockedObjects[syncObj._syncId]
+          obj.set({ selectable: false, evented: false, opacity: 0.75 })
+          ;(obj as any).lockLabel = owner
+        }
       })
 
       // Click on zone rect → select it
@@ -489,6 +681,34 @@ export function StudioWorkspacePage() {
         const target = opt.target as any
         if (target?._zoneId) {
           setSelectedZoneId(target._zoneId)
+        }
+        if (target?._syncId && !lockedObjects[target._syncId]) {
+          socketService.emit('object:focus', {
+            room: chapterRoom,
+            objectId: target._syncId,
+            action: 'focus',
+          })
+          socketService.emit('object:lock', {
+            room: chapterRoom,
+            objectId: target._syncId,
+            action: 'lock',
+          })
+        }
+      })
+
+      fc.on('mouse:up', (opt) => {
+        const target = opt.target as any
+        if (target?._syncId) {
+          socketService.emit('object:focus', {
+            room: chapterRoom,
+            objectId: target._syncId,
+            action: 'blur',
+          })
+          socketService.emit('object:lock', {
+            room: chapterRoom,
+            objectId: target._syncId,
+            action: 'unlock',
+          })
         }
       })
 
@@ -599,9 +819,24 @@ export function StudioWorkspacePage() {
     } else if (activeTool === 'draw') {
       fc.isDrawingMode = true
       const brush = new PencilBrush(fc)
-      brush.color = drawColorRef.current
-      brush.width = drawSizeRef.current
+      brush.color = brushMode === 'eraser' ? '#e5e5e5' : drawColorRef.current
+      brush.width = brushMode === 'marker' ? drawSizeRef.current * 2 : brushMode === 'pencil' ? Math.max(1, drawSizeRef.current - 1) : drawSizeRef.current
+      brush.strokeLineCap = 'round'
+      brush.strokeLineJoin = 'round'
       fc.freeDrawingBrush = brush
+      fc.on('path:created', (opt) => {
+        if (isApplyingRemoteChange.current) return
+        const path = opt.path as SyncableObject
+        if (path) {
+          if (!path._syncId) path._syncId = `${user?._id || 'u'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          path.set({
+            shadow: brushMode === 'marker' ? '0 0 0 rgba(0,0,0,0.15)' : undefined,
+            globalCompositeOperation: brushMode === 'eraser' ? 'destination-out' : 'source-over',
+            opacity: brushMode === 'marker' ? 0.35 : 1,
+          })
+          emitCanvasSync('object:added', { ...path.toObject(), _syncId: path._syncId })
+        }
+      })
 
     } else if (activeTool === 'text') {
       fc.defaultCursor = 'text'
@@ -805,12 +1040,81 @@ export function StudioWorkspacePage() {
     } catch (e) { console.error(e) }
   }
 
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      const q = shareUserQuery.trim()
+      if (!q) {
+        setShareUserResults([])
+        return
+      }
+      try {
+        const res = await authAPI.search(q)
+        setShareUserResults(res.data.users || [])
+      } catch {
+        setShareUserResults([])
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [shareUserQuery])
+
+  const handleShareAccess = async () => {
+    if (!selectedChapterId || !shareUserId.trim()) return
+    try {
+      await chaptersAPI.shareAccess(selectedChapterId, {
+        userId: shareUserId.trim(),
+        role: shareRole,
+        canEdit: shareCanEdit,
+        canComment: shareCanComment,
+        canInvite: shareCanInvite,
+      })
+      const res = await chaptersAPI.getBySeries(selectedSeriesId)
+      setChapters(res.data.chapters || [])
+      setShareUserId('')
+      setShareUserQuery('')
+      setShareUserResults([])
+      setShareRole('assistant')
+      setShareCanEdit(true)
+      setShareCanComment(true)
+      setShareCanInvite(false)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const handleRemoveAccess = async (userId: string) => {
+    if (!selectedChapterId) return
+    try {
+      await chaptersAPI.removeAccess(selectedChapterId, userId)
+      const res = await chaptersAPI.getBySeries(selectedSeriesId)
+      setChapters(res.data.chapters || [])
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   // ── Computed ──────────────────────────────────────
   const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
   const currentChapter = chapters.find(c => c._id === selectedChapterId)
+  const chapterCollaborators = (currentChapter as any)?.collaborators || []
 
   return (
-    <div className="flex h-[calc(100vh-1px)] flex-col">
+    <div
+      className="flex h-[calc(100vh-1px)] flex-col"
+      onMouseMove={(e) => {
+        if (!chapterRoom) return
+        const rect = canvasContainerRef.current?.getBoundingClientRect()
+        if (!rect) return
+        socketService.emit('cursor:move', {
+          room: chapterRoom,
+          payload: {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+            color: user?.avatarColor || '#ef4444',
+            name: user?.displayName || user?.email || 'User',
+          },
+        })
+      }}
+    >
       {/* ── Top toolbar ──────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 bg-white z-10">
         {/* Tools */}
@@ -835,6 +1139,20 @@ export function StudioWorkspacePage() {
           {(activeTool === 'draw' || activeTool === 'text' || activeTool === 'select') && (
             <>
               <div className="mx-2 h-5 w-px bg-neutral-200" />
+              <div className="flex items-center gap-1 rounded-lg bg-neutral-100 p-1">
+                {(['ink', 'marker', 'pencil', 'eraser'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setBrushMode(mode)}
+                    className={`rounded-md px-2 py-1 text-[10px] font-medium capitalize transition-colors ${
+                      brushMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-white'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
               <div className="flex items-center gap-1.5 rounded-lg bg-neutral-100 p-1">
                 {['#000000', '#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308'].map(c => (
                   <button
@@ -860,7 +1178,7 @@ export function StudioWorkspacePage() {
                 type="range"
                 title="Kích cỡ"
                 min="1"
-                max="10"
+                max="24"
                 value={drawSize}
                 onChange={e => setDrawSize(Number(e.target.value))}
                 className="w-20 cursor-pointer accent-neutral-900"
@@ -973,17 +1291,54 @@ export function StudioWorkspacePage() {
 
           {/* Canvas status bar */}
           {currentPage && (
-            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur pointer-events-none z-10">
-              <span className="size-1.5 animate-pulse rounded-full bg-[#e7000b]" />
-              {activeTool === 'zone'
-                ? t('studio.drawZone', 'Draw Zone — click & drag')
-                : activeTool === 'pan'
-                  ? t('studio.panMode', 'Pan — drag to move')
-                  : activeTool === 'draw'
-                    ? t('studio.drawMode', 'Free Draw')
-                    : `Page ${currentPage.pageNumber} · ${zoom}%`}
+            <div className="absolute left-3 top-3 flex flex-col gap-2 z-10">
+              <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur pointer-events-none">
+                <span className="size-1.5 animate-pulse rounded-full bg-[#e7000b]" />
+                {activeTool === 'zone'
+                  ? t('studio.drawZone', 'Draw Zone — click & drag')
+                  : activeTool === 'pan'
+                    ? t('studio.panMode', 'Pan — drag to move')
+                    : activeTool === 'draw'
+                      ? t('studio.drawMode', 'Free Draw')
+                      : `Page ${currentPage.pageNumber} · ${zoom}%`}
+              </div>
+              <div className="rounded-2xl bg-white/95 px-3 py-2 text-[10px] font-medium shadow-lg backdrop-blur pointer-events-none">
+                <div className="mb-1 text-neutral-500">Collaborators ({collaboratorCount})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {connectedCollaborators.length === 0 ? (
+                    <span className="text-neutral-400">No one else online</span>
+                  ) : connectedCollaborators.map(member => (
+                    <span key={member.userId} className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">
+                      {member.role} · {member.userId.slice(-4)}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
+
+          {currentPage && Object.entries(remoteCursors).map(([id, cursor]) => (
+            <div
+              key={id}
+              className="absolute z-20 pointer-events-none"
+              style={{ left: cursor.x, top: cursor.y, transform: 'translate(8px, 8px)' }}
+            >
+              <div className="h-3 w-3 rounded-full border-2 border-white shadow" style={{ backgroundColor: cursor.color }} />
+              <div className="mt-1 rounded-full px-2 py-0.5 text-[10px] text-white shadow" style={{ backgroundColor: cursor.color }}>
+                {cursor.name}
+              </div>
+            </div>
+          ))}
+
+          {currentPage && Object.entries(lockedObjects).map(([objectId, owner]) => (
+            <div
+              key={objectId}
+              className="absolute z-20 rounded-full bg-amber-500/90 px-2 py-1 text-[10px] font-medium text-white shadow-lg pointer-events-none"
+              style={{ left: 16, top: 72 + Object.keys(lockedObjects).indexOf(objectId) * 22 }}
+            >
+              Editing {owner.role} · {owner.userId.slice(-4)}
+            </div>
+          ))}
 
           {/* Quick zoom indicator */}
           {currentPage && (
@@ -1001,6 +1356,7 @@ export function StudioWorkspacePage() {
                 { key: 'zones', label: t('studio.zones', 'Zones') },
                 { key: 'tasks', label: t('studio.tasks', 'Tasks'), count: pageTasks.filter(t => t.status !== 'done').length },
                 { key: 'pages', label: t('studio.pages', 'Pages') },
+                { key: 'access', label: 'Access' },
               ]}
               active={rightTab}
               onChange={setRightTab}
@@ -1175,6 +1531,85 @@ export function StudioWorkspacePage() {
                         </button>
                       )}
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rightTab === 'access' && (
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs font-semibold text-neutral-700 mb-2">Share access</div>
+                  <div className="space-y-2 rounded-xl border border-neutral-200 p-3">
+                    <Input
+                      placeholder="Search user by name or email"
+                      value={shareUserQuery}
+                      onChange={(e) => setShareUserQuery(e.target.value)}
+                    />
+                    <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-100 p-1">
+                      {shareUserResults.length === 0 ? (
+                        <div className="px-2 py-2 text-[10px] text-neutral-400">No users found.</div>
+                      ) : shareUserResults.map((u) => (
+                        <button
+                          key={u._id}
+                          type="button"
+                          className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-left text-xs hover:bg-neutral-50"
+                          onClick={() => {
+                            setShareUserId(u._id)
+                            setShareUserQuery(`${u.displayName} (${u.email})`)
+                          }}
+                        >
+                          <div className="font-medium">{u.displayName}</div>
+                          <div className="text-[10px] text-neutral-500">{u.email} · {u.role}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-neutral-500">Selected user id: {shareUserId || 'none'}</div>
+                    <select
+                      className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
+                      value={shareRole}
+                      onChange={(e) => setShareRole(e.target.value as 'assistant' | 'editor')}
+                    >
+                      <option value="assistant">assistant</option>
+                      <option value="editor">editor</option>
+                    </select>
+                    <div className="grid grid-cols-3 gap-2 text-[10px]">
+                      <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
+                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} /> edit
+                      </label>
+                      <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
+                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} /> comment
+                      </label>
+                      <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
+                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} /> invite
+                      </label>
+                    </div>
+                    <Button size="sm" className="w-full" onClick={handleShareAccess}>Share</Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-neutral-700">Collaborators</div>
+                  {chapterCollaborators.length === 0 ? (
+                    <div className="rounded-xl bg-neutral-50 p-4 text-center text-xs text-neutral-500">No collaborators yet.</div>
+                  ) : chapterCollaborators.map((member: any) => (
+                    <Card key={String(member.userId?._id || member.userId)} className="rounded-xl p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-medium">
+                            {member.userId?.displayName || member.userId?.email || String(member.userId)}
+                          </div>
+                          <div className="text-[10px] text-neutral-500 capitalize">
+                            {member.role} · {member.canEdit ? 'can edit' : 'view only'}
+                          </div>
+                        </div>
+                        {isMangaka && String(member.userId?._id || member.userId) !== String(user?._id) && (
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
                   ))}
                 </div>
               </div>

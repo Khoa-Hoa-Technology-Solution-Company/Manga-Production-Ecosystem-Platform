@@ -52,17 +52,35 @@ class SocketService {
     }
   }
 
-  // Room management
-  joinChapterRoom(chapterId: string) {
+  emit(event: string, data: unknown) {
     if (this.socket) {
-      this.socket.emit('join:room', `chapter:${chapterId}`);
+      this.socket.emit(event, data);
     }
   }
 
-  leaveChapterRoom(chapterId: string) {
+  getSocket() {
+    return this.socket;
+  }
+
+  // Room management
+  joinRoom(room: string) {
     if (this.socket) {
-      this.socket.emit('leave:room', `chapter:${chapterId}`);
+      this.socket.emit('join:room', room);
     }
+  }
+
+  leaveRoom(room: string) {
+    if (this.socket) {
+      this.socket.emit('leave:room', room);
+    }
+  }
+
+  joinChapterRoom(chapterId: string) {
+    this.joinRoom(`chapter:${chapterId}`);
+  }
+
+  leaveChapterRoom(chapterId: string) {
+    this.leaveRoom(`chapter:${chapterId}`);
   }
 }
 
