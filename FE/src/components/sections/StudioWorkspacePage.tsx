@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
-import { pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI } from '../../lib/api'
+import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -121,7 +121,6 @@ export function StudioWorkspacePage() {
   const lastPanPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const isApplyingRemoteChange = useRef(false)
   const objectSyncCounter = useRef(0)
-  const syncIdRegistry = useRef(new Set<string>())
   
   // History for manual tools (draw, text)
   type HistoryRecord = { type: 'manual_change', prevState: string, nextState: string }
@@ -268,7 +267,7 @@ export function StudioWorkspacePage() {
         payload: {
           x: p.x,
           y: p.y,
-          color: user?.avatarColor || '#ef4444',
+          color: (user as any)?.avatarColor || '#ef4444',
           name: user?.displayName || user?.email || 'User',
         },
       })
@@ -287,9 +286,10 @@ export function StudioWorkspacePage() {
           const syncId = data._syncId || message.id
           const existing = fc.getObjects().find((o: any) => (o as SyncableObject)._syncId === syncId)
           if (!existing) {
-            const [obj] = await util.enlivenObjects([data])
-            if (obj) {
-              ;(obj as SyncableObject)._syncId = syncId
+            const [rawObj] = await util.enlivenObjects([data])
+            if (rawObj) {
+              const obj = rawObj as any
+              obj._syncId = syncId
               obj.selectable = activeTool === 'select'
               fc.add(obj)
             }
@@ -312,7 +312,7 @@ export function StudioWorkspacePage() {
       fc.off('mouse:move', sendCursor)
       socketService.off('object:sync', onObjectSync)
     }
-  }, [chapterRoom, currentPage?._id, activeTool, user?.avatarColor, user?.displayName, user?.email])
+  }, [chapterRoom, currentPage?._id, activeTool, (user as any)?.avatarColor, user?.displayName, user?.email])
 
   // ═══════════════════════════════════════════════════
   // DATA LOADING
@@ -1109,7 +1109,7 @@ export function StudioWorkspacePage() {
           payload: {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
-            color: user?.avatarColor || '#ef4444',
+            color: (user as any)?.avatarColor || '#ef4444',
             name: user?.displayName || user?.email || 'User',
           },
         })
