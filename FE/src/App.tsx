@@ -9,6 +9,8 @@ import { DashboardPage } from './components/sections/DashboardPage'
 import { StudioPage } from './components/sections/StudioPage'
 import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
+import { TantouEditorPortalPage } from './components/sections/TantouEditorPortalPage'
+import { EditorialBoardPortalPage } from './components/sections/EditorialBoardPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
@@ -81,6 +83,8 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/studio" element={<StudioWorkspacePage />} />
               <Route path="/tasks" element={<AssistantPortalPage />} />
+              <Route path="/editor-portal" element={<TantouEditorPortalPage />} />
+              <Route path="/editorial-board" element={<EditorialBoardPortalPage />} />
             </Route>
             
             <Route path="*" element={<Navigate to="/" replace />} />
