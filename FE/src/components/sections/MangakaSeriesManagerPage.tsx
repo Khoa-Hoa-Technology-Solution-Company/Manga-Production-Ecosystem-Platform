@@ -38,6 +38,9 @@ export function MangakaSeriesManagerPage() {
 
   const [chapterTitle, setChapterTitle] = useState('')
   const [chapterNumber, setChapterNumber] = useState('')
+  const [chapterDescription, setChapterDescription] = useState('')
+  const [seriesSubmissionNotes, setSeriesSubmissionNotes] = useState('')
+  const [submittingSeries, setSubmittingSeries] = useState(false)
   const [creatingChapter, setCreatingChapter] = useState(false)
   const [chapterDeletingId, setChapterDeletingId] = useState('')
   const [seriesMenuOpenId, setSeriesMenuOpenId] = useState('')
@@ -144,11 +147,16 @@ export function MangakaSeriesManagerPage() {
   }
 
   const handleSubmitSeries = async () => {
-    if (!selectedSeriesId) return
-    await seriesAPI.submit(selectedSeriesId, {
-      submissionNotes: seriesDescription,
-    })
-    await loadData()
+    if (!selectedSeriesId || submittingSeries) return
+    setSubmittingSeries(true)
+    try {
+      await seriesAPI.submit(selectedSeriesId, {
+        submissionNotes: seriesSubmissionNotes,
+      })
+      await loadData()
+    } finally {
+      setSubmittingSeries(false)
+    }
   }
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,16 +294,17 @@ export function MangakaSeriesManagerPage() {
                 <p className="text-sm text-neutral-500">Send the current series package to Tantou Editor with notes for the review board.</p>
                 <textarea
                   className="mt-3 min-h-28 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-900"
-                  value={seriesDescription}
-                  onChange={(e) => setSeriesDescription(e.target.value)}
+                  value={seriesSubmissionNotes}
+                  onChange={(e) => setSeriesSubmissionNotes(e.target.value)}
                   placeholder="Submission notes"
                 />
                 <div className="mt-3 flex justify-end">
-                  <Button onClick={handleSubmitSeries} disabled={!selectedSeriesId}>Submit for review</Button>
+                  <Button onClick={handleSubmitSeries} disabled={!selectedSeriesId || submittingSeries}>
+                    {submittingSeries ? 'Submitting...' : 'Submit for review'}
+                  </Button>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 p-4">
               <div className="rounded-2xl border border-neutral-200 p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Upload cover</h3>

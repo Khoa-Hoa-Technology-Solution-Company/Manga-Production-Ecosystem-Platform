@@ -9,7 +9,9 @@ import { DashboardPage } from './components/sections/DashboardPage'
 import { StudioPage } from './components/sections/StudioPage'
 import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
 import { MangakaSeriesManagerPage } from './components/sections/MangakaSeriesManagerPage'
+import { MangakaSubmissionStatusPage } from './components/sections/MangakaSubmissionStatusPage'
 import { EditorReviewDashboardPage } from './components/sections/EditorReviewDashboardPage'
+import { NotificationCenterPage } from './components/sections/NotificationCenterPage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
@@ -75,14 +77,17 @@ function App() {
           <Route element={<MainLayout />}>
             <Route path="/" element={<StudioPage />} />
             <Route path="/discover" element={<ReaderHubPage />} />
+            <Route path="/notifications" element={<NotificationCenterPage />} />
             <Route path="/read/:chapterId" element={<ReadingViewPage />} />
             <Route path="/settings" element={<div className="p-8">Settings Page (WIP)</div>} />
 
             {/* Routes blocked for Readers */}
             <Route element={<ProtectedReaderRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard/review" element={<EditorReviewDashboardPage />} />
               <Route path="/studio" element={<StudioWorkspacePage />} />
               <Route path="/studio/series" element={<MangakaSeriesManagerPage />} />
+              <Route path="/studio/series/status" element={<MangakaSubmissionStatusPage />} />
               <Route path="/tasks" element={<AssistantPortalPage />} />
             </Route>
             

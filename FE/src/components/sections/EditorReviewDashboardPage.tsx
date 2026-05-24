@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, Clock3, FileWarning, Send, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Badge, Button, Card, Input } from '../ui'
+import { Badge, Button, Card } from '../ui'
 import { seriesAPI } from '../../lib/api'
 
 type SeriesItem = {
@@ -37,7 +37,7 @@ export function EditorReviewDashboardPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const res = await seriesAPI.getAll({ status: 'Submitted' })
+      const res = await seriesAPI.getAll({ status: ['Submitted', 'Needs Revision', 'Approved by Editor', 'Board Review'] })
       const items = res.data.series || []
       setSeriesList(items)
       setSelectedSeriesId((prev) => prev || items[0]?._id || '')

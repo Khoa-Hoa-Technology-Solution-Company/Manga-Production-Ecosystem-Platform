@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bell, BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X, Library } from 'lucide-react'
+import { Bell, BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X, Library, ClipboardCheck, ListChecks } from 'lucide-react'
 import { Avatar, AvatarFallback, Button } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { notificationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-type SidebarKey = 'home' | 'dashboard' | 'studio' | 'tasks' | 'discover' | 'settings'
+type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series' | 'status' | 'review' | 'tasks' | 'discover' | 'notifications' | 'settings'
 
 type SidebarProps = {
   mobileOpen?: boolean
@@ -24,6 +24,8 @@ const navigation: Array<{
   { key: 'dashboard', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, section: 'main' },
   { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create' },
   { key: 'series', labelKey: 'sidebar.seriesManager', icon: Library, section: 'create' },
+  { key: 'status', labelKey: 'sidebar.submissionStatus', icon: ListChecks, section: 'create' },
+  { key: 'review', labelKey: 'sidebar.editorReview', icon: ClipboardCheck, section: 'create' },
   { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create' },
   { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
   { key: 'settings', labelKey: 'sidebar.settings', icon: Settings, section: 'other' },
@@ -111,12 +113,19 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
           {sections.map((section) => {
-            const isReader = user?.role?.toLowerCase() === 'reader'
-            const restrictedForReader = ['dashboard', 'studio', 'tasks']
-            
+            const role = user?.role?.toLowerCase() || ''
+            const shouldHide = (key: SidebarKey) => {
+              if (role === 'reader') return ['dashboard', 'studio', 'tasks', 'series', 'review', 'status', 'notifications'].includes(key)
+              if (role === 'assistant') return ['dashboard', 'studio', 'series', 'review', 'status'].includes(key)
+              if (role === 'mangaka') return ['dashboard', 'tasks', 'review'].includes(key)
+              if (role === 'editor') return ['studio', 'tasks', 'series', 'status'].includes(key)
+              if (role === 'editorial_board') return ['studio', 'tasks', 'series', 'status'].includes(key)
+              return false
+            }
+
             const sectionItems = navigation.filter((n) => {
               if (n.section !== section.key) return false
-              if (isReader && restrictedForReader.includes(n.key)) return false
+              if (shouldHide(n.key)) return false
               return true
             })
             if (sectionItems.length === 0) return null
@@ -140,7 +149,8 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                           : 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 text-neutral-500 font-normal'
                       }
                       onClick={() => {
-                        navigate(key === 'home' ? '/' : `/${key === 'series' ? 'studio/series' : key}`)
+                        const route = key === 'home' ? '/' : key === 'series' ? '/studio/series' : key === 'review' ? '/dashboard/review' : key === 'status' ? '/studio/series/status' : key === 'notifications' ? '/notifications' : `/${key}`
+                        navigate(route)
                         onMobileClose?.()
                       }}
                     >
@@ -170,9 +180,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           <button
             type="button"
             className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-100 transition-colors"
-            onClick={() => {
+            onClick={async () => {
               setUnreadCount(0)
-              notificationsAPI.markAllRead()
+              await notificationsAPI.markAllRead()
+              navigate('/notifications')
+              onMobileClose?.()
             }}
           >
             <div className="flex items-center gap-2.5">

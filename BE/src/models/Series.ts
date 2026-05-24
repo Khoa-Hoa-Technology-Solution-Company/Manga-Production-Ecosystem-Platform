@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type SeriesWorkflowStage = 'mangaka' | 'editor' | 'board' | 'published';
+
 export interface ISeries extends Document {
   title: string;
   description: string;
@@ -7,6 +9,7 @@ export interface ISeries extends Document {
   coverImage?: string;
   mangakaId: mongoose.Types.ObjectId;
   editorId?: mongoose.Types.ObjectId;
+  workflowStage: SeriesWorkflowStage;
   status: 'Draft' | 'Submitted' | 'Needs Revision' | 'Approved by Editor' | 'Board Review' | 'Published' | 'Rejected' | 'Active' | 'Completed' | 'Hiatus';
   submissionNotes?: string;
   reviewNotes?: string;
@@ -26,6 +29,7 @@ const seriesSchema = new Schema<ISeries>(
     coverImage: { type: String },
     mangakaId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     editorId: { type: Schema.Types.ObjectId, ref: 'User' },
+    workflowStage: { type: String, enum: ['mangaka', 'editor', 'board', 'published'], default: 'mangaka' },
     status: { type: String, enum: ['Draft', 'Submitted', 'Needs Revision', 'Approved by Editor', 'Board Review', 'Published', 'Rejected', 'Active', 'Completed', 'Hiatus'], default: 'Draft' },
     submissionNotes: { type: String },
     reviewNotes: { type: String },

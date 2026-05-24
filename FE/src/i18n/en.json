@@ -54,6 +54,8 @@
     "studio": "Studio",
     "assistant": "Assistant",
     "seriesManager": "Series Manager",
+    "submissionStatus": "Submission Status",
+    "editorReview": "Editor Review",
     "discover": "Discover",
     "settings": "Settings",
     "create": "CREATE",
