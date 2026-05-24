@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, CheckCheck, Clock3, Filter, MailOpen } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { CheckCheck, Clock3, Filter, MailOpen } from 'lucide-react'
 import { Badge, Button, Card } from '../ui'
 import { notificationsAPI } from '../../lib/api'
 
@@ -18,25 +17,24 @@ const filterOptions = [
   { id: 'all', label: 'All notifications' },
   { id: 'unread', label: 'Unread only' },
   { id: 'review', label: 'Review updates' },
-]
+] as const
 
 export function NotificationCenterPage() {
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState<(typeof filterOptions)[number]['id']>('all')
 
-  const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items])
+  const unreadCount = useMemo(() => items.reduce((count, item) => count + Number(!item.read), 0), [items])
 
-  const loadNotifications = async () => {
+  const loadNotifications = async (currentFilter = filter) => {
     setLoading(true)
     try {
-      const params: Record<string, unknown> = {}
-      if (filter === 'unread') params.unreadOnly = true
+      const params: Record<string, unknown> = currentFilter === 'unread' ? { unreadOnly: true } : {}
       const res = await notificationsAPI.getAll(params)
-      let list = res.data.notifications || []
-      if (filter === 'review') {
-        list = list.filter((item: NotificationItem) => item.type === 'review' || item.relatedType === 'Series')
-      }
+      const list = (res.data.notifications || []).filter((item: NotificationItem) => {
+        if (currentFilter !== 'review') return true
+        return item.type === 'review' || item.relatedType === 'Series'
+      })
       setItems(list)
     } finally {
       setLoading(false)
@@ -54,7 +52,7 @@ export function NotificationCenterPage() {
 
   const markRead = async (id: string) => {
     await notificationsAPI.markRead(id)
-    await loadNotifications()
+    setItems((current) => current.map((item) => (item._id === id ? { ...item, read: true } : item)))
   }
 
   return (
@@ -119,13 +117,7 @@ export function NotificationCenterPage() {
                       <span>{item.relatedType || item.type}</span>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg"
-                    disabled={item.read}
-                    onClick={() => markRead(item._id)}
-                  >
+                  <Button variant="outline" size="sm" className="rounded-lg" disabled={item.read} onClick={() => markRead(item._id)}>
                     {item.read ? 'Read' : 'Mark read'}
                   </Button>
                 </div>

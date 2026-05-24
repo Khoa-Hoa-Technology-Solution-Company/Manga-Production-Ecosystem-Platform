@@ -78,14 +78,17 @@ export async function notifySeriesReview(
   seriesTitle: string,
   reviewStatus: string,
   seriesId: string,
-  notes?: string
+  reviewNotes?: string
 ): Promise<void> {
+  const baseMessage = `"${seriesTitle}" is now ${reviewStatus}.`
+  const message = reviewNotes ? `${baseMessage} Review note: ${reviewNotes}` : baseMessage
+
   await createNotification({
     userId,
     type: 'review',
     title: `Series ${reviewStatus}`,
-    message: notes ? `"${seriesTitle}" is now ${reviewStatus}. ${notes}` : `"${seriesTitle}" is now ${reviewStatus}.`,
+    message,
     relatedId: seriesId,
     relatedType: 'Series',
-  });
+  })
 }

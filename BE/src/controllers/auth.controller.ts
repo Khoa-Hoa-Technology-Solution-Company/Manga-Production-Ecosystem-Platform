@@ -1,100 +1,94 @@
-import { Request, Response } from 'express';
-import { User } from '../models/User';
-import { signToken } from '../utils/jwt';
+import { Request, Response } from 'express'
+import { getPermissionsForRole } from '../config/permissions'
+import { User } from '../models/User'
+import { signToken } from '../utils/jwt'
+
+function serializeUser(user: any) {
+  return {
+    _id: user._id,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
+    avatar: user.avatar,
+    permissions: getPermissionsForRole(user.role),
+  }
+}
 
 export async function register(req: Request, res: Response): Promise<void> {
   try {
-    const { email, password, displayName, role } = req.body;
+    const { email, password, displayName, role } = req.body
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email })
     if (existing) {
-      res.status(409).json({ error: 'Email already registered.' });
-      return;
+      res.status(409).json({ error: 'Email already registered.' })
+      return
     }
 
-    const user = await User.create({ email, password, displayName, role: role || 'reader' });
-    const token = signToken({ userId: user._id.toString(), role: user.role });
+    const user = await User.create({ email, password, displayName, role: role || 'reader' })
+    const token = signToken({ userId: user._id.toString(), role: user.role })
 
-    res.status(201).json({
-      token,
-      user: {
-        _id: user._id,
-        email: user.email,
-        displayName: user.displayName,
-        role: user.role,
-        avatar: user.avatar,
-      },
-    });
+    res.status(201).json({ token, user: serializeUser(user) })
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message })
   }
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body
 
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password')
     if (!user) {
-      res.status(401).json({ error: 'Invalid email or password.' });
-      return;
+      res.status(401).json({ error: 'Invalid email or password.' })
+      return
     }
 
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await user.comparePassword(password)
     if (!isMatch) {
-      res.status(401).json({ error: 'Invalid email or password.' });
-      return;
+      res.status(401).json({ error: 'Invalid email or password.' })
+      return
     }
 
     if (!user.isActive) {
-      res.status(403).json({ error: 'Account is deactivated.' });
-      return;
+      res.status(403).json({ error: 'Account is deactivated.' })
+      return
     }
 
-    const token = signToken({ userId: user._id.toString(), role: user.role });
+    const token = signToken({ userId: user._id.toString(), role: user.role })
 
-    res.json({
-      token,
-      user: {
-        _id: user._id,
-        email: user.email,
-        displayName: user.displayName,
-        role: user.role,
-        avatar: user.avatar,
-      },
-    });
+    res.json({ token, user: serializeUser(user) })
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message })
   }
 }
 
 export async function getMe(req: Request, res: Response): Promise<void> {
   try {
-    const user = await User.findById(req.user?._id);
+    const user = await User.findById(req.user?._id)
     if (!user) {
-      res.status(404).json({ error: 'User not found.' });
-      return;
+      res.status(404).json({ error: 'User not found.' })
+      return
     }
-    res.json({ user });
+    res.json({ user: serializeUser(user) })
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message })
   }
 }
 
 export async function updateProfile(req: Request, res: Response): Promise<void> {
   try {
-    const { displayName, bio, avatar, skills } = req.body;
+    const { displayName, bio, avatar, skills } = req.body
     const user = await User.findByIdAndUpdate(
       req.user?._id,
       { displayName, bio, avatar, skills },
       { new: true, runValidators: true }
-    );
+    )
     if (!user) {
-      res.status(404).json({ error: 'User not found.' });
-      return;
+      res.status(404).json({ error: 'User not found.' })
+      return
     }
-    res.json({ user });
+    res.json({ user: serializeUser(user) })
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message })
   }
 }

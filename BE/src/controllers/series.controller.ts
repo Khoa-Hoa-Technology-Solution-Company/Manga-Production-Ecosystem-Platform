@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Series } from '../models/Series';
 import { uploadToR2 } from '../services/storage.service';
 import { notifySeriesReview } from '../services/notification.service';
+import { canSubmitSeries, getWorkflowStageForStatus, isReviewAllowed, type SeriesStatus } from '../config/seriesWorkflow';
 
 export async function getAll(req: Request, res: Response): Promise<void> {
   try {
@@ -71,13 +72,19 @@ export async function create(req: Request, res: Response): Promise<void> {
     }
 
     const coverImage = req.file ? await uploadToR2(req.file, 'series-covers') : undefined;
+    const initialStatus = status ? String(status) : 'Draft';
+
+    if (!canSubmitSeries(initialStatus)) {
+      res.status(400).json({ error: 'Series can only be created as Draft or Needs Revision.' });
+      return;
+    }
 
     const series = await Series.create({
       title: String(title).trim(),
       description: String(description).trim(),
       genre: normalizedGenre,
       coverImage,
-      status: status || 'Draft',
+      status: initialStatus,
       workflowStage: 'mangaka',
       mangakaId: req.user?._id,
     });
@@ -96,22 +103,35 @@ export async function update(req: Request, res: Response): Promise<void> {
         ? genre.split(',').map((item: string) => item.trim()).filter(Boolean)
         : undefined;
 
-    const isEditorAction = req.user?.role === 'editor' || req.user?.role === 'editorial_board';
-    const isMangakaOwner = req.user?.role === 'mangaka';
+    const user = req.user;
+    const isEditorAction = user?.role === 'editor' || user?.role === 'editorial_board';
+    const isMangakaOwner = user?.role === 'mangaka';
+
+    const updatePayload: Record<string, unknown> = {
+      ...(title !== undefined ? { title: String(title).trim() } : {}),
+      ...(description !== undefined ? { description: String(description).trim() } : {}),
+      ...(normalizedGenre ? { genre: normalizedGenre } : {}),
+      ...(coverImage !== undefined ? { coverImage } : {}),
+    };
+
+    if (status !== undefined) {
+      const nextStatus = String(status) as SeriesStatus;
+      if (!isEditorAction || !isReviewAllowed(user?.role as never, nextStatus)) {
+        res.status(400).json({ error: 'Invalid status transition.' });
+        return;
+      }
+      updatePayload.status = nextStatus;
+      updatePayload.workflowStage = getWorkflowStageForStatus(nextStatus);
+    }
+
+    if (editorId !== undefined) updatePayload.editorId = editorId;
 
     const series = await Series.findOneAndUpdate(
       {
         _id: req.params.id,
-        ...(isMangakaOwner ? { mangakaId: req.user._id } : {}),
+        ...(isMangakaOwner && user ? { mangakaId: user._id } : {}),
       },
-      {
-        ...(title !== undefined ? { title } : {}),
-        ...(description !== undefined ? { description } : {}),
-        ...(normalizedGenre ? { genre: normalizedGenre } : {}),
-        ...(coverImage !== undefined ? { coverImage } : {}),
-        ...(status !== undefined ? { status } : {}),
-        ...(editorId !== undefined ? { editorId } : {}),
-      },
+      updatePayload,
       { new: true, runValidators: true }
     );
     if (!series) {
@@ -120,7 +140,8 @@ export async function update(req: Request, res: Response): Promise<void> {
     }
 
     if (status && isEditorAction) {
-      await notifySeriesReview(String(series.mangakaId), series.title, String(status), String(series._id), typeof req.body.reviewNotes === 'string' ? req.body.reviewNotes : undefined);
+      const safeReviewNotes = typeof req.body.reviewNotes === 'string' ? req.body.reviewNotes.trim() : undefined
+      await notifySeriesReview(String(series.mangakaId), series.title, String(status), String(series._id), safeReviewNotes)
     }
 
     res.json({ series });
@@ -133,7 +154,7 @@ export async function submit(req: Request, res: Response): Promise<void> {
   try {
     const { submissionNotes } = req.body;
     const series = await Series.findOneAndUpdate(
-      { _id: req.params.id, mangakaId: req.user?._id },
+      { _id: req.params.id, mangakaId: req.user?._id, status: { $in: ['Draft', 'Needs Revision'] } },
       {
         status: 'Submitted',
         workflowStage: 'editor',
@@ -155,39 +176,40 @@ export async function submit(req: Request, res: Response): Promise<void> {
 
 export async function review(req: Request, res: Response): Promise<void> {
   try {
-    const { status, reviewNotes, editorId } = req.body;
-    const allowedStatuses = ['Needs Revision', 'Approved by Editor', 'Board Review', 'Rejected', 'Published', 'Active'];
-    if (!allowedStatuses.includes(String(status))) {
-      res.status(400).json({ error: 'Invalid review status.' });
-      return;
+    const { status, reviewNotes, editorId } = req.body
+    const nextStatus = String(status) as SeriesStatus
+
+    if (!req.user || !isReviewAllowed(req.user.role as never, nextStatus)) {
+      res.status(400).json({ error: 'Invalid review status for your role.' })
+      return
     }
 
-    const nextStatus = String(status);
-    const nextWorkflowStage = nextStatus === 'Board Review' ? 'board' : nextStatus === 'Published' ? 'published' : 'editor';
+    const nextWorkflowStage = getWorkflowStageForStatus(nextStatus)
+    const safeReviewNotes = typeof reviewNotes === 'string' ? reviewNotes.trim() : undefined
 
     const series = await Series.findByIdAndUpdate(
       req.params.id,
       {
         status: nextStatus,
         workflowStage: nextWorkflowStage,
-        ...(reviewNotes !== undefined ? { reviewNotes: String(reviewNotes).trim() } : {}),
+        ...(safeReviewNotes !== undefined ? { reviewNotes: safeReviewNotes } : {}),
         ...(editorId !== undefined ? { editorId } : {}),
       },
       { new: true, runValidators: true }
-    );
+    )
 
     if (!series) {
-      res.status(404).json({ error: 'Series not found.' });
-      return;
+      res.status(404).json({ error: 'Series not found.' })
+      return
     }
 
     if (req.user?.role === 'editor' || req.user?.role === 'editorial_board') {
-      await notifySeriesReview(String(series.mangakaId), series.title, nextStatus, String(series._id), series.reviewNotes);
+      await notifySeriesReview(String(series.mangakaId), series.title, nextStatus, String(series._id), series.reviewNotes)
     }
 
-    res.json({ series, message: `Series moved to ${status}.` });
+    res.json({ series, message: `Series moved to ${status}.` })
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message })
   }
 }
 
