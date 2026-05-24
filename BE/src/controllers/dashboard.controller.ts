@@ -35,13 +35,15 @@ export async function getStats(req: Request, res: Response): Promise<void> {
         totalEarnings: earnings[0]?.total || 0,
       };
     } else if (role === 'editor' || role === 'editorial_board') {
-      const [reviewing, approved, published, totalSeries] = await Promise.all([
-        Chapter.countDocuments({ status: 'Reviewing' }),
-        Chapter.countDocuments({ status: 'Approved' }),
-        Chapter.countDocuments({ status: 'Published' }),
+      const [submitted, revision, boardReview, approved, published, totalSeries] = await Promise.all([
+        Series.countDocuments({ status: 'Submitted' }),
+        Series.countDocuments({ status: 'Needs Revision' }),
+        Series.countDocuments({ status: 'Board Review' }),
+        Series.countDocuments({ status: 'Approved by Editor' }),
+        Series.countDocuments({ status: 'Published' }),
         Series.countDocuments({}),
       ]);
-      stats = { reviewing, approved, published, totalSeries };
+      stats = { submitted, revision, boardReview, approved, published, totalSeries };
     } else {
       // Reader
       stats = {
@@ -58,13 +60,13 @@ export async function getStats(req: Request, res: Response): Promise<void> {
 
 export async function getWorkflow(_req: Request, res: Response): Promise<void> {
   try {
-    const statuses = ['Draft', 'Reviewing', 'Approved', 'Published'] as const;
+    const statuses = ['Draft', 'Submitted', 'Needs Revision', 'Approved by Editor', 'Board Review', 'Published'] as const;
     const workflow: any = {};
 
     for (const status of statuses) {
-      workflow[status] = await Chapter.find({ status })
-        .populate('seriesId', 'title')
+      workflow[status] = await Series.find({ status })
         .populate('mangakaId', 'displayName avatar')
+        .populate('editorId', 'displayName avatar')
         .sort({ updatedAt: -1 })
         .limit(10)
         .lean();

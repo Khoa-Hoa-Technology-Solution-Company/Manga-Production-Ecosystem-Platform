@@ -72,3 +72,23 @@ export async function notifyChapterStatusChange(
     relatedType: 'Chapter',
   });
 }
+
+export async function notifySeriesReview(
+  userId: string,
+  seriesTitle: string,
+  reviewStatus: string,
+  seriesId: string,
+  reviewNotes?: string
+): Promise<void> {
+  const baseMessage = `"${seriesTitle}" is now ${reviewStatus}.`
+  const message = reviewNotes ? `${baseMessage} Review note: ${reviewNotes}` : baseMessage
+
+  await createNotification({
+    userId,
+    type: 'review',
+    title: `Series ${reviewStatus}`,
+    message,
+    relatedId: seriesId,
+    relatedType: 'Series',
+  })
+}
