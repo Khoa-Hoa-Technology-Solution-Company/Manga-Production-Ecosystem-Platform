@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import { Button } from './components/ui'
 import { Shell } from './components/layout/Shell'
@@ -8,29 +8,37 @@ import { Footer } from './components/layout/Footer'
 import { DashboardPage } from './components/sections/DashboardPage'
 import { StudioPage } from './components/sections/StudioPage'
 import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
-import { MangakaSeriesManagerPage } from './components/sections/MangakaSeriesManagerPage'
-import { MangakaSubmissionStatusPage } from './components/sections/MangakaSubmissionStatusPage'
-import { EditorReviewDashboardPage } from './components/sections/EditorReviewDashboardPage'
-import { NotificationCenterPage } from './components/sections/NotificationCenterPage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
-import { ProtectedRoute } from './components/layout/ProtectedRoute'
+import { ProtectedRoute, ProtectedReaderRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
 
 function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
+  
   const hideFooter = location.pathname.startsWith('/read') || location.pathname === '/studio'
 
   return (
     <Shell
-      sidebar={<Sidebar mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />}
+      sidebar={
+        <Sidebar
+          mobileOpen={sidebarOpen}
+          onMobileClose={() => setSidebarOpen(false)}
+        />
+      }
       header={
         <div className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2 lg:hidden">
-          <Button variant="ghost" size="sm" className="size-9 rounded-lg p-0" onClick={() => setSidebarOpen(true)} aria-label="Open navigation menu">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="size-9 p-0 rounded-lg"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
+          >
             <Menu className="size-5" />
           </Button>
           <span className="text-sm font-semibold">MangaFlow</span>
@@ -46,28 +54,35 @@ function MainLayout() {
 function App() {
   const { isAuthenticated } = useAuth()
 
+  // Socket connection management
   useEffect(() => {
-    if (isAuthenticated) socketService.connect()
-    else socketService.disconnect()
+    if (isAuthenticated) {
+      socketService.connect()
+    } else {
+      socketService.disconnect()
+    }
   }, [isAuthenticated])
 
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        
+        {/* Protected routes wrapper */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<StudioPage />} />
             <Route path="/discover" element={<ReaderHubPage />} />
-            <Route path="/notifications" element={<NotificationCenterPage />} />
             <Route path="/read/:chapterId" element={<ReadingViewPage />} />
             <Route path="/settings" element={<div className="p-8">Settings Page (WIP)</div>} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/dashboard/review" element={<EditorReviewDashboardPage />} />
-            <Route path="/studio" element={<StudioWorkspacePage />} />
-            <Route path="/studio/series" element={<MangakaSeriesManagerPage />} />
-            <Route path="/studio/series/status" element={<MangakaSubmissionStatusPage />} />
-            <Route path="/tasks" element={<AssistantPortalPage />} />
+
+            {/* Routes blocked for Readers */}
+            <Route element={<ProtectedReaderRoute />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/studio" element={<StudioWorkspacePage />} />
+              <Route path="/tasks" element={<AssistantPortalPage />} />
+            </Route>
+            
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>

@@ -5,7 +5,6 @@ type ButtonVariant = 'default' | 'ghost' | 'secondary' | 'outline'
 type ButtonSize = 'sm' | 'default' | 'lg'
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  asChild?: boolean
   variant?: ButtonVariant
   size?: ButtonSize
 }
@@ -23,11 +22,10 @@ const buttonSizes: Record<ButtonSize, string> = {
   lg: 'h-11 px-5 text-sm',
 }
 
-export function Button({ className, variant = 'default', size = 'default', asChild = false, ...props }: ButtonProps) {
-  const Comp: any = asChild ? 'span' : 'button'
+export function Button({ className, variant = 'default', size = 'default', ...props }: ButtonProps) {
   return (
-    <Comp
-      type={asChild ? undefined : 'button'}
+    <button
+      type="button"
       className={cn(
         'inline-flex items-center justify-center rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950/30 disabled:pointer-events-none disabled:opacity-50',
         buttonVariants[variant],

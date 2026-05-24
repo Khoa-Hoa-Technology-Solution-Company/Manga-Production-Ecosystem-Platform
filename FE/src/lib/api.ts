@@ -47,10 +47,8 @@ export const authAPI = {
 export const seriesAPI = {
   getAll: (params?: Record<string, unknown>) => api.get('/series', { params }),
   getById: (id: string) => api.get(`/series/${id}`),
-  create: (data: FormData | Record<string, unknown>) => api.post('/series', data, data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined),
-  submit: (id: string, data?: Record<string, unknown>) => api.post(`/series/${id}/submit`, data || {}),
-  review: (id: string, data: Record<string, unknown>) => api.patch(`/series/${id}/review`, data),
-  update: (id: string, data: FormData | Record<string, unknown>) => api.put(`/series/${id}`, data, data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined),
+  create: (data: unknown) => api.post('/series', data),
+  update: (id: string, data: unknown) => api.put(`/series/${id}`, data),
   delete: (id: string) => api.delete(`/series/${id}`),
 };
 
@@ -59,7 +57,6 @@ export const chaptersAPI = {
   getBySeries: (seriesId: string) => api.get(`/chapters/series/${seriesId}`),
   create: (seriesId: string, data: unknown) => api.post(`/chapters/series/${seriesId}`, data),
   update: (id: string, data: unknown) => api.put(`/chapters/${id}`, data),
-  delete: (id: string) => api.delete(`/chapters/${id}`),
   updateStatus: (id: string, status: string) => api.patch(`/chapters/${id}/status`, { status }),
   shareAccess: (id: string, data: { userId: string; role?: string; canEdit?: boolean; canComment?: boolean; canInvite?: boolean }) =>
     api.post(`/chapters/${id}/access`, data),

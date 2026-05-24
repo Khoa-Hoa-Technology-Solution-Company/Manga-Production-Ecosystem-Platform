@@ -106,16 +106,6 @@ export function StudioWorkspacePage() {
   const [shareCanComment, setShareCanComment] = useState(true)
   const [shareCanInvite, setShareCanInvite] = useState(false)
 
-  // ── Series / Chapter creation dialogs ─────────────
-  const [showNewSeriesDialog, setShowNewSeriesDialog] = useState(false)
-  const [showNewChapterDialog, setShowNewChapterDialog] = useState(false)
-  const [newSeriesTitle, setNewSeriesTitle] = useState('')
-  const [newSeriesDescription, setNewSeriesDescription] = useState('')
-  const [newSeriesGenre, setNewSeriesGenre] = useState('')
-  const [newSeriesCoverImage, setNewSeriesCoverImage] = useState('')
-  const [newChapterTitle, setNewChapterTitle] = useState('')
-  const [newChapterNumber, setNewChapterNumber] = useState('')
-
   // ── Zone creation dialog ──────────────────────────
   const [showNewZoneDialog, setShowNewZoneDialog] = useState(false)
   const [newZoneName, setNewZoneName] = useState('Background')
@@ -330,26 +320,16 @@ export function StudioWorkspacePage() {
 
   useEffect(() => {
     seriesAPI.getAll().then(res => {
-      const items = res.data.series || []
-      setSeriesList(items)
-      if (items.length > 0) {
-        setSelectedSeriesId(items[0]._id)
-      }
+      setSeriesList(res.data.series || [])
+      if (res.data.series?.length > 0) setSelectedSeriesId(res.data.series[0]._id)
     }).catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!selectedSeriesId) return
     chaptersAPI.getBySeries(selectedSeriesId).then(res => {
-      const items = res.data.chapters || []
-      setChapters(items)
-      if (items.length > 0) {
-        setSelectedChapterId(items[0]._id)
-      } else {
-        setSelectedChapterId('')
-      }
-      setNewChapterNumber(String(items.length + 1))
-      setNewChapterTitle(items.length > 0 ? `Chapter ${items.length + 1}` : 'Chapter 1')
+      setChapters(res.data.chapters || [])
+      if (res.data.chapters?.length > 0) setSelectedChapterId(res.data.chapters[0]._id)
     }).catch(() => {})
   }, [selectedSeriesId])
 
@@ -970,73 +950,6 @@ export function StudioWorkspacePage() {
   }, [loadZones, saveManualHistory])
 
   // ── Create zone API call ──────────────────────────
-  const refreshSeriesAndChapters = useCallback(async (nextSeriesId?: string) => {
-    const res = await seriesAPI.getAll()
-    const items = res.data.series || []
-    setSeriesList(items)
-    const activeSeriesId = nextSeriesId || selectedSeriesId || items[0]?._id || ''
-    if (activeSeriesId) {
-      setSelectedSeriesId(activeSeriesId)
-      const chRes = await chaptersAPI.getBySeries(activeSeriesId)
-      const chapterItems = chRes.data.chapters || []
-      setChapters(chapterItems)
-      if (chapterItems.length > 0) {
-        setSelectedChapterId(chapterItems[0]._id)
-      } else {
-        setSelectedChapterId('')
-      }
-    }
-  }, [selectedSeriesId])
-
-  const handleCreateSeries = async () => {
-    const title = newSeriesTitle.trim()
-    const description = newSeriesDescription.trim()
-    const genre = newSeriesGenre.split(',').map(item => item.trim()).filter(Boolean)
-
-    if (!title || !description || genre.length === 0) return
-
-    try {
-      const res = await seriesAPI.create({
-        title,
-        description,
-        genre,
-        coverImage: newSeriesCoverImage.trim() || undefined,
-      })
-      const createdSeriesId = res.data.series?._id
-      setShowNewSeriesDialog(false)
-      setNewSeriesTitle('')
-      setNewSeriesDescription('')
-      setNewSeriesGenre('')
-      setNewSeriesCoverImage('')
-      await refreshSeriesAndChapters(createdSeriesId)
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
-  const handleCreateChapter = async () => {
-    if (!selectedSeriesId || !newChapterTitle.trim()) return
-    try {
-      const payload: { title: string; chapterNumber?: number } = {
-        title: newChapterTitle.trim(),
-      }
-      if (newChapterNumber.trim()) {
-        payload.chapterNumber = Number(newChapterNumber)
-      }
-      await chaptersAPI.create(selectedSeriesId, payload)
-      const res = await chaptersAPI.getBySeries(selectedSeriesId)
-      const items = res.data.chapters || []
-      setChapters(items)
-      const created = items.find((chapter: any) => chapter.title === payload.title && String(chapter.chapterNumber) === String(payload.chapterNumber ?? chapter.chapterNumber))
-      setSelectedChapterId(created?._id || items[0]?._id || '')
-      setShowNewChapterDialog(false)
-      setNewChapterTitle('')
-      setNewChapterNumber(String(items.length + 1))
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
   const handleCreateZone = async () => {
     if (!currentPage?._id || !pendingZoneRect) return
     try {
@@ -1182,7 +1095,7 @@ export function StudioWorkspacePage() {
   // ── Computed ──────────────────────────────────────
   const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
   const currentChapter = chapters.find(c => c._id === selectedChapterId)
-  const pageProgress = pages.length > 0 ? Math.round(((currentPageIdx + 1) / pages.length) * 100) : 0
+  const chapterCollaborators = (currentChapter as any)?.collaborators || []
 
   return (
     <div
@@ -1314,14 +1227,6 @@ export function StudioWorkspacePage() {
           >
             {chapters.map(c => <option key={c._id} value={c._id}>Ch. {c.chapterNumber}</option>)}
           </select>
-          <button
-            type="button"
-            className="h-7 rounded-lg border border-neutral-200 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            onClick={() => setShowNewChapterDialog(true)}
-            disabled={!selectedSeriesId}
-          >
-            + New chapter
-          </button>
         </div>
 
         {/* Page navigation */}
@@ -1386,15 +1291,29 @@ export function StudioWorkspacePage() {
 
           {/* Canvas status bar */}
           {currentPage && (
-            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur pointer-events-none z-10">
-              <span className="size-1.5 animate-pulse rounded-full bg-[#e7000b]" />
-              {activeTool === 'zone'
-                ? t('studio.drawZone', 'Draw Zone — click & drag')
-                : activeTool === 'pan'
-                  ? t('studio.panMode', 'Pan — drag to move')
-                  : activeTool === 'draw'
-                    ? t('studio.drawMode', 'Free Draw')
-                    : `Page ${currentPage.pageNumber} · ${pageProgress}%`}
+            <div className="absolute left-3 top-3 flex flex-col gap-2 z-10">
+              <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur pointer-events-none">
+                <span className="size-1.5 animate-pulse rounded-full bg-[#e7000b]" />
+                {activeTool === 'zone'
+                  ? t('studio.drawZone', 'Draw Zone — click & drag')
+                  : activeTool === 'pan'
+                    ? t('studio.panMode', 'Pan — drag to move')
+                    : activeTool === 'draw'
+                      ? t('studio.drawMode', 'Free Draw')
+                      : `Page ${currentPage.pageNumber} · ${zoom}%`}
+              </div>
+              <div className="rounded-2xl bg-white/95 px-3 py-2 text-[10px] font-medium shadow-lg backdrop-blur pointer-events-none">
+                <div className="mb-1 text-neutral-500">Collaborators ({collaboratorCount})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {connectedCollaborators.length === 0 ? (
+                    <span className="text-neutral-400">No one else online</span>
+                  ) : connectedCollaborators.map(member => (
+                    <span key={member.userId} className="rounded-full bg-neutral-100 px-2 py-1 text-neutral-700">
+                      {member.role} · {member.userId.slice(-4)}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1704,77 +1623,12 @@ export function StudioWorkspacePage() {
             </span>
             <div className="flex items-center gap-1">
               <Minus className="size-3 text-neutral-400" />
-              <span className="text-[10px] text-neutral-500">{pageProgress}%</span>
+              <span className="text-[10px] text-neutral-500">{zoom}%</span>
               <Plus className="size-3 text-neutral-400" />
             </div>
           </div>
         </div>
       </div>
-
-      {/* ── New Series Dialog ───────────────────────────── */}
-      {showNewSeriesDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-[34rem] rounded-2xl bg-white p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold">Create new series</h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>
-                <Input value={newSeriesTitle} onChange={(e) => setNewSeriesTitle(e.target.value)} placeholder="Series title" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-medium text-neutral-700 mb-1 block">Description</label>
-                <textarea
-                  className="min-h-28 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-900"
-                  value={newSeriesDescription}
-                  onChange={(e) => setNewSeriesDescription(e.target.value)}
-                  placeholder="Series description"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-neutral-700 mb-1 block">Genres</label>
-                <Input value={newSeriesGenre} onChange={(e) => setNewSeriesGenre(e.target.value)} placeholder="Action, Fantasy, Drama" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-neutral-700 mb-1 block">Cover image</label>
-                <Input value={newSeriesCoverImage} onChange={(e) => setNewSeriesCoverImage(e.target.value)} placeholder="/uploads/cover.png or image URL" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowNewSeriesDialog(false)}>
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button size="sm" onClick={handleCreateSeries} disabled={!newSeriesTitle.trim() || !newSeriesDescription.trim() || !newSeriesGenre.trim()}>
-                Create
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── New Chapter Dialog ───────────────────────────── */}
-      {showNewChapterDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-[28rem] rounded-2xl bg-white p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold">Create new chapter</h3>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Chapter title</label>
-              <Input value={newChapterTitle} onChange={(e) => setNewChapterTitle(e.target.value)} placeholder="Chapter title" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Chapter number</label>
-              <Input value={newChapterNumber} onChange={(e) => setNewChapterNumber(e.target.value)} type="number" min="1" placeholder="Auto if empty" />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowNewChapterDialog(false)}>
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button size="sm" onClick={handleCreateChapter} disabled={!selectedSeriesId || !newChapterTitle.trim()}>
-                Create
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── New Zone Dialog ────────────────────────────── */}
       {showNewZoneDialog && (
