@@ -43,6 +43,14 @@ class SocketService {
   leaveChapterRoom(chapterId: string) {
     this.socket?.emit('leave:room', `chapter:${chapterId}`)
   }
+
+  joinChapterRoom(chapterId: string) {
+    this.joinRoom(`chapter:${chapterId}`);
+  }
+
+  leaveChapterRoom(chapterId: string) {
+    this.leaveRoom(`chapter:${chapterId}`);
+  }
 }
 
 export const socketService = new SocketService()

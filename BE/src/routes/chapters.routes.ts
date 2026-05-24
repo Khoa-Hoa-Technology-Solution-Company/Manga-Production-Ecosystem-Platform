@@ -12,5 +12,7 @@ router.post('/series/:seriesId', authorize('mangaka'), ctrl.create);
 router.put('/:id', authorize('mangaka', 'editor'), ctrl.update);
 router.delete('/:id', authorize('mangaka'), ctrl.remove);
 router.patch('/:id/status', authorize('mangaka', 'editor', 'editorial_board'), ctrl.updateStatus);
+router.post('/:id/access', authorize('mangaka', 'editor'), ctrl.shareAccess);
+router.delete('/:id/access/:userId', authorize('mangaka', 'editor'), ctrl.removeAccess);
 
 export default router;

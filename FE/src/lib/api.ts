@@ -40,6 +40,7 @@ export const authAPI = {
     api.post('/auth/register', data),
   getMe: () => api.get('/auth/me'),
   updateProfile: (data: unknown) => api.put('/auth/profile', data),
+  search: (q: string) => api.get('/auth/search', { params: { q } }),
 };
 
 // ── Series API ──────────────────────────────────────
@@ -60,6 +61,9 @@ export const chaptersAPI = {
   update: (id: string, data: unknown) => api.put(`/chapters/${id}`, data),
   delete: (id: string) => api.delete(`/chapters/${id}`),
   updateStatus: (id: string, status: string) => api.patch(`/chapters/${id}/status`, { status }),
+  shareAccess: (id: string, data: { userId: string; role?: string; canEdit?: boolean; canComment?: boolean; canInvite?: boolean }) =>
+    api.post(`/chapters/${id}/access`, data),
+  removeAccess: (id: string, userId: string) => api.delete(`/chapters/${id}/access/${userId}`),
 };
 
 // ── Tasks API ───────────────────────────────────────

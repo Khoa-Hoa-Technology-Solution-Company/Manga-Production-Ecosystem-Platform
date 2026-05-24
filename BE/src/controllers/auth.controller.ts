@@ -92,3 +92,27 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: error.message })
   }
 }
+
+export async function searchUsers(req: Request, res: Response): Promise<void> {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      res.json({ users: [] });
+      return;
+    }
+
+    const users = await User.find({
+      $or: [
+        { email: { $regex: q, $options: 'i' } },
+        { displayName: { $regex: q, $options: 'i' } },
+      ],
+      isActive: true,
+    })
+      .select('_id email displayName role avatar')
+      .limit(10);
+
+    res.json({ users });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}

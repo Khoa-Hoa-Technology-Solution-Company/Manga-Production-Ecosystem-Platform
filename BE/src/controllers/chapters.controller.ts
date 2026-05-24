@@ -3,11 +3,16 @@ import { Chapter } from '../models/Chapter';
 import { Series } from '../models/Series';
 import { transitionChapterStatus } from '../services/workflow.service';
 
+function canManageCollaborators(userRole?: string) {
+  return userRole === 'mangaka' || userRole === 'editor';
+}
+
 export async function getBySeriesId(req: Request, res: Response): Promise<void> {
   try {
     const chapters = await Chapter.find({ seriesId: req.params.seriesId })
       .populate('mangakaId', 'displayName avatar')
       .populate('editorId', 'displayName avatar')
+      .populate('collaborators.userId', 'displayName avatar role')
       .sort({ chapterNumber: -1 });
     res.json({ chapters });
   } catch (error: any) {
@@ -44,6 +49,16 @@ export async function create(req: Request, res: Response): Promise<void> {
       chapterNumber: nextChapterNumber,
       title,
       mangakaId: req.user?._id,
+      collaborators: [
+        {
+          userId: req.user?._id,
+          role: req.user?.role,
+          canEdit: true,
+          canComment: true,
+          canInvite: true,
+          acceptedAt: new Date(),
+        },
+      ],
     });
 
     await Series.findByIdAndUpdate(req.params.seriesId, {
@@ -105,6 +120,83 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
       req.user!.role
     );
     res.json({ chapter, message: `Chapter status updated to "${status}".` });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+export async function shareAccess(req: Request, res: Response): Promise<void> {
+  try {
+    if (!canManageCollaborators(req.user?.role)) {
+      res.status(403).json({ error: 'Permission denied.' });
+      return;
+    }
+
+    const { userId, role = 'assistant', canEdit = true, canComment = true, canInvite = false } = req.body;
+    if (!userId) {
+      res.status(400).json({ error: 'userId is required.' });
+      return;
+    }
+    const chapter = await Chapter.findById(req.params.id);
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+
+    if (!Array.isArray(chapter.collaborators)) {
+      chapter.collaborators = [] as any;
+    }
+
+    const existing = chapter.collaborators.find(c => c.userId.toString() === String(userId));
+    if (existing) {
+      existing.role = role;
+      existing.canEdit = Boolean(canEdit);
+      existing.canComment = Boolean(canComment);
+      existing.canInvite = Boolean(canInvite);
+      existing.acceptedAt = new Date();
+    } else {
+      chapter.collaborators.push({
+        userId,
+        role,
+        canEdit: Boolean(canEdit),
+        canComment: Boolean(canComment),
+        canInvite: Boolean(canInvite),
+        invitedBy: req.user?._id,
+        invitedAt: new Date(),
+        acceptedAt: new Date(),
+      } as any);
+    }
+
+    await chapter.save();
+    const updated = await Chapter.findById(chapter._id)
+      .populate('collaborators.userId', 'displayName avatar role');
+
+    res.json({ chapter: updated });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+export async function removeAccess(req: Request, res: Response): Promise<void> {
+  try {
+    if (!canManageCollaborators(req.user?.role)) {
+      res.status(403).json({ error: 'Permission denied.' });
+      return;
+    }
+
+    const chapter = await Chapter.findById(req.params.id);
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+
+    chapter.collaborators = chapter.collaborators.filter(c => c.userId.toString() !== String(req.params.userId)) as any;
+    await chapter.save();
+
+    const updated = await Chapter.findById(chapter._id)
+      .populate('collaborators.userId', 'displayName avatar role');
+
+    res.json({ chapter: updated });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
