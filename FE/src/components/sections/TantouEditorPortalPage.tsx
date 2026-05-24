@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import {
   FileEdit, Clock, CheckCircle2, XCircle, Eye, Send,
   ChevronRight, AlertTriangle, BookOpen, Users, BarChart3,
-  MessageSquare, Loader2
+  MessageSquare, Loader2, Layers, PenTool
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, Progress, Tabs, Textarea } from '../ui'
-import { seriesAPI, approvalAPI, chaptersAPI, tasksAPI } from '../../lib/api'
+import { seriesAPI, approvalAPI, chaptersAPI, tasksAPI, pagesAPI } from '../../lib/api'
+import { DraftReviewCanvas, type AnnotationData } from './DraftReviewCanvas'
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -53,6 +54,15 @@ export function TantouEditorPortalPage() {
   const [selectedSeries, setSelectedSeries] = useState<SeriesItem | null>(null)
   const [reviewComments, setReviewComments] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Draft viewer state (Phase 2)
+  const [reviewChapters, setReviewChapters] = useState<ChapterItem[]>([])
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
+  const [chapterPages, setChapterPages] = useState<Array<{ _id: string; pageNumber: number; originalImage: string; width: number; height: number }>>([])
+  const [annotations, setAnnotations] = useState<AnnotationData[]>([])
+  const [showCanvas, setShowCanvas] = useState(false)
+  const [loadingChapters, setLoadingChapters] = useState(false)
+  const [loadingPages, setLoadingPages] = useState(false)
 
   // Studio progress state
   const [progressData, setProgressData] = useState<Record<string, { chapters: ChapterItem[]; tasks: TaskSummary }>>({})
@@ -126,14 +136,51 @@ export function TantouEditorPortalPage() {
       await approvalAPI.editorDecision(selectedSeries._id, {
         decision,
         comments: reviewComments,
+        annotations: annotations.length > 0 ? annotations : undefined,
       })
       setSelectedSeries(null)
       setReviewComments('')
+      setAnnotations([])
+      setReviewChapters([])
+      setSelectedChapterId(null)
+      setChapterPages([])
       fetchData()
     } catch (err) {
       console.error('Failed to submit decision:', err)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  /* ── open series review: fetch chapters ── */
+  const handleOpenReview = async (series: SeriesItem) => {
+    setSelectedSeries(series)
+    setReviewComments('')
+    setAnnotations([])
+    setSelectedChapterId(null)
+    setChapterPages([])
+    setLoadingChapters(true)
+    try {
+      const res = await chaptersAPI.getBySeries(series._id)
+      setReviewChapters(res.data.chapters || [])
+    } catch {
+      setReviewChapters([])
+    } finally {
+      setLoadingChapters(false)
+    }
+  }
+
+  /* ── select chapter: fetch pages ── */
+  const handleSelectChapter = async (chapterId: string) => {
+    setSelectedChapterId(chapterId)
+    setLoadingPages(true)
+    try {
+      const res = await pagesAPI.getByChapter(chapterId)
+      setChapterPages(res.data.pages || [])
+    } catch {
+      setChapterPages([])
+    } finally {
+      setLoadingPages(false)
     }
   }
 
@@ -258,10 +305,7 @@ export function TantouEditorPortalPage() {
                           size="sm"
                           variant="outline"
                           className="gap-1.5 rounded-xl"
-                          onClick={() => {
-                            setSelectedSeries(series)
-                            setReviewComments('')
-                          }}
+                          onClick={() => handleOpenReview(series)}
                         >
                           <Eye className="size-3.5" />
                           {t('editor.viewDraft')}
@@ -412,10 +456,10 @@ export function TantouEditorPortalPage() {
         </div>
       )}
 
-      {/* ── Review Modal ── */}
-      {selectedSeries && (
+      {/* ── Review Modal (Enhanced with Chapter Selection + Canvas) ── */}
+      {selectedSeries && !showCanvas && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div className="mx-4 w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
             {/* Modal Header */}
             <div className="border-b border-neutral-100 bg-gradient-to-r from-violet-50 to-purple-50 px-6 py-5">
               <div className="flex items-center justify-between">
@@ -429,7 +473,13 @@ export function TantouEditorPortalPage() {
                   variant="ghost"
                   size="sm"
                   className="rounded-xl"
-                  onClick={() => setSelectedSeries(null)}
+                  onClick={() => {
+                    setSelectedSeries(null)
+                    setReviewChapters([])
+                    setSelectedChapterId(null)
+                    setChapterPages([])
+                    setAnnotations([])
+                  }}
                 >
                   ✕
                 </Button>
@@ -437,7 +487,7 @@ export function TantouEditorPortalPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="max-h-[60vh] space-y-5 overflow-y-auto p-6">
+            <div className="max-h-[65vh] space-y-5 overflow-y-auto p-6">
               {/* Description */}
               <div>
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">Description</p>
@@ -445,7 +495,7 @@ export function TantouEditorPortalPage() {
               </div>
 
               {/* Details */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-neutral-50 p-3">
                   <p className="text-[10px] font-medium uppercase text-neutral-400">Chapters</p>
                   <p className="text-lg font-bold text-neutral-900">{selectedSeries.totalChapters}</p>
@@ -456,6 +506,86 @@ export function TantouEditorPortalPage() {
                     {new Date(selectedSeries.createdAt).toLocaleDateString()}
                   </p>
                 </div>
+                <div className="rounded-xl bg-neutral-50 p-3">
+                  <p className="text-[10px] font-medium uppercase text-neutral-400">Annotations</p>
+                  <p className="text-lg font-bold text-violet-600">{annotations.length}</p>
+                </div>
+              </div>
+
+              {/* Chapter Selection */}
+              <div>
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-neutral-700">
+                  <Layers className="size-3.5" />
+                  Select Chapter to Review
+                </p>
+                {loadingChapters ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="size-5 animate-spin text-neutral-400" />
+                  </div>
+                ) : reviewChapters.length === 0 ? (
+                  <div className="rounded-xl bg-neutral-50 py-6 text-center text-sm text-neutral-400">
+                    No chapters found for this series
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {reviewChapters.map((ch) => (
+                      <div
+                        key={ch._id}
+                        onClick={() => handleSelectChapter(ch._id)}
+                        className={`flex cursor-pointer items-center justify-between rounded-xl border-2 p-3 transition-all ${
+                          selectedChapterId === ch._id
+                            ? 'border-violet-400 bg-violet-50 shadow-sm'
+                            : 'border-neutral-100 bg-white hover:border-neutral-200 hover:bg-neutral-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`grid size-9 place-items-center rounded-lg ${
+                            selectedChapterId === ch._id ? 'bg-violet-500 text-white' : 'bg-neutral-100 text-neutral-500'
+                          }`}>
+                            <span className="text-xs font-bold">{ch.chapterNumber}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-neutral-900">{ch.title}</p>
+                            <p className="text-xs text-neutral-400">{ch.totalPages} pages · {ch.status}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-200">
+                            <div
+                              className={`h-full rounded-full transition-all ${ch.progress >= 80 ? 'bg-emerald-500' : ch.progress >= 40 ? 'bg-amber-500' : 'bg-red-400'}`}
+                              style={{ width: `${ch.progress}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-medium text-neutral-400">{ch.progress}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Open Annotation Canvas */}
+                {selectedChapterId && (
+                  <div className="mt-3">
+                    {loadingPages ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="size-5 animate-spin text-neutral-400" />
+                      </div>
+                    ) : chapterPages.length > 0 ? (
+                      <Button
+                        size="sm"
+                        className="w-full gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 py-5 text-white shadow-lg shadow-violet-200 hover:from-violet-700 hover:to-purple-700"
+                        onClick={() => setShowCanvas(true)}
+                      >
+                        <PenTool className="size-4" />
+                        Open Annotation Canvas ({chapterPages.length} pages)
+                      </Button>
+                    ) : (
+                      <div className="rounded-xl bg-amber-50 p-3 text-center text-xs text-amber-600">
+                        No pages uploaded for this chapter yet
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Review Comments */}
@@ -471,6 +601,21 @@ export function TantouEditorPortalPage() {
                   className="min-h-[100px] rounded-xl"
                 />
               </div>
+
+              {/* Annotation Summary */}
+              {annotations.length > 0 && (
+                <div className="rounded-xl bg-violet-50 p-4">
+                  <div className="flex items-center gap-2">
+                    <PenTool className="size-4 text-violet-600" />
+                    <span className="text-xs font-semibold text-violet-800">
+                      {annotations.length} annotation{annotations.length > 1 ? 's' : ''} added
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-violet-600">
+                    Annotations will be sent with your review decision
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -479,7 +624,13 @@ export function TantouEditorPortalPage() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 rounded-xl"
-                onClick={() => setSelectedSeries(null)}
+                onClick={() => {
+                  setSelectedSeries(null)
+                  setReviewChapters([])
+                  setSelectedChapterId(null)
+                  setChapterPages([])
+                  setAnnotations([])
+                }}
               >
                 {t('common.cancel')}
               </Button>
@@ -505,6 +656,18 @@ export function TantouEditorPortalPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Fullscreen Annotation Canvas ── */}
+      {showCanvas && selectedSeries && chapterPages.length > 0 && (
+        <DraftReviewCanvas
+          pages={chapterPages}
+          annotations={annotations}
+          onAnnotationsChange={setAnnotations}
+          onClose={() => setShowCanvas(false)}
+          seriesTitle={selectedSeries.title}
+          chapterTitle={reviewChapters.find(ch => ch._id === selectedChapterId)?.title || 'Chapter'}
+        />
       )}
     </div>
   )

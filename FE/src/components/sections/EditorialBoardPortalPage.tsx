@@ -26,6 +26,9 @@ type SeriesItem = {
   cancellationRisk?: boolean
   rank?: number
   createdAt: string
+  // Vote aggregation
+  votesFor?: number
+  votesAgainst?: number
 }
 
 type RankingItem = SeriesItem & {
@@ -45,6 +48,11 @@ export function EditorialBoardPortalPage() {
   const [votingSeriesId, setVotingSeriesId] = useState<string | null>(null)
   const [voteComments, setVoteComments] = useState('')
   const [submittingVote, setSubmittingVote] = useState(false)
+
+  // Final Decision state
+  const [decisionSeriesId, setDecisionSeriesId] = useState<string | null>(null)
+  const [decisionSchedule, setDecisionSchedule] = useState<'weekly' | 'monthly'>('weekly')
+  const [submittingDecision, setSubmittingDecision] = useState(false)
 
   // Schedule decision state
   const [scheduleSeriesId, setScheduleSeriesId] = useState<string | null>(null)
@@ -110,6 +118,22 @@ export function EditorialBoardPortalPage() {
       console.error('Failed to cast vote:', err)
     } finally {
       setSubmittingVote(false)
+    }
+  }
+
+  const handleFinalDecision = async (seriesId: string, decision: 'approved' | 'rejected') => {
+    setSubmittingDecision(true)
+    try {
+      await approvalAPI.ebDecision(seriesId, {
+        decision,
+        publicationSchedule: decision === 'approved' ? decisionSchedule : undefined,
+      })
+      setDecisionSeriesId(null)
+      fetchData()
+    } catch (err) {
+      console.error('Failed to make final decision:', err)
+    } finally {
+      setSubmittingDecision(false)
     }
   }
 
@@ -293,15 +317,110 @@ export function EditorialBoardPortalPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-4">
+                        <div className="mt-4 flex gap-2">
                           <Button
                             size="sm"
-                            className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700"
-                            onClick={() => setVotingSeriesId(series._id)}
+                            variant="outline"
+                            className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1"
+                            onClick={() => {
+                              setVotingSeriesId(series._id)
+                              setDecisionSeriesId(null)
+                            }}
                           >
                             <Gavel className="size-3.5" />
                             {t('editorialBoard.castVote')}
                           </Button>
+                          <Button
+                            size="sm"
+                            className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 flex-1"
+                            onClick={() => {
+                              setDecisionSeriesId(series._id)
+                              setVotingSeriesId(null)
+                            }}
+                          >
+                            <Trophy className="size-3.5" />
+                            Final Decision
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Vote Aggregation Display */}
+                      <div className="mt-4 rounded-xl bg-neutral-50 p-3">
+                        <div className="mb-2 flex items-center justify-between text-xs font-medium">
+                          <span className="text-emerald-600 flex items-center gap-1"><ThumbsUp className="size-3" /> {series.votesFor || 0} {t('editorialBoard.votesFor')}</span>
+                          <span className="text-red-600 flex items-center gap-1">{series.votesAgainst || 0} {t('editorialBoard.votesAgainst')} <ThumbsDown className="size-3" /></span>
+                        </div>
+                        <div className="h-1.5 flex overflow-hidden rounded-full bg-neutral-200">
+                          <div
+                            className="bg-emerald-500 transition-all"
+                            style={{ width: `${((series.votesFor || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
+                          />
+                          <div
+                            className="bg-red-500 transition-all"
+                            style={{ width: `${((series.votesAgainst || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Final Decision Form */}
+                      {decisionSeriesId === series._id && (
+                        <div className="mt-4 space-y-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                          <div>
+                            <h4 className="mb-2 text-sm font-semibold text-indigo-900">Make Final Decision</h4>
+                            <p className="text-xs text-indigo-700/70 mb-3">
+                              This will conclude the voting process and officially publish or reject the series.
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-indigo-900">
+                              {t('editorialBoard.publicationSchedule')} (if approved)
+                            </label>
+                            <div className="flex gap-2">
+                              {(['weekly', 'monthly'] as const).map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => setDecisionSchedule(s)}
+                                  className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                                    decisionSchedule === s
+                                      ? 'bg-indigo-600 text-white shadow-sm'
+                                      : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
+                                  }`}
+                                >
+                                  {t(`editorialBoard.${s}`)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="rounded-xl"
+                              onClick={() => setDecisionSeriesId(null)}
+                            >
+                              {t('common.cancel')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-1.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                              onClick={() => handleFinalDecision(series._id, 'rejected')}
+                              disabled={submittingDecision}
+                            >
+                              {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
+                              Reject Series
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-200"
+                              onClick={() => handleFinalDecision(series._id, 'approved')}
+                              disabled={submittingDecision}
+                            >
+                              {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                              Publish Series
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -368,14 +487,21 @@ export function EditorialBoardPortalPage() {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className="inline-flex items-center gap-1 font-medium">
-                                {series.weeklyVotes > 0 ? (
-                                  <TrendingUp className="size-3.5 text-emerald-500" />
-                                ) : (
-                                  <TrendingDown className="size-3.5 text-red-400" />
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1 font-medium">
+                                  {series.weeklyVotes > 0 ? (
+                                    <TrendingUp className="size-3.5 text-emerald-500" />
+                                  ) : (
+                                    <TrendingDown className="size-3.5 text-red-400" />
+                                  )}
+                                  {series.weeklyVotes}
+                                </span>
+                                {series.cancellationRisk && (
+                                  <div className="w-16 h-1 rounded-full bg-red-100 overflow-hidden mt-1">
+                                    <div className="h-full bg-red-500 w-[20%] animate-pulse" />
+                                  </div>
                                 )}
-                                {series.weeklyVotes}
-                              </span>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-center font-medium text-neutral-600">{series.totalVotes}</td>
                             <td className="px-4 py-3 text-center">

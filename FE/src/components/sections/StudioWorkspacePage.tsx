@@ -1115,8 +1115,26 @@ export function StudioWorkspacePage() {
         })
       }}
     >
+      {/* ── Cancellation Risk Alert ──────────────────── */}
+      {isMangaka && currentSeries?.cancellationRisk && (
+        <div className="bg-red-500 text-white px-4 py-2 text-xs font-medium flex items-center justify-center gap-2">
+          <span className="flex size-4 items-center justify-center rounded-full bg-white text-red-500 font-bold">!</span>
+          Warning: This series is currently at risk of cancellation due to low weekly votes. Please review reader feedback and consult with your Editor.
+        </div>
+      )}
+
       {/* ── Top toolbar ──────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 bg-white z-10">
+        <div className="flex items-center gap-4 border-r border-neutral-200 pr-4 mr-2">
+          <div>
+            <h1 className="text-sm font-semibold truncate max-w-[150px]">{currentSeries?.title || 'Studio Workspace'}</h1>
+            {isMangaka && currentSeries?.rank && (
+              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-100 text-amber-700 hover:bg-amber-100 mt-0.5">
+                Rank #{currentSeries.rank}
+              </Badge>
+            )}
+          </div>
+        </div>
         {/* Tools */}
         <div className="flex items-center gap-1">
           {tools.map(({ icon: Icon, label, key }) => (
@@ -1618,9 +1636,29 @@ export function StudioWorkspacePage() {
 
           {/* ── Bottom info bar ─────────────────────── */}
           <div className="border-t border-neutral-200 px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[10px] text-neutral-400 truncate">
-              {currentChapter ? `Ch. ${currentChapter.chapterNumber}` : ''} · {currentSeries?.title || ''}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-neutral-400 truncate">
+                {currentChapter ? `Ch. ${currentChapter.chapterNumber}` : ''} · {currentSeries?.title || ''}
+              </span>
+              {isMangaka && currentSeries?.status === 'Draft' && (
+                <Button 
+                  size="sm" 
+                  className="h-6 text-[10px] px-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={async () => {
+                    try {
+                      // Submit the series for editor review
+                      await seriesAPI.update(currentSeries._id, { status: 'EditorReview' })
+                      alert('Draft submitted to Editor successfully!')
+                      window.location.reload()
+                    } catch (e) {
+                      console.error('Failed to submit draft', e)
+                    }
+                  }}
+                >
+                  Submit Draft to Editor
+                </Button>
+              )}
+            </div>
             <div className="flex items-center gap-1">
               <Minus className="size-3 text-neutral-400" />
               <span className="text-[10px] text-neutral-500">{zoom}%</span>
