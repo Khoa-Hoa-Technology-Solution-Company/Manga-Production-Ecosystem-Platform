@@ -362,7 +362,8 @@ export function AssistantPortalPage() {
 
         {/* ── Earnings Section ───────────────────────── */}
         {mainTab === 'earnings' && (
-        <Card className="p-6 shadow-sm">
+          <>
+            <Card className="p-6 shadow-sm">
           <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
             <div>
               <CardTitle className="text-base">{t('assistant.earningsOverview', 'Earnings Overview')}</CardTitle>
@@ -425,6 +426,7 @@ export function AssistantPortalPage() {
             </div>
           </CardContent>
         </Card>
+          </>
         )}
       </div>
     </div>
