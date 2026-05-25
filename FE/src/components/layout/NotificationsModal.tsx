@@ -10,9 +10,18 @@ interface NotificationsModalProps {
   onMarkReadComplete: () => void
 }
 
+interface NotificationData {
+  _id: string
+  type: string
+  read: boolean
+  title: string
+  message: string
+  createdAt: string
+}
+
 export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: NotificationsModalProps) {
   const { t } = useTranslation()
-  const [notifications, setNotifications] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<NotificationData[]>([])
   const [loading, setLoading] = useState(false)
 
   const fetchNotifications = async () => {
@@ -29,12 +38,15 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
 
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications()
+      Promise.resolve().then(() => {
+        fetchNotifications().catch(console.error)
+      })
       // Mark all read automatically on open
       notificationsAPI.markAllRead()
         .then(() => onMarkReadComplete())
         .catch(console.error)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
   if (!isOpen) return null
