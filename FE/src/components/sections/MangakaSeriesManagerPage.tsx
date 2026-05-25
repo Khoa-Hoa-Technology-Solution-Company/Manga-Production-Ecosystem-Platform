@@ -18,16 +18,38 @@ function seriesCoverUrl(coverImage?: string) {
   return `${base}${coverImage}`
 }
 
+interface SeriesData {
+  _id: string
+  title: string
+  description?: string
+  genre?: string
+  coverImage?: string
+  mangakaId?: string | { _id: string }
+  status?: string
+  totalChapters?: number
+}
+
+interface ChapterData {
+  _id: string
+  seriesId?: string | { _id: string }
+  chapterNumber: number
+  title: string
+  status: string
+  totalPages?: number
+  progress?: number
+  collaborators?: { userId: { _id: string; displayName: string; avatar?: string } }[]
+}
+
 export function MangakaSeriesManagerPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
-  const [seriesList, setSeriesList] = useState<any[]>([])
+  const [seriesList, setSeriesList] = useState<SeriesData[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState('')
-  const [chapters, setChapters] = useState<any[]>([])
+  const [chapters, setChapters] = useState<ChapterData[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState('series')
-
+  
   const [showSeriesForm, setShowSeriesForm] = useState(false)
   const [showEditSeriesForm, setShowEditSeriesForm] = useState(false)
   const [seriesTitle, setSeriesTitle] = useState('')
@@ -36,16 +58,21 @@ export function MangakaSeriesManagerPage() {
   const [seriesCoverUrlInput, setSeriesCoverUrlInput] = useState('')
   const [seriesCoverFile, setSeriesCoverFile] = useState<File | null>(null)
   const [seriesCoverPreview, setSeriesCoverPreview] = useState('')
-
+  
   const [showChapterForm, setShowChapterForm] = useState(false)
   const [showEditChapterForm, setShowEditChapterForm] = useState(false)
   const [editingChapterId, setEditingChapterId] = useState('')
   const [chapterNumber, setChapterNumber] = useState('1')
   const [chapterTitle, setChapterTitle] = useState('Chapter 1')
-
+  
   const selectedSeries = useMemo(() => seriesList.find((s) => s._id === selectedSeriesId), [seriesList, selectedSeriesId])
   const selectedChapters = useMemo(
-    () => chapters.filter((chapter) => String(chapter.seriesId?._id || chapter.seriesId) === String(selectedSeriesId)),
+    () => chapters.filter((chapter) => {
+      const sId = chapter.seriesId && typeof chapter.seriesId === 'object'
+        ? (chapter.seriesId as { _id: string })._id
+        : chapter.seriesId
+      return String(sId) === String(selectedSeriesId)
+    }),
     [chapters, selectedSeriesId]
   )
 
@@ -102,12 +129,15 @@ export function MangakaSeriesManagerPage() {
     setLoading(true)
     try {
       const res = await seriesAPI.getAll()
-      const list = (res.data.series || []).filter((s: any) => String(s.mangakaId?._id || s.mangakaId) === String(user?._id))
+      const list = (res.data.series || []).filter((s: SeriesData) => {
+        const mId = s.mangakaId && typeof s.mangakaId === 'object' ? s.mangakaId._id : s.mangakaId
+        return String(mId) === String(user?._id)
+      })
       setSeriesList(list)
 
-      const nextSeriesId = preferredSeriesId && list.some((s: any) => s._id === preferredSeriesId)
+      const nextSeriesId = preferredSeriesId && list.some((s: SeriesData) => s._id === preferredSeriesId)
         ? preferredSeriesId
-        : (selectedSeriesId && list.some((s: any) => s._id === selectedSeriesId) ? selectedSeriesId : list[0]?._id || '')
+        : (selectedSeriesId && list.some((s: SeriesData) => s._id === selectedSeriesId) ? selectedSeriesId : list[0]?._id || '')
 
       setSelectedSeriesId(nextSeriesId)
       if (nextSeriesId) {
@@ -122,7 +152,11 @@ export function MangakaSeriesManagerPage() {
   }
 
   useEffect(() => {
-    loadData().catch(() => {})
+    if (user?._id) {
+      Promise.resolve().then(() => {
+        loadData().catch(() => {})
+      })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id])
 
@@ -231,7 +265,7 @@ export function MangakaSeriesManagerPage() {
     }
   }
 
-  const openEditChapter = (chapter: any) => {
+  const openEditChapter = (chapter: ChapterData) => {
     setEditingChapterId(chapter._id)
     setShowChapterForm(false)
     setChapterNumber(String(chapter.chapterNumber || 1))
