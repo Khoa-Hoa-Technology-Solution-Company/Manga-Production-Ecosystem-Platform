@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, Briefcase, PenTool, BookMarked, X, AlertTriangle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '../ui'
 import { notificationsAPI } from '../../lib/api'
 
@@ -10,6 +11,7 @@ interface NotificationsModalProps {
 }
 
 export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: NotificationsModalProps) {
+  const { t } = useTranslation()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -44,7 +46,7 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
         <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
           <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
             <Bell className="size-4 text-neutral-800" />
-            Thông báo
+            {t('notifications.title', 'Notifications')}
           </h3>
           <button
             onClick={onClose}
@@ -63,8 +65,8 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
             <div className="grid size-12 place-items-center rounded-2xl bg-neutral-100 mx-auto">
               <Bell className="size-5 text-neutral-400" />
             </div>
-            <h4 className="text-xs font-semibold text-neutral-700">Không có thông báo mới</h4>
-            <p className="text-[10px] text-neutral-500">Các thông báo công việc, chương mới sẽ hiển thị tại đây.</p>
+            <h4 className="text-xs font-semibold text-neutral-700">{t('notifications.noNotifications', 'No new notifications')}</h4>
+            <p className="text-[10px] text-neutral-500">{t('notifications.subtitle', 'Job updates and new chapter alerts will appear here.')}</p>
           </div>
         ) : (
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
@@ -119,7 +121,7 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
 
         <div className="flex justify-end pt-2 border-t border-neutral-100">
           <Button size="sm" onClick={onClose} className="bg-neutral-900 text-white hover:bg-neutral-800">
-            Đóng
+            {t('common.close', 'Close')}
           </Button>
         </div>
       </div>

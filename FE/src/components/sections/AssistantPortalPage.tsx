@@ -305,14 +305,14 @@ export function AssistantPortalPage() {
                         className="flex-1 h-7 text-xs rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                         onClick={() => handleDecline(task._id)}
                       >
-                        {t('assistant.declineTask', 'Từ chối')}
+                        {t('assistant.declineTask', 'Decline')}
                       </Button>
                       <Button
                         size="sm"
                         className="flex-1 h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800"
                         onClick={() => handleStart(task._id)}
                       >
-                        {t('assistant.startWork', 'Nhận làm')}
+                        {t('assistant.startWork', 'Start Work')}
                       </Button>
                     </div>
                   )}
@@ -323,7 +323,7 @@ export function AssistantPortalPage() {
                         <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
                           <div className="font-semibold flex items-center gap-1">
                             <AlertCircle className="size-3 text-rose-500 shrink-0" />
-                            <span>Yêu cầu sửa đổi từ Mangaka:</span>
+                            <span>{t('assistant.revisionNotesFromMangaka', 'Revision Notes from Mangaka:')}</span>
                           </div>
                           <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
                             {task.reviewNotes}

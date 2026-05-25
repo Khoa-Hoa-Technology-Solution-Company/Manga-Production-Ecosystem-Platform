@@ -94,7 +94,40 @@
     "drawOnCanvas": "Vẽ hình chữ nhật trên canvas để tạo vùng",
     "createZone": "Tạo vùng",
     "zoneName": "Tên",
-    "zoneType": "Loại"
+    "zoneType": "Loại",
+    "zoneDetails": "Chi tiết phân khu",
+    "zoneTypeLabel": "Loại phân khu:",
+    "statusLabel": "Trạng thái:",
+    "progressLabel": "Tiến độ:",
+    "assigneeLabel": "Người thực hiện",
+    "unassigned": "Chưa giao cho trợ lý",
+    "associatedTask": "Công việc liên quan",
+    "assignToAssistant": "Giao việc cho Trợ lý",
+    "designateNewAssistant": "Chỉ định Trợ lý mới",
+    "reviewSubmission": "Duyệt bài nộp",
+    "noTaskForZone": "Chưa có công việc nào cho phân khu này.",
+    "declineTask": "Từ chối",
+    "wageLabel": "Mức lương:",
+    "deadlineLabel": "Hạn chót:",
+    "revisionRequired": "Yêu cầu sửa đổi:",
+    "reviewNotesLabel": "Nhận xét & Yêu cầu (nếu cần sửa)",
+    "reviewNotesPlaceholder": "Nhập nhận xét hoặc yêu cầu sửa đổi...",
+    "requestRevision": "Yêu cầu sửa lại",
+    "approveComplete": "Duyệt hoàn thành",
+    "designateBanner": "Bạn đang chỉ định Trợ lý mới cho công việc đã đăng. Các điều chỉnh bên dưới sẽ cập nhật lại công việc này.",
+    "recommendedTitle": "Trợ lý gợi ý ({{type}})",
+    "recommendedSubtitle": "Tự động đề xuất dựa trên kỹ năng",
+    "noRecommendedAssistants": "Không tìm thấy trợ lý có kỹ năng này. Bạn có thể đăng công khai.",
+    "activeTasksLabel": "Đang làm:",
+    "selectToAssign": "Chọn để giao",
+    "postPublicly": "Đăng công khai (Bất kỳ Trợ lý nào có thể nhận)",
+    "assignNow": "Giao việc ngay",
+    "designateAssistantTitle": "Chỉ định Trợ lý cho Công việc",
+    "assignAssistantTitle": "Giao việc cho Trợ lý",
+    "reviewAssistantTitle": "Duyệt bài nộp của Trợ lý",
+    "submittedProduct": "Sản phẩm đã nộp",
+    "openNewTab": "Mở tab mới ↗",
+    "confirmDeletePage": "Bạn có chắc chắn muốn xóa trang này không? Các zone và công việc trên trang này sẽ bị mất."
   },
   "assistant": {
     "title": "Cổng trợ lý",
@@ -127,7 +160,11 @@
     "noTasksHint": "Thử thay đổi bộ lọc hoặc quay lại sau.",
     "earningsOverview": "Tổng quan thu nhập",
     "earningsHint": "Thu nhập từ các công việc đã hoàn thành",
-    "totalEarned": "Tổng đã nhận"
+    "totalEarned": "Tổng đã nhận",
+    "revisionNotesFromMangaka": "Yêu cầu sửa đổi từ Mangaka:",
+    "declineTask": "Từ chối",
+    "startWork": "Nhận làm",
+    "confirmDecline": "Bạn có chắc chắn muốn từ chối công việc được giao này không?"
   },
   "discover": {
     "title": "Khám phá",
@@ -185,5 +222,10 @@
     "fantasy": "Kỳ ảo",
     "horror": "Kinh dị",
     "sliceOfLife": "Đời thường"
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "noNotifications": "Không có thông báo mới",
+    "subtitle": "Các thông báo công việc, chương mới sẽ hiển thị tại đây."
   }
 }

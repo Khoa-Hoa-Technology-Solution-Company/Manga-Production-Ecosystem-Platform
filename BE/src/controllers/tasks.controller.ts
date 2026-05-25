@@ -1,7 +1,50 @@
 import { Request, Response } from 'express';
 import { Task } from '../models/Task';
 import { User } from '../models/User';
+import { Chapter } from '../models/Chapter';
 import { notifyTaskAssigned, notifyTaskSubmitted } from '../services/notification.service';
+
+async function syncChapterProgress(chapterId: any): Promise<void> {
+  try {
+    if (!chapterId) return;
+    const tasks = await Task.find({ chapterId });
+    if (tasks.length === 0) {
+      const chapter = await Chapter.findById(chapterId);
+      if (chapter) {
+        let progress = 0;
+        if (chapter.status === 'Published') progress = 100;
+        else if (chapter.status === 'Approved') progress = 95;
+        else if (chapter.status === 'Reviewing') progress = 80;
+        
+        if (chapter.progress !== progress) {
+          chapter.progress = progress;
+          await chapter.save();
+        }
+      }
+      return;
+    }
+
+    let totalProgress = 0;
+    for (const t of tasks) {
+      let p = 0;
+      if (t.status === 'assigned') p = 20;
+      else if (t.status === 'in_progress') p = 50;
+      else if (t.status === 'review') p = 90;
+      else if (t.status === 'done') p = 100;
+      totalProgress += p;
+    }
+
+    const averageProgress = Math.round(totalProgress / tasks.length);
+    const chapter = await Chapter.findById(chapterId);
+    if (chapter && chapter.progress !== averageProgress) {
+      chapter.progress = averageProgress;
+      await chapter.save();
+    }
+  } catch (err) {
+    console.error('Error syncing chapter progress:', err);
+  }
+}
+
 
 export async function getAll(req: Request, res: Response): Promise<void> {
   try {
@@ -86,6 +129,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     if (task.zoneId) {
       const zoneUpdate: any = {
         status: task.assignedTo ? 'assigned' : 'open',
+        progress: task.assignedTo ? 20 : 0,
       };
       if (task.assignedTo) {
         zoneUpdate.assignedTo = task.assignedTo;
@@ -94,6 +138,8 @@ export async function create(req: Request, res: Response): Promise<void> {
       }
       await (await import('../models/Zone')).Zone.findByIdAndUpdate(task.zoneId, zoneUpdate);
     }
+
+    await syncChapterProgress(task.chapterId);
 
     res.status(201).json({ task });
   } catch (error: any) {
@@ -115,8 +161,11 @@ export async function acceptTask(req: Request, res: Response): Promise<void> {
       await (await import('../models/Zone')).Zone.findByIdAndUpdate(task.zoneId, {
         assignedTo: req.user?._id,
         status: 'assigned',
+        progress: 20,
       });
     }
+
+    await syncChapterProgress(task.chapterId);
 
     res.json({ task, message: 'Task accepted.' });
   } catch (error: any) {
@@ -147,6 +196,7 @@ export async function submitTask(req: Request, res: Response): Promise<void> {
     if (task.zoneId) {
       await (await import('../models/Zone')).Zone.findByIdAndUpdate(task.zoneId, {
         status: 'review',
+        progress: 90,
       });
     }
 
@@ -158,6 +208,8 @@ export async function submitTask(req: Request, res: Response): Promise<void> {
       task.title,
       task._id.toString()
     );
+
+    await syncChapterProgress(task.chapterId);
 
     res.json({ task, message: 'Task submitted for review.' });
   } catch (error: any) {
@@ -186,10 +238,13 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
     }
 
     if (task.zoneId) {
-      const zoneUpdate: any = { status };
-      if (status === 'done') {
-        zoneUpdate.progress = 100;
-      }
+      let progress = 0;
+      if (status === 'assigned') progress = 20;
+      else if (status === 'in_progress') progress = 50;
+      else if (status === 'review') progress = 90;
+      else if (status === 'done') progress = 100;
+
+      const zoneUpdate: any = { status, progress };
       await (await import('../models/Zone')).Zone.findByIdAndUpdate(task.zoneId, zoneUpdate);
     }
 
@@ -203,6 +258,8 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
         task._id.toString()
       );
     }
+
+    await syncChapterProgress(task.chapterId);
 
     res.json({ task });
   } catch (error: any) {
@@ -240,17 +297,21 @@ export async function update(req: Request, res: Response): Promise<void> {
 
     // Synchronize Zone if task has zoneId
     if (task.zoneId) {
+      let progress = 0;
+      if (task.status === 'assigned') progress = 20;
+      else if (task.status === 'in_progress') progress = 50;
+      else if (task.status === 'review') progress = 90;
+      else if (task.status === 'done') progress = 100;
+
       const zoneUpdate: any = {
         status: task.status,
+        progress,
       };
       if (task.assignedTo) {
         const assigneeObj = task.assignedTo as any;
         zoneUpdate.assignedTo = assigneeObj._id ? assigneeObj._id : assigneeObj;
       } else {
         zoneUpdate.$unset = { assignedTo: 1 };
-      }
-      if (task.status === 'done') {
-        zoneUpdate.progress = 100;
       }
       await (await import('../models/Zone')).Zone.findByIdAndUpdate(task.zoneId, zoneUpdate);
     }
@@ -283,6 +344,8 @@ export async function update(req: Request, res: Response): Promise<void> {
         task._id.toString()
       );
     }
+
+    await syncChapterProgress(task.chapterId);
 
     res.json({ task });
   } catch (error: any) {
@@ -335,6 +398,8 @@ export async function declineTask(req: Request, res: Response): Promise<void> {
       task.title,
       task._id.toString()
     );
+
+    await syncChapterProgress(task.chapterId);
 
     res.json({ task: updatedTask, message: 'Task declined and set to open.' });
   } catch (error: any) {

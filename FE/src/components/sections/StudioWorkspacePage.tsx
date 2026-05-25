@@ -1206,7 +1206,7 @@ export function StudioWorkspacePage() {
   }
 
   const handleDeletePage = async (pageId: string) => {
-    if (!window.confirm(t('studio.confirmDeletePage', 'Bạn có chắc chắn muốn xóa trang này không? Các zone và công việc trên trang này sẽ bị mất.'))) return
+    if (!window.confirm(t('studio.confirmDeletePage', 'Are you sure you want to delete this page? All zones and tasks on this page will be lost.'))) return
     try {
       await pagesAPI.delete(pageId)
       const res = await pagesAPI.getByChapter(selectedChapterId)
@@ -1616,18 +1616,18 @@ export function StudioWorkspacePage() {
                               <span className="size-2 rounded-full" style={{ backgroundColor: zone.color }} />
                               {zone.name}
                             </h4>
-                            <p className="text-[10px] text-neutral-400">Chi tiết phân khu</p>
+                            <p className="text-[10px] text-neutral-400">{t('studio.zoneDetails', 'Zone Details')}</p>
                           </div>
                         </div>
 
                         {/* Zone Meta Info */}
                         <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2.5">
                           <div className="flex justify-between text-xs">
-                            <span className="text-neutral-500">Loại phân khu:</span>
+                            <span className="text-neutral-500">{t('studio.zoneTypeLabel', 'Zone Type:')}</span>
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
                           </div>
                           <div className="flex justify-between text-xs">
-                            <span className="text-neutral-500">Trạng thái:</span>
+                            <span className="text-neutral-500">{t('studio.statusLabel', 'Status:')}</span>
                             <Badge
                               variant="default"
                               className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${
@@ -1645,7 +1645,7 @@ export function StudioWorkspacePage() {
                           </div>
                           <div className="space-y-1">
                             <div className="flex justify-between text-xs text-neutral-500">
-                              <span>Tiến độ:</span>
+                              <span>{t('studio.progressLabel', 'Progress:')}</span>
                               <span className="font-semibold text-neutral-800">{zone.progress}%</span>
                             </div>
                             <Progress value={zone.progress} className="h-1.5 bg-neutral-200" />
@@ -1654,7 +1654,7 @@ export function StudioWorkspacePage() {
 
                         {/* Assignee section */}
                         <div className="space-y-2">
-                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">Người thực hiện</h5>
+                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{t('studio.assigneeLabel', 'Assignee')}</h5>
                           {zone.assignedTo ? (
                             <div className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 bg-white shadow-sm">
                               <Avatar className="size-8 bg-neutral-200 border border-neutral-100">
@@ -1662,25 +1662,25 @@ export function StudioWorkspacePage() {
                               </Avatar>
                               <div>
                                 <p className="text-xs font-semibold text-neutral-800">{zone.assignedTo.displayName}</p>
-                                <p className="text-[10px] text-neutral-400">Trợ lý</p>
+                                <p className="text-[10px] text-neutral-400">{t('roles.assistant', 'Assistant')}</p>
                               </div>
                             </div>
                           ) : (
                             <div className="flex items-center justify-between rounded-xl border border-dashed border-neutral-200 p-3 bg-neutral-50/50">
-                              <span className="text-xs text-neutral-500 italic">Chưa giao cho trợ lý</span>
+                              <span className="text-xs text-neutral-500 italic">{t('studio.unassigned', 'Unassigned')}</span>
                             </div>
                           )}
                         </div>
 
                         {/* Associated Task section */}
                         <div className="space-y-2 pt-2 border-t border-neutral-100">
-                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">Công việc liên quan</h5>
+                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{t('studio.associatedTask', 'Associated Task')}</h5>
                           {zoneTask ? (
                             <Card className="p-3 bg-white space-y-2.5 rounded-xl border border-neutral-200 shadow-xs">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                   <p className="text-xs font-semibold text-neutral-800 truncate">{zoneTask.title}</p>
-                                  <p className="text-[10px] text-neutral-400 mt-0.5">Mức lương: {Number(zoneTask.wage).toLocaleString()} đ</p>
+                                  <p className="text-[10px] text-neutral-400 mt-0.5">{t('studio.wageLabel', 'Wage:')} {Number(zoneTask.wage).toLocaleString()} đ</p>
                                 </div>
                                 <Badge
                                   variant="secondary"
@@ -1694,7 +1694,7 @@ export function StudioWorkspacePage() {
 
                               {zoneTask.deadline && (
                                 <div className="text-[10px] text-neutral-400">
-                                  Hạn chót: {new Date(zoneTask.deadline).toLocaleDateString()}
+                                  {t('studio.deadlineLabel', 'Deadline:')} {new Date(zoneTask.deadline).toLocaleDateString()}
                                 </div>
                               )}
 
@@ -1702,7 +1702,7 @@ export function StudioWorkspacePage() {
                                 <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
                                   <div className="font-semibold flex items-center gap-1">
                                     <AlertCircle className="size-3 text-rose-500 shrink-0" />
-                                    <span>Yêu cầu sửa đổi:</span>
+                                    <span>{t('studio.revisionRequired', 'Revision Required:')}</span>
                                   </div>
                                   <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
                                     {zoneTask.reviewNotes}
@@ -1717,7 +1717,7 @@ export function StudioWorkspacePage() {
                                   className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1 hover:bg-neutral-800 transition-colors mt-2"
                                 >
                                   <CheckSquare className="size-3.5" />
-                                  Duyệt bài nộp
+                                  {t('studio.reviewSubmission', 'Review Submission')}
                                 </Button>
                               )}
 
@@ -1728,20 +1728,20 @@ export function StudioWorkspacePage() {
                                   className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors mt-2"
                                 >
                                   <Sparkles className="size-3.5 text-amber-400" />
-                                  Chỉ định Trợ lý mới
+                                  {t('studio.designateNewAssistant', 'Designate New Assistant')}
                                 </Button>
                               )}
                             </Card>
                           ) : (
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 text-center space-y-2">
-                              <p className="text-xs text-neutral-500">Chưa có công việc nào cho phân khu này.</p>
+                              <p className="text-xs text-neutral-500">{t('studio.noTaskForZone', 'No task created for this zone yet.')}</p>
                               {isMangaka && (
                                 <Button
                                   onClick={() => handleOpenCreateTask(zone)}
                                   className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors"
                                 >
                                   <Sparkles className="size-3.5 text-amber-400" />
-                                  Giao việc cho Trợ lý
+                                  {t('studio.assignToAssistant', 'Assign to Assistant')}
                                 </Button>
                               )}
                             </div>
@@ -2125,7 +2125,7 @@ export function StudioWorkspacePage() {
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
               <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
                 <Sparkles className="size-4 text-amber-500" />
-                {activeTaskToAssign ? 'Chỉ định Trợ lý cho Công việc' : 'Giao việc cho Trợ lý'}
+                {activeTaskToAssign ? t('studio.designateAssistantTitle', 'Designate Assistant for Task') : t('studio.assignAssistantTitle', 'Assign Task to Assistant')}
               </h3>
               <button
                 onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}
@@ -2138,23 +2138,23 @@ export function StudioWorkspacePage() {
             {activeTaskToAssign && (
               <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-amber-800 text-xs">
                 <AlertCircle className="size-4 shrink-0 text-amber-600" />
-                <span>Bạn đang chỉ định Trợ lý mới cho công việc đã đăng. Các điều chỉnh bên dưới sẽ cập nhật lại công việc này.</span>
+                <span>{t('studio.designateBanner', 'You are designating a new Assistant for an already posted task. Adjustments below will update this task.')}</span>
               </div>
             )}
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">Tiêu đề công việc</label>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.taskTitle', 'Task Title')}</label>
                 <Input
                   value={createTaskForm.title}
                   onChange={(e) => setCreateTaskForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Nhập tiêu đề công việc..."
+                  placeholder={t('studio.taskTitlePlaceholder', 'Enter task title...')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">Mức lương (VNĐ)</label>
+                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.wageLabel', 'Wage (VND)')}</label>
                   <Input
                     type="number"
                     value={createTaskForm.wage}
@@ -2163,7 +2163,7 @@ export function StudioWorkspacePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">Hạn chót</label>
+                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.deadlineLabel', 'Deadline')}</label>
                   <Input
                     type="date"
                     value={createTaskForm.deadline}
@@ -2173,11 +2173,11 @@ export function StudioWorkspacePage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">Mô tả chi tiết</label>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.descriptionLabel', 'Detailed Description')}</label>
                 <textarea
                   value={createTaskForm.description}
                   onChange={(e) => setCreateTaskForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
+                  placeholder={t('studio.descriptionPlaceholder', 'Enter detailed description and requirements...')}
                   className="w-full min-h-[60px] max-h-[120px] rounded-xl border border-neutral-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
                 />
               </div>
@@ -2185,8 +2185,8 @@ export function StudioWorkspacePage() {
               {/* Recommended Assistants section */}
               <div className="space-y-2 border-t border-neutral-100 pt-3">
                 <label className="text-xs font-bold text-neutral-700 block flex items-center justify-between">
-                  <span>Trợ lý gợi ý ({createTaskForm.type})</span>
-                  <span className="text-[10px] text-neutral-400 font-normal">Tự động đề xuất dựa trên kỹ năng</span>
+                  <span>{t('studio.recommendedTitle', 'Recommended Assistants ({{type}})', { type: createTaskForm.type })}</span>
+                  <span className="text-[10px] text-neutral-400 font-normal">{t('studio.recommendedSubtitle', 'Auto-recommended based on skills')}</span>
                 </label>
 
                 {recommendationLoading ? (
@@ -2195,7 +2195,7 @@ export function StudioWorkspacePage() {
                   </div>
                 ) : recommendations.length === 0 ? (
                   <div className="text-center py-4 bg-neutral-50 rounded-xl border border-dashed text-xs text-neutral-500">
-                    Không tìm thấy trợ lý có kỹ năng này. Bạn có thể đăng công khai.
+                    {t('studio.noRecommendedAssistants', 'No assistants found with this skill. You can post publicly.')}
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -2251,13 +2251,13 @@ export function StudioWorkspacePage() {
                                   ? 'bg-rose-50 text-rose-600 flex items-center gap-0.5'
                                   : 'bg-neutral-100 text-neutral-600'
                               }`}
-                              title={hasHighWorkload ? 'Khối lượng công việc cao' : ''}
+                              title={hasHighWorkload ? 'High workload' : ''}
                             >
                               {hasHighWorkload && <AlertCircle className="size-2.5" />}
-                              Đang làm: {ass.activeTasksCount}
+                              {t('studio.activeTasksLabel', 'Active:')} {ass.activeTasksCount}
                             </span>
                             <span className="text-[10px] text-neutral-400">
-                              Chọn để giao
+                              {t('studio.selectToAssign', 'Select to assign')}
                             </span>
                           </div>
                         </div>
@@ -2276,7 +2276,7 @@ export function StudioWorkspacePage() {
                         : 'text-neutral-500 hover:text-neutral-900 bg-neutral-50'
                     }`}
                   >
-                    Đăng công khai (Bất kỳ Trợ lý nào có thể nhận)
+                    {t('studio.postPublicly', 'Post Publicly (Any Assistant can accept)')}
                   </button>
                 </div>
               </div>
@@ -2284,10 +2284,10 @@ export function StudioWorkspacePage() {
 
             <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
               <Button variant="outline" size="sm" onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}>
-                Hủy bỏ
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button size="sm" onClick={handleCreateTaskSubmit} className="bg-neutral-900 text-white hover:bg-neutral-800">
-                {activeTaskToAssign ? 'Chỉ định Trợ lý' : 'Giao việc ngay'}
+                {activeTaskToAssign ? t('studio.designateNewAssistant', 'Designate New Assistant') : t('studio.assignNow', 'Assign Now')}
               </Button>
             </div>
           </div>
@@ -2301,7 +2301,7 @@ export function StudioWorkspacePage() {
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
               <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
                 <CheckSquare className="size-4 text-emerald-500" />
-                Duyệt bài nộp của Trợ lý
+                {t('studio.reviewAssistantTitle', 'Review Assistant Submission')}
               </h3>
               <button
                 onClick={() => { setShowReviewDialog(false); setSelectedReviewTask(null) }}
@@ -2314,15 +2314,15 @@ export function StudioWorkspacePage() {
             <div className="space-y-3.5">
               <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Công việc:</span>
+                  <span className="text-neutral-500">{t('studio.associatedTask', 'Associated Task')}:</span>
                   <span className="font-semibold text-neutral-800">{selectedReviewTask.title}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Trợ lý thực hiện:</span>
+                  <span className="text-neutral-500">{t('studio.assigneeLabel', 'Assignee')}:</span>
                   <span className="font-semibold text-neutral-800">{selectedReviewTask.assignedTo?.displayName || 'Assistant'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Mức lương:</span>
+                  <span className="text-neutral-500">{t('studio.wageLabel', 'Wage')}:</span>
                   <span className="font-bold text-neutral-900">{Number(selectedReviewTask.wage).toLocaleString()} đ</span>
                 </div>
               </div>
@@ -2330,7 +2330,7 @@ export function StudioWorkspacePage() {
               {/* Submitted File Preview */}
               {selectedReviewTask.submittedFile && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-neutral-700 block">Sản phẩm đã nộp</label>
+                  <label className="text-xs font-semibold text-neutral-700 block">{t('studio.submittedProduct', 'Submitted Product')}</label>
                   <div className="border border-neutral-200 rounded-xl overflow-hidden bg-neutral-100 max-h-64 flex items-center justify-center shadow-inner relative group">
                     <img
                       src={selectedReviewTask.submittedFile.startsWith('http') ? selectedReviewTask.submittedFile : `${apiBase}${selectedReviewTask.submittedFile}`}
@@ -2343,18 +2343,18 @@ export function StudioWorkspacePage() {
                       rel="noopener noreferrer"
                       className="absolute bottom-2 right-2 bg-black/75 text-white hover:bg-black text-[10px] font-medium px-2 py-1 rounded shadow"
                     >
-                      Mở tab mới ↗
+                      {t('studio.openNewTab', 'Open in new tab ↗')}
                     </a>
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">Nhận xét & Yêu cầu (nếu cần sửa)</label>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.reviewNotesLabel', 'Review Comments & Notes (if revision required)')}</label>
                 <textarea
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
-                  placeholder="Nhập nhận xét hoặc yêu cầu sửa đổi..."
+                  placeholder={t('studio.reviewNotesPlaceholder', 'Enter review comments or revision instructions...')}
                   className="w-full min-h-[60px] max-h-[120px] rounded-xl border border-neutral-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
                 />
               </div>
@@ -2367,14 +2367,14 @@ export function StudioWorkspacePage() {
                 onClick={() => handleReviewSubmit('in_progress')}
                 className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
               >
-                Yêu cầu sửa lại
+                {t('studio.requestRevision', 'Request Revision')}
               </Button>
               <Button
                 size="sm"
                 onClick={() => handleReviewSubmit('done')}
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
               >
-                Duyệt hoàn thành
+                {t('studio.approveComplete', 'Approve & Complete')}
               </Button>
             </div>
           </div>

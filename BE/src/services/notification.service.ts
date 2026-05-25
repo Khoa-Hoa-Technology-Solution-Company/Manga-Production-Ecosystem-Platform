@@ -98,8 +98,8 @@ export async function notifyTaskRevision(
   await createNotification({
     userId: assistantId,
     type: 'task_revision',
-    title: 'Yêu cầu sửa lại công việc',
-    message: `Mangaka yêu cầu chỉnh sửa công việc "${taskTitle}". Nhận xét: ${reviewNotes || 'Không có nhận xét thêm.'}`,
+    title: 'Revision Required',
+    message: `Mangaka requested revision on task "${taskTitle}". Feedback: ${reviewNotes || 'No additional feedback.'}`,
     relatedId: taskId,
     relatedType: 'Task',
   });

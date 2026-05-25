@@ -283,7 +283,7 @@ export function MangakaSeriesManagerPage() {
             <Button variant="ghost" className="bg-white/10 text-white hover:bg-white/15" onClick={() => loadData().catch(() => {})}>
               <RefreshCw className="mr-2 size-4" /> {ui.refresh}
             </Button>
-            <Button className="bg-white text-neutral-950 hover:bg-white/90" onClick={() => setShowSeriesForm((v) => !v)}>
+            <Button variant="secondary" className="bg-white hover:bg-neutral-100" onClick={() => setShowSeriesForm((v) => !v)}>
               <Plus className="mr-2 size-4" /> {ui.newSeries}
             </Button>
           </div>
@@ -291,11 +291,11 @@ export function MangakaSeriesManagerPage() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{ui.seriesCount}</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{t('seriesManager.seriesCount', '{{count}} Series', { count: seriesList.length })}</div>
             <div className="mt-2 text-2xl font-semibold">{seriesList.length}</div>
           </div>
           <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{ui.chaptersCount}</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{t('seriesManager.chaptersCount', '{{count}} Items', { count: chapters.length })}</div>
             <div className="mt-2 text-2xl font-semibold">{chapters.length}</div>
           </div>
           <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
@@ -430,18 +430,18 @@ export function MangakaSeriesManagerPage() {
                       <span className="rounded-full bg-neutral-100 px-2.5 py-1">{toGenreText(selectedSeries.genre)}</span>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-neutral-600">{selectedSeries.description}</p>
-                    <div className="mt-4 grid grid-cols-3 gap-3">
-                      <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-400">{ui.totalPages}</div>
-                        <div className="mt-2 text-lg font-semibold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.totalPages || 0), 0)}</div>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
+                        <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.totalPages}>{ui.totalPages}</div>
+                        <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.totalPages || 0), 0)}</div>
                       </div>
-                      <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-400">{ui.avgProgress}</div>
-                        <div className="mt-2 text-lg font-semibold text-neutral-950">{selectedChapters.length ? Math.round(selectedChapters.reduce((sum, chapter) => sum + (chapter.progress || 0), 0) / selectedChapters.length) : 0}%</div>
+                      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
+                        <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.avgProgress}>{ui.avgProgress}</div>
+                        <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.length ? Math.round(selectedChapters.reduce((sum, chapter) => sum + (chapter.progress || 0), 0) / selectedChapters.length) : 0}%</div>
                       </div>
-                      <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-400">{ui.totalCollaborators}</div>
-                        <div className="mt-2 text-lg font-semibold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.collaborators?.length || 0), 0)}</div>
+                      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
+                        <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.totalCollaborators}>{ui.totalCollaborators}</div>
+                        <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.collaborators?.length || 0), 0)}</div>
                       </div>
                     </div>
                     <div className="mt-4 flex items-center gap-2">
