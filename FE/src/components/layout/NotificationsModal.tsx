@@ -14,7 +14,6 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
   const { t } = useTranslation()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
   const fetchNotifications = async () => {
     setLoading(true)

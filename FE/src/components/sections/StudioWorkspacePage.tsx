@@ -25,7 +25,6 @@ import {
   ArrowLeft,
   Sparkles,
   Star,
-  UserPlus,
   AlertCircle,
   CheckSquare,
 } from 'lucide-react'
@@ -61,6 +60,9 @@ type TaskData = {
   status: string
   assignedTo?: { _id: string; displayName: string } | null
   deadline: string
+  zoneId?: string
+  wage?: number
+  reviewNotes?: string
 }
 
 /* ── Zone colors by type ──────────────────────────────── */
