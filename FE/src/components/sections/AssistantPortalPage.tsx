@@ -11,6 +11,7 @@ import {
   ListTodo,
   Search,
   Upload,
+  AlertCircle,
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -101,6 +102,15 @@ export function AssistantPortalPage() {
     } finally {
       setAccepting(null)
     }
+  }
+
+  // ── Decline task ───────────────────────────────────
+  const handleDecline = async (taskId: string) => {
+    if (!window.confirm(t('assistant.confirmDecline', 'Are you sure you want to decline this assigned task?'))) return
+    try {
+      await tasksAPI.decline(taskId)
+      await loadTasks()
+    } catch {}
   }
 
   // ── Submit task ───────────────────────────────────
@@ -288,17 +298,39 @@ export function AssistantPortalPage() {
                   )}
 
                   {task.status === 'assigned' && task.assignedTo?._id === user?._id && (
-                    <Button
-                      size="sm"
-                      className="w-full h-7 text-xs rounded-lg"
-                      onClick={() => handleStart(task._id)}
-                    >
-                      {t('assistant.startWork', 'Start Working')}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                        onClick={() => handleDecline(task._id)}
+                      >
+                        {t('assistant.declineTask', 'Decline')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1 h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800"
+                        onClick={() => handleStart(task._id)}
+                      >
+                        {t('assistant.startWork', 'Start Work')}
+                      </Button>
+                    </div>
                   )}
 
                   {task.status === 'in_progress' && task.assignedTo?._id === user?._id && (
-                    <div className="space-y-1.5">
+                    <div className="space-y-2.5">
+                      {task.reviewNotes && (
+                        <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
+                          <div className="font-semibold flex items-center gap-1">
+                            <AlertCircle className="size-3 text-rose-500 shrink-0" />
+                            <span>{t('assistant.revisionNotesFromMangaka', 'Revision Notes from Mangaka:')}</span>
+                          </div>
+                          <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
+                            {task.reviewNotes}
+                          </p>
+                        </div>
+                      )}
+
                       <label className="flex items-center justify-center gap-1.5 w-full h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
                         <Upload className="size-3" />
                         {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit Work')}

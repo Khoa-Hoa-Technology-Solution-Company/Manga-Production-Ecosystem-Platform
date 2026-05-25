@@ -52,6 +52,7 @@
     "home": "Home",
     "dashboard": "Dashboard",
     "studio": "Studio",
+    "seriesManager": "Series Manager",
     "assistant": "Assistant",
     "discover": "Discover",
     "settings": "Settings",
@@ -93,7 +94,40 @@
     "drawOnCanvas": "Draw a rectangle on the canvas to create a zone",
     "createZone": "Create Zone",
     "zoneName": "Name",
-    "zoneType": "Type"
+    "zoneType": "Type",
+    "zoneDetails": "Zone Details",
+    "zoneTypeLabel": "Zone Type:",
+    "statusLabel": "Status:",
+    "progressLabel": "Progress:",
+    "assigneeLabel": "Assignee",
+    "unassigned": "Unassigned",
+    "associatedTask": "Associated Task",
+    "assignToAssistant": "Assign to Assistant",
+    "designateNewAssistant": "Designate New Assistant",
+    "reviewSubmission": "Review Submission",
+    "noTaskForZone": "No task created for this zone yet.",
+    "declineTask": "Decline",
+    "wageLabel": "Wage:",
+    "deadlineLabel": "Deadline:",
+    "revisionRequired": "Revision Required:",
+    "reviewNotesLabel": "Review Comments & Notes (if revision required)",
+    "reviewNotesPlaceholder": "Enter review comments or revision instructions...",
+    "requestRevision": "Request Revision",
+    "approveComplete": "Approve & Complete",
+    "designateBanner": "You are designating a new Assistant for an already posted task. Adjustments below will update this task.",
+    "recommendedTitle": "Recommended Assistants ({{type}})",
+    "recommendedSubtitle": "Auto-recommended based on skills",
+    "noRecommendedAssistants": "No assistants found with this skill. You can post publicly.",
+    "activeTasksLabel": "Active:",
+    "selectToAssign": "Select to assign",
+    "postPublicly": "Post Publicly (Any Assistant can accept)",
+    "assignNow": "Assign Now",
+    "designateAssistantTitle": "Designate Assistant for Task",
+    "assignAssistantTitle": "Assign Task to Assistant",
+    "reviewAssistantTitle": "Review Assistant Submission",
+    "submittedProduct": "Submitted Product",
+    "openNewTab": "Open in new tab ↗",
+    "confirmDeletePage": "Are you sure you want to delete this page? All zones and tasks on this page will be lost."
   },
   "assistant": {
     "title": "Assistant Portal",
@@ -126,7 +160,11 @@
     "noTasksHint": "Try adjusting your filters or check back later.",
     "earningsOverview": "Earnings Overview",
     "earningsHint": "Your earnings from completed tasks",
-    "totalEarned": "Total Earned"
+    "totalEarned": "Total Earned",
+    "revisionNotesFromMangaka": "Revision Notes from Mangaka:",
+    "declineTask": "Decline",
+    "startWork": "Start Work",
+    "confirmDecline": "Are you sure you want to decline this assigned task?"
   },
   "discover": {
     "title": "Discover",
@@ -184,5 +222,10 @@
     "fantasy": "Fantasy",
     "horror": "Horror",
     "sliceOfLife": "Slice of Life"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "noNotifications": "No new notifications",
+    "subtitle": "Job updates and new chapter alerts will appear here."
   }
 }

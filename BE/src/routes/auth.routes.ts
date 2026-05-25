@@ -30,6 +30,7 @@ router.post(
 
 router.get('/me', authenticate, ctrl.getMe);
 router.get('/search', authenticate, ctrl.searchUsers);
+router.get('/assistants/recommend', authenticate, ctrl.recommendAssistants);
 router.put('/profile', authenticate, ctrl.updateProfile);
 
 export default router;

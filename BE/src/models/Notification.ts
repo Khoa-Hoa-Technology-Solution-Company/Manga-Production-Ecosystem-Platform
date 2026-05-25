@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type NotificationType = 'task_assigned' | 'task_submitted' | 'chapter_status' | 'vote' | 'comment' | 'deadline' | 'system';
+export type NotificationType = 'task_assigned' | 'task_submitted' | 'task_declined' | 'task_revision' | 'chapter_status' | 'vote' | 'comment' | 'deadline' | 'system';
 
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
@@ -18,7 +18,7 @@ const notificationSchema = new Schema<INotification>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     type: {
       type: String,
-      enum: ['task_assigned', 'task_submitted', 'chapter_status', 'vote', 'comment', 'deadline', 'system'],
+      enum: ['task_assigned', 'task_submitted', 'task_declined', 'task_revision', 'chapter_status', 'vote', 'comment', 'deadline', 'system'],
       required: true,
     },
     title: { type: String, required: true },
