@@ -41,14 +41,15 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
   updateProfile: (data: unknown) => api.put('/auth/profile', data),
   search: (q: string) => api.get('/auth/search', { params: { q } }),
+  recommendAssistants: (params?: { skills?: string; limit?: number }) => api.get('/auth/assistants/recommend', { params }),
 };
 
 // ── Series API ──────────────────────────────────────
 export const seriesAPI = {
   getAll: (params?: Record<string, unknown>) => api.get('/series', { params }),
   getById: (id: string) => api.get(`/series/${id}`),
-  create: (data: unknown) => api.post('/series', data),
-  update: (id: string, data: unknown) => api.put(`/series/${id}`, data),
+  create: (data: FormData | unknown) => api.post('/series', data),
+  update: (id: string, data: FormData | unknown) => api.put(`/series/${id}`, data),
   delete: (id: string) => api.delete(`/series/${id}`),
 };
 
@@ -57,6 +58,7 @@ export const chaptersAPI = {
   getBySeries: (seriesId: string) => api.get(`/chapters/series/${seriesId}`),
   create: (seriesId: string, data: unknown) => api.post(`/chapters/series/${seriesId}`, data),
   update: (id: string, data: unknown) => api.put(`/chapters/${id}`, data),
+  delete: (id: string) => api.delete(`/chapters/${id}`),
   updateStatus: (id: string, status: string) => api.patch(`/chapters/${id}/status`, { status }),
   shareAccess: (id: string, data: { userId: string; role?: string; canEdit?: boolean; canComment?: boolean; canInvite?: boolean }) =>
     api.post(`/chapters/${id}/access`, data),
@@ -70,6 +72,7 @@ export const tasksAPI = {
   create: (data: unknown) => api.post('/tasks', data),
   update: (id: string, data: unknown) => api.put(`/tasks/${id}`, data),
   accept: (id: string) => api.patch(`/tasks/${id}/accept`),
+  decline: (id: string) => api.patch(`/tasks/${id}/decline`),
   updateStatus: (id: string, status: string) => api.patch(`/tasks/${id}/status`, { status }),
   submit: (id: string, formData: FormData) =>
     api.post(`/tasks/${id}/submit`, formData, {

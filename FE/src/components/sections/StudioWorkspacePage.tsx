@@ -22,6 +22,12 @@ import {
   Upload,
   ZoomIn,
   ZoomOut,
+  ArrowLeft,
+  Sparkles,
+  Star,
+  UserPlus,
+  AlertCircle,
+  CheckSquare,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -106,11 +112,38 @@ export function StudioWorkspacePage() {
   const [shareCanComment, setShareCanComment] = useState(true)
   const [shareCanInvite, setShareCanInvite] = useState(false)
 
+  // ── Series / Chapter creation dialogs ────────────
+  const [showCreateSeriesDialog, setShowCreateSeriesDialog] = useState(false)
+  const [showCreateChapterDialog, setShowCreateChapterDialog] = useState(false)
+  const [newSeriesTitle, setNewSeriesTitle] = useState('')
+  const [newSeriesDescription, setNewSeriesDescription] = useState('')
+  const [newSeriesGenre, setNewSeriesGenre] = useState('action, fantasy')
+  const [newSeriesCoverImage, setNewSeriesCoverImage] = useState('')
+  const [newChapterNumber, setNewChapterNumber] = useState('1')
+  const [newChapterTitle, setNewChapterTitle] = useState('Chapter 1')
+
   // ── Zone creation dialog ──────────────────────────
   const [showNewZoneDialog, setShowNewZoneDialog] = useState(false)
   const [newZoneName, setNewZoneName] = useState('Background')
   const [newZoneType, setNewZoneType] = useState('background')
   const [pendingZoneRect, setPendingZoneRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  // ── Task Assignment & Review Dialogs ──────────────
+  const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
+  const [showReviewDialog, setShowReviewDialog] = useState(false)
+  const [selectedReviewTask, setSelectedReviewTask] = useState<any | null>(null)
+  const [activeTaskToAssign, setActiveTaskToAssign] = useState<any | null>(null)
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [recommendationLoading, setRecommendationLoading] = useState(false)
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [createTaskForm, setCreateTaskForm] = useState({
+    title: '',
+    description: '',
+    wage: 30000,
+    deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
+    type: 'background',
+    assignedTo: '',
+  })
 
   // ── Fabric.js refs ────────────────────────────────
   const canvasContainerRef = useRef<HTMLDivElement>(null)
@@ -318,12 +351,33 @@ export function StudioWorkspacePage() {
   // DATA LOADING
   // ═══════════════════════════════════════════════════
 
+  const refreshSeriesAndChapters = useCallback(async (preferredSeriesId?: string) => {
+    const res = await seriesAPI.getAll()
+    const list = res.data.series || []
+    setSeriesList(list)
+
+    if (list.length === 0) {
+      setSelectedSeriesId('')
+      setChapters([])
+      setSelectedChapterId('')
+      setPages([])
+      return
+    }
+
+    const nextSeriesId = preferredSeriesId && list.some((s: any) => s._id === preferredSeriesId)
+      ? preferredSeriesId
+      : (selectedSeriesId && list.some((s: any) => s._id === selectedSeriesId) ? selectedSeriesId : list[0]._id)
+
+    setSelectedSeriesId(nextSeriesId)
+    const chapterRes = await chaptersAPI.getBySeries(nextSeriesId)
+    const nextChapters = chapterRes.data.chapters || []
+    setChapters(nextChapters)
+    setSelectedChapterId(nextChapters[0]?._id || '')
+  }, [selectedSeriesId])
+
   useEffect(() => {
-    seriesAPI.getAll().then(res => {
-      setSeriesList(res.data.series || [])
-      if (res.data.series?.length > 0) setSelectedSeriesId(res.data.series[0]._id)
-    }).catch(() => {})
-  }, [])
+    refreshSeriesAndChapters().catch(() => {})
+  }, [refreshSeriesAndChapters])
 
   useEffect(() => {
     if (!selectedSeriesId) return
@@ -932,10 +986,12 @@ export function StudioWorkspacePage() {
     const activeObjects = fc.getActiveObjects()
     if (activeObjects.length) {
       let manualDeleted = false
+      let zoneDeleted = false
       for (const obj of activeObjects) {
         if ((obj as any)._zoneId) {
           try {
             await zonesAPI.delete((obj as any)._zoneId)
+            zoneDeleted = true
           } catch (e) { console.error(e) }
         } else {
           fc.remove(obj)
@@ -945,9 +1001,14 @@ export function StudioWorkspacePage() {
       if (manualDeleted) saveManualHistory()
       fc.discardActiveObject()
       loadZones()
+      if (zoneDeleted && currentPage?._id) {
+        tasksAPI.getAll({ pageId: currentPage._id }).then(res => {
+          setPageTasks(res.data.tasks || [])
+        }).catch(console.error)
+      }
       fc.requestRenderAll()
     }
-  }, [loadZones, saveManualHistory])
+  }, [loadZones, saveManualHistory, currentPage?._id])
 
   // ── Create zone API call ──────────────────────────
   const handleCreateZone = async () => {
@@ -970,6 +1031,119 @@ export function StudioWorkspacePage() {
     setPendingZoneRect(null)
     setNewZoneName('Background')
     setNewZoneType('background')
+  }
+
+  // ── Task Creation & Assignment Helpers ─────────────
+  const loadAssistantRecommendations = async (skills: string) => {
+    setRecommendationLoading(true)
+    try {
+      const res = await authAPI.recommendAssistants({ skills, limit: 5 })
+      setRecommendations(res.data.assistants || [])
+    } catch (err) {
+      console.error('Failed to load recommendations', err)
+    } finally {
+      setRecommendationLoading(false)
+    }
+  }
+
+  const handleOpenCreateTask = (zone: any) => {
+    // Map zone type to task type
+    let mappedType = zone.type
+    if (zone.type === 'characters') mappedType = 'inking'
+    else if (zone.type === 'dialog' || zone.type === 'sfx') mappedType = 'lettering'
+
+    setCreateTaskForm({
+      title: `Gia công [${zone.name}] trang ${currentPage?.pageNumber || 1}`,
+      description: `Thực hiện gia công phân khu ${zone.name} (${mappedType}) cho trang ${currentPage?.pageNumber || 1}.`,
+      wage: 35000,
+      deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      type: mappedType,
+      assignedTo: '',
+    })
+    loadAssistantRecommendations(mappedType)
+    setShowCreateTaskDialog(true)
+  }
+
+  const handleOpenAssignExistingTask = (task: any) => {
+    setActiveTaskToAssign(task)
+    setCreateTaskForm({
+      title: task.title,
+      description: task.description || '',
+      wage: task.wage || 35000,
+      deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      type: task.type,
+      assignedTo: '',
+    })
+    loadAssistantRecommendations(task.type)
+    setShowCreateTaskDialog(true)
+  }
+
+  const handleCreateTaskSubmit = async () => {
+    if (!currentPage?._id || !selectedZoneId || !selectedSeriesId || !selectedChapterId) return
+    try {
+      if (activeTaskToAssign) {
+        // Update existing task (assign assistant)
+        await tasksAPI.update(activeTaskToAssign._id, {
+          assignedTo: createTaskForm.assignedTo || null,
+          status: createTaskForm.assignedTo ? 'assigned' : 'open',
+          // Keep other fields updated if needed
+          title: createTaskForm.title,
+          description: createTaskForm.description,
+          wage: Number(createTaskForm.wage),
+          deadline: new Date(createTaskForm.deadline),
+        })
+      } else {
+        // Create new task
+        await tasksAPI.create({
+          seriesId: selectedSeriesId,
+          chapterId: selectedChapterId,
+          pageId: currentPage._id,
+          zoneId: selectedZoneId,
+          title: createTaskForm.title,
+          description: createTaskForm.description,
+          wage: Number(createTaskForm.wage),
+          deadline: new Date(createTaskForm.deadline),
+          type: createTaskForm.type,
+          assignedTo: createTaskForm.assignedTo || undefined,
+          status: createTaskForm.assignedTo ? 'assigned' : 'open',
+        })
+      }
+      
+      // Refresh page tasks and zones
+      const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
+      setPageTasks(tasksRes.data.tasks || [])
+      loadZones()
+      setShowCreateTaskDialog(false)
+      setActiveTaskToAssign(null)
+    } catch (err) {
+      console.error('Failed to save task', err)
+    }
+  }
+
+  const handleOpenReview = (task: any) => {
+    setSelectedReviewTask(task)
+    setReviewNotes(task.reviewNotes || '')
+    setShowReviewDialog(true)
+  }
+
+  const handleReviewSubmit = async (status: 'done' | 'in_progress') => {
+    if (!selectedReviewTask?._id || !currentPage?._id) return
+    try {
+      if (status === 'done') {
+        await tasksAPI.updateStatus(selectedReviewTask._id, 'done')
+      } else {
+        await tasksAPI.update(selectedReviewTask._id, { status: 'in_progress', reviewNotes })
+      }
+      
+      // Refresh page tasks and zones
+      const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
+      setPageTasks(tasksRes.data.tasks || [])
+      loadZones()
+      setShowReviewDialog(false)
+      setSelectedReviewTask(null)
+    } catch (err) {
+      console.error('Failed to submit review', err)
+    }
   }
 
   // ── Keyboard shortcuts ────────────────────────────
@@ -1007,6 +1181,10 @@ export function StudioWorkspacePage() {
       await zonesAPI.delete(id)
       loadZones()
       if (selectedZoneId === id) setSelectedZoneId(null)
+      if (currentPage?._id) {
+        const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
+        setPageTasks(tasksRes.data.tasks || [])
+      }
     } catch {}
   }
 
@@ -1056,6 +1234,48 @@ export function StudioWorkspacePage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [shareUserQuery])
+
+  const handleCreateSeries = async () => {
+    if (!newSeriesTitle.trim() || !newSeriesDescription.trim()) return
+    try {
+      const genre = newSeriesGenre
+        .split(',')
+        .map((g) => g.trim())
+        .filter(Boolean)
+
+      const res = await seriesAPI.create({
+        title: newSeriesTitle.trim(),
+        description: newSeriesDescription.trim(),
+        genre,
+        coverImage: newSeriesCoverImage.trim() || undefined,
+      })
+
+      setShowCreateSeriesDialog(false)
+      setNewSeriesTitle('')
+      setNewSeriesDescription('')
+      setNewSeriesGenre('action, fantasy')
+      setNewSeriesCoverImage('')
+      await refreshSeriesAndChapters(res.data.series?._id)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const handleCreateChapter = async () => {
+    if (!selectedSeriesId || !newChapterNumber.trim() || !newChapterTitle.trim()) return
+    try {
+      await chaptersAPI.create(selectedSeriesId, {
+        chapterNumber: Number(newChapterNumber),
+        title: newChapterTitle.trim(),
+      })
+      setShowCreateChapterDialog(false)
+      setNewChapterNumber(String(chapters.length + 1))
+      setNewChapterTitle(`Chapter ${chapters.length + 1}`)
+      await refreshSeriesAndChapters(selectedSeriesId)
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   const handleShareAccess = async () => {
     if (!selectedChapterId || !shareUserId.trim()) return
@@ -1227,6 +1447,14 @@ export function StudioWorkspacePage() {
           >
             {chapters.map(c => <option key={c._id} value={c._id}>Ch. {c.chapterNumber}</option>)}
           </select>
+          <button
+            type="button"
+            className="h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white hover:bg-neutral-50"
+            onClick={() => setShowCreateChapterDialog(true)}
+            disabled={!selectedSeriesId}
+          >
+            New Chapter
+          </button>
         </div>
 
         {/* Page navigation */}
@@ -1367,82 +1595,240 @@ export function StudioWorkspacePage() {
           <div className="flex-1 overflow-y-auto p-4">
             {/* ── Zones tab ───────────────────────────── */}
             {rightTab === 'zones' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Layers className="size-4 text-neutral-500" />
-                    <span className="text-xs font-semibold text-neutral-700">{t('studio.pageZones', 'Page Zones')}</span>
-                  </div>
-                  {isMangaka && (
-                    <Button
-                      variant="ghost" size="sm" className="size-6 p-0 rounded-md"
-                      onClick={() => setActiveTool('zone')}
-                      title="Draw new zone"
-                    >
-                      <Plus className="size-3" />
-                    </Button>
-                  )}
-                </div>
-
-                {zones.length === 0 ? (
-                  <div className="rounded-xl bg-neutral-50 p-4 text-center">
-                    <p className="text-xs text-neutral-500">
-                      {activeTool === 'zone'
-                        ? t('studio.drawOnCanvas', 'Draw a rectangle on the canvas to create a zone')
-                        : t('studio.noZones', 'No zones yet. Select the Zone tool and draw on the canvas.')}
-                    </p>
-                  </div>
-                ) : (
-                  zones.map((zone) => (
-                    <div
-                      key={zone._id}
-                      className={`rounded-xl border p-2.5 transition-all cursor-pointer ${
-                        selectedZoneId === zone._id ? 'border-neutral-900 shadow-sm' : 'border-neutral-200'
-                      }`}
-                      onClick={() => setSelectedZoneId(zone._id)}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="size-2.5 rounded-sm" style={{ backgroundColor: zone.color }} />
-                          <span className="text-xs font-medium">{zone.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
+              <div className="space-y-4">
+                {selectedZoneId && zones.some(z => z._id === selectedZoneId) ? (
+                  (() => {
+                    const zone = zones.find(z => z._id === selectedZoneId)!
+                    const zoneTask = pageTasks.find(t => t.zoneId === zone._id || (t as any).zoneId?._id === zone._id)
+                    return (
+                      <div className="space-y-4">
+                        {/* Header with back arrow */}
+                        <div className="flex items-center gap-2 pb-2 border-b border-neutral-100">
                           <button
                             type="button"
-                            className="grid size-5 place-items-center rounded text-neutral-400 hover:text-neutral-700 transition-colors"
-                            onClick={(e) => { e.stopPropagation(); setZoneVisibility(prev => ({ ...prev, [zone._id]: !prev[zone._id] })) }}
+                            onClick={() => setSelectedZoneId(null)}
+                            className="p-1 rounded-lg hover:bg-neutral-100 transition-colors"
                           >
-                            {zoneVisibility[zone._id] ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                            <ArrowLeft className="size-4 text-neutral-600" />
                           </button>
-                          {isMangaka && (
-                            <button
-                              type="button"
-                              className="grid size-5 place-items-center rounded text-neutral-400 hover:text-red-500 transition-colors"
-                              onClick={(e) => { e.stopPropagation(); handleDeleteZone(zone._id) }}
+                          <div>
+                            <h4 className="text-xs font-semibold text-neutral-700 flex items-center gap-1.5">
+                              <span className="size-2 rounded-full" style={{ backgroundColor: zone.color }} />
+                              {zone.name}
+                            </h4>
+                            <p className="text-[10px] text-neutral-400">Chi tiết phân khu</p>
+                          </div>
+                        </div>
+
+                        {/* Zone Meta Info */}
+                        <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-neutral-500">Loại phân khu:</span>
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-neutral-500">Trạng thái:</span>
+                            <Badge
+                              variant="default"
+                              className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${
+                                zone.status === 'done'
+                                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : zone.status === 'review'
+                                    ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                    : zone.status === 'in_progress'
+                                      ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                      : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
+                              }`}
                             >
-                              <Trash2 className="size-3" />
-                            </button>
+                              {zone.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-neutral-500">
+                              <span>Tiến độ:</span>
+                              <span className="font-semibold text-neutral-800">{zone.progress}%</span>
+                            </div>
+                            <Progress value={zone.progress} className="h-1.5 bg-neutral-200" />
+                          </div>
+                        </div>
+
+                        {/* Assignee section */}
+                        <div className="space-y-2">
+                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">Người thực hiện</h5>
+                          {zone.assignedTo ? (
+                            <div className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 bg-white shadow-sm">
+                              <Avatar className="size-8 bg-neutral-200 border border-neutral-100">
+                                <AvatarFallback className="text-xs font-semibold">{zone.assignedTo.displayName?.[0]}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="text-xs font-semibold text-neutral-800">{zone.assignedTo.displayName}</p>
+                                <p className="text-[10px] text-neutral-400">Trợ lý</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between rounded-xl border border-dashed border-neutral-200 p-3 bg-neutral-50/50">
+                              <span className="text-xs text-neutral-500 italic">Chưa giao cho trợ lý</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Associated Task section */}
+                        <div className="space-y-2 pt-2 border-t border-neutral-100">
+                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">Công việc liên quan</h5>
+                          {zoneTask ? (
+                            <Card className="p-3 bg-white space-y-2.5 rounded-xl border border-neutral-200 shadow-xs">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-neutral-800 truncate">{zoneTask.title}</p>
+                                  <p className="text-[10px] text-neutral-400 mt-0.5">Mức lương: {Number(zoneTask.wage).toLocaleString()} đ</p>
+                                </div>
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${
+                                    zoneTask.status === 'done' ? 'text-emerald-600 bg-emerald-50' : zoneTask.status === 'review' ? 'text-amber-600 bg-amber-50' : 'text-neutral-500 bg-neutral-50'
+                                  }`}
+                                >
+                                  {zoneTask.status.replace('_', ' ')}
+                                </Badge>
+                              </div>
+
+                              {zoneTask.deadline && (
+                                <div className="text-[10px] text-neutral-400">
+                                  Hạn chót: {new Date(zoneTask.deadline).toLocaleDateString()}
+                                </div>
+                              )}
+
+                              {zoneTask.status === 'in_progress' && zoneTask.reviewNotes && (
+                                <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
+                                  <div className="font-semibold flex items-center gap-1">
+                                    <AlertCircle className="size-3 text-rose-500 shrink-0" />
+                                    <span>Yêu cầu sửa đổi:</span>
+                                  </div>
+                                  <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
+                                    {zoneTask.reviewNotes}
+                                  </p>
+                                </div>
+                              )}
+
+                              {zoneTask.status === 'review' && isMangaka && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleOpenReview(zoneTask)}
+                                  className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1 hover:bg-neutral-800 transition-colors mt-2"
+                                >
+                                  <CheckSquare className="size-3.5" />
+                                  Duyệt bài nộp
+                                </Button>
+                              )}
+
+                              {zoneTask.status === 'open' && isMangaka && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleOpenAssignExistingTask(zoneTask)}
+                                  className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors mt-2"
+                                >
+                                  <Sparkles className="size-3.5 text-amber-400" />
+                                  Chỉ định Trợ lý mới
+                                </Button>
+                              )}
+                            </Card>
+                          ) : (
+                            <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 text-center space-y-2">
+                              <p className="text-xs text-neutral-500">Chưa có công việc nào cho phân khu này.</p>
+                              {isMangaka && (
+                                <Button
+                                  onClick={() => handleOpenCreateTask(zone)}
+                                  className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors"
+                                >
+                                  <Sparkles className="size-3.5 text-amber-400" />
+                                  Giao việc cho Trợ lý
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
+                    )
+                  })()
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
-                        <span className="text-[10px] text-neutral-500 capitalize">{zone.status.replace('_', ' ')}</span>
+                        <Layers className="size-4 text-neutral-500" />
+                        <span className="text-xs font-semibold text-neutral-700">{t('studio.pageZones', 'Page Zones')}</span>
                       </div>
-                      {zone.assignedTo && (
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <Avatar className="size-4 bg-neutral-200">
-                            <AvatarFallback className="text-[6px]">{zone.assignedTo.displayName?.[0]}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-[10px] text-neutral-500">{zone.assignedTo.displayName}</span>
-                        </div>
+                      {isMangaka && (
+                        <Button
+                          variant="ghost" size="sm" className="size-6 p-0 rounded-md"
+                          onClick={() => setActiveTool('zone')}
+                          title="Draw new zone"
+                        >
+                          <Plus className="size-3" />
+                        </Button>
                       )}
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <Progress value={zone.progress} className="h-1 flex-1" />
-                        <span className="text-[10px] text-neutral-500">{zone.progress}%</span>
-                      </div>
                     </div>
-                  ))
+
+                    {zones.length === 0 ? (
+                      <div className="rounded-xl bg-neutral-50 p-4 text-center">
+                        <p className="text-xs text-neutral-500">
+                          {activeTool === 'zone'
+                            ? t('studio.drawOnCanvas', 'Draw a rectangle on the canvas to create a zone')
+                            : t('studio.noZones', 'No zones yet. Select the Zone tool and draw on the canvas.')}
+                        </p>
+                      </div>
+                    ) : (
+                      zones.map((zone) => (
+                        <div
+                          key={zone._id}
+                          className={`rounded-xl border p-2.5 transition-all cursor-pointer ${
+                            selectedZoneId === zone._id ? 'border-neutral-900 shadow-sm' : 'border-neutral-200 hover:border-neutral-400'
+                          }`}
+                          onClick={() => setSelectedZoneId(zone._id)}
+                        >
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="size-2.5 rounded-sm" style={{ backgroundColor: zone.color }} />
+                              <span className="text-xs font-medium">{zone.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                className="grid size-5 place-items-center rounded text-neutral-400 hover:text-neutral-700 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setZoneVisibility(prev => ({ ...prev, [zone._id]: !prev[zone._id] })) }}
+                              >
+                                {zoneVisibility[zone._id] ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                              </button>
+                              {isMangaka && (
+                                <button
+                                  type="button"
+                                  className="grid size-5 place-items-center rounded text-neutral-400 hover:text-red-500 transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteZone(zone._id) }}
+                                >
+                                  <Trash2 className="size-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
+                            <span className="text-[10px] text-neutral-500 capitalize">{zone.status.replace('_', ' ')}</span>
+                          </div>
+                          {zone.assignedTo && (
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <Avatar className="size-4 bg-neutral-200">
+                                <AvatarFallback className="text-[6px]">{zone.assignedTo.displayName?.[0]}</AvatarFallback>
+                              </Avatar>
+                              <span className="text-[10px] text-neutral-500">{zone.assignedTo.displayName}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <Progress value={zone.progress} className="h-1 flex-1" />
+                            <span className="text-[10px] text-neutral-500">{zone.progress}%</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1630,6 +2016,69 @@ export function StudioWorkspacePage() {
         </div>
       </div>
 
+      {/* ── New Series Dialog ───────────────────────────── */}
+      {showCreateSeriesDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-[30rem] rounded-2xl bg-white p-5 shadow-xl space-y-4">
+            <h3 className="text-sm font-semibold">Create Series</h3>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>
+              <Input value={newSeriesTitle} onChange={(e) => setNewSeriesTitle(e.target.value)} placeholder="Series title" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Description</label>
+              <textarea
+                className="min-h-24 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-900"
+                value={newSeriesDescription}
+                onChange={(e) => setNewSeriesDescription(e.target.value)}
+                placeholder="Series description"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Genres</label>
+              <Input value={newSeriesGenre} onChange={(e) => setNewSeriesGenre(e.target.value)} placeholder="action, fantasy" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Cover image URL</label>
+              <Input value={newSeriesCoverImage} onChange={(e) => setNewSeriesCoverImage(e.target.value)} placeholder="/manga/cover-scifi.png" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowCreateSeriesDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleCreateSeries}>
+                Create
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── New Chapter Dialog ──────────────────────────── */}
+      {showCreateChapterDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-96 rounded-2xl bg-white p-5 shadow-xl space-y-4">
+            <h3 className="text-sm font-semibold">Create Chapter</h3>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Chapter number</label>
+              <Input value={newChapterNumber} onChange={(e) => setNewChapterNumber(e.target.value)} placeholder="1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>
+              <Input value={newChapterTitle} onChange={(e) => setNewChapterTitle(e.target.value)} placeholder="Chapter 1" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowCreateChapterDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleCreateChapter} disabled={!selectedSeriesId}>
+                Create
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── New Zone Dialog ────────────────────────────── */}
       {showNewZoneDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -1663,6 +2112,269 @@ export function StudioWorkspacePage() {
               </Button>
               <Button size="sm" onClick={handleCreateZone}>
                 {t('common.create', 'Create')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create & Assign Task Dialog ────────────────── */}
+      {showCreateTaskDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
+                <Sparkles className="size-4 text-amber-500" />
+                {activeTaskToAssign ? 'Chỉ định Trợ lý cho Công việc' : 'Giao việc cho Trợ lý'}
+              </h3>
+              <button
+                onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {activeTaskToAssign && (
+              <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-amber-800 text-xs">
+                <AlertCircle className="size-4 shrink-0 text-amber-600" />
+                <span>Bạn đang chỉ định Trợ lý mới cho công việc đã đăng. Các điều chỉnh bên dưới sẽ cập nhật lại công việc này.</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">Tiêu đề công việc</label>
+                <Input
+                  value={createTaskForm.title}
+                  onChange={(e) => setCreateTaskForm(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Nhập tiêu đề công việc..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">Mức lương (VNĐ)</label>
+                  <Input
+                    type="number"
+                    value={createTaskForm.wage}
+                    onChange={(e) => setCreateTaskForm(prev => ({ ...prev, wage: Number(e.target.value) }))}
+                    placeholder="35000"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">Hạn chót</label>
+                  <Input
+                    type="date"
+                    value={createTaskForm.deadline}
+                    onChange={(e) => setCreateTaskForm(prev => ({ ...prev, deadline: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">Mô tả chi tiết</label>
+                <textarea
+                  value={createTaskForm.description}
+                  onChange={(e) => setCreateTaskForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
+                  className="w-full min-h-[60px] max-h-[120px] rounded-xl border border-neutral-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
+                />
+              </div>
+
+              {/* Recommended Assistants section */}
+              <div className="space-y-2 border-t border-neutral-100 pt-3">
+                <label className="text-xs font-bold text-neutral-700 block flex items-center justify-between">
+                  <span>Trợ lý gợi ý ({createTaskForm.type})</span>
+                  <span className="text-[10px] text-neutral-400 font-normal">Tự động đề xuất dựa trên kỹ năng</span>
+                </label>
+
+                {recommendationLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="size-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />
+                  </div>
+                ) : recommendations.length === 0 ? (
+                  <div className="text-center py-4 bg-neutral-50 rounded-xl border border-dashed text-xs text-neutral-500">
+                    Không tìm thấy trợ lý có kỹ năng này. Bạn có thể đăng công khai.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {recommendations.map((ass) => {
+                      const isSelected = createTaskForm.assignedTo === ass._id
+                      const hasHighWorkload = ass.activeTasksCount >= 3
+                      return (
+                        <div
+                          key={ass._id}
+                          onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: isSelected ? '' : ass._id }))}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-neutral-900 bg-neutral-50/50 shadow-xs'
+                              : 'border-neutral-200 bg-white hover:border-neutral-400 hover:shadow-xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Avatar className="size-8 bg-neutral-200 border">
+                              <AvatarFallback className="text-xs font-semibold">{ass.displayName?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-neutral-800">{ass.displayName}</span>
+                                <span className="text-[10px] font-medium text-amber-500 flex items-center gap-0.5 bg-amber-50 px-1 rounded">
+                                  <Star className="size-2.5 fill-amber-500" />
+                                  {ass.rating || 5}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {ass.skills?.map((sk: string) => {
+                                  const isMatching = sk.toLowerCase() === createTaskForm.type.toLowerCase()
+                                  return (
+                                    <span
+                                      key={sk}
+                                      className={`text-[8px] px-1 py-0.5 rounded font-medium ${
+                                        isMatching
+                                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                          : 'bg-neutral-100 text-neutral-500'
+                                      }`}
+                                    >
+                                      {sk}
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                                hasHighWorkload
+                                  ? 'bg-rose-50 text-rose-600 flex items-center gap-0.5'
+                                  : 'bg-neutral-100 text-neutral-600'
+                              }`}
+                              title={hasHighWorkload ? 'Khối lượng công việc cao' : ''}
+                            >
+                              {hasHighWorkload && <AlertCircle className="size-2.5" />}
+                              Đang làm: {ass.activeTasksCount}
+                            </span>
+                            <span className="text-[10px] text-neutral-400">
+                              Chọn để giao
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: '' }))}
+                    className={`text-[10px] font-medium px-2 py-1 rounded transition-colors ${
+                      !createTaskForm.assignedTo
+                        ? 'bg-neutral-900 text-white font-semibold'
+                        : 'text-neutral-500 hover:text-neutral-900 bg-neutral-50'
+                    }`}
+                  >
+                    Đăng công khai (Bất kỳ Trợ lý nào có thể nhận)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
+              <Button variant="outline" size="sm" onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}>
+                Hủy bỏ
+              </Button>
+              <Button size="sm" onClick={handleCreateTaskSubmit} className="bg-neutral-900 text-white hover:bg-neutral-800">
+                {activeTaskToAssign ? 'Chỉ định Trợ lý' : 'Giao việc ngay'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Review Submission Dialog ───────────────────── */}
+      {showReviewDialog && selectedReviewTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
+                <CheckSquare className="size-4 text-emerald-500" />
+                Duyệt bài nộp của Trợ lý
+              </h3>
+              <button
+                onClick={() => { setShowReviewDialog(false); setSelectedReviewTask(null) }}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Công việc:</span>
+                  <span className="font-semibold text-neutral-800">{selectedReviewTask.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Trợ lý thực hiện:</span>
+                  <span className="font-semibold text-neutral-800">{selectedReviewTask.assignedTo?.displayName || 'Assistant'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Mức lương:</span>
+                  <span className="font-bold text-neutral-900">{Number(selectedReviewTask.wage).toLocaleString()} đ</span>
+                </div>
+              </div>
+
+              {/* Submitted File Preview */}
+              {selectedReviewTask.submittedFile && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 block">Sản phẩm đã nộp</label>
+                  <div className="border border-neutral-200 rounded-xl overflow-hidden bg-neutral-100 max-h-64 flex items-center justify-center shadow-inner relative group">
+                    <img
+                      src={selectedReviewTask.submittedFile.startsWith('http') ? selectedReviewTask.submittedFile : `${apiBase}${selectedReviewTask.submittedFile}`}
+                      alt="Submitted work"
+                      className="max-h-64 object-contain transition-transform group-hover:scale-102 duration-300"
+                    />
+                    <a
+                      href={selectedReviewTask.submittedFile.startsWith('http') ? selectedReviewTask.submittedFile : `${apiBase}${selectedReviewTask.submittedFile}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 bg-black/75 text-white hover:bg-black text-[10px] font-medium px-2 py-1 rounded shadow"
+                    >
+                      Mở tab mới ↗
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">Nhận xét & Yêu cầu (nếu cần sửa)</label>
+                <textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Nhập nhận xét hoặc yêu cầu sửa đổi..."
+                  className="w-full min-h-[60px] max-h-[120px] rounded-xl border border-neutral-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReviewSubmit('in_progress')}
+                className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              >
+                Yêu cầu sửa lại
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleReviewSubmit('done')}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                Duyệt hoàn thành
               </Button>
             </div>
           </div>

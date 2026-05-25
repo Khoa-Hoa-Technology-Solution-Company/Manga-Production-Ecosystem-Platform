@@ -72,3 +72,35 @@ export async function notifyChapterStatusChange(
     relatedType: 'Chapter',
   });
 }
+
+export async function notifyTaskDeclined(
+  mangakaId: string,
+  assistantName: string,
+  taskTitle: string,
+  taskId: string
+): Promise<void> {
+  await createNotification({
+    userId: mangakaId,
+    type: 'task_declined',
+    title: 'Task Declined',
+    message: `${assistantName} declined your designated task "${taskTitle}".`,
+    relatedId: taskId,
+    relatedType: 'Task',
+  });
+}
+
+export async function notifyTaskRevision(
+  assistantId: string,
+  taskTitle: string,
+  reviewNotes: string,
+  taskId: string
+): Promise<void> {
+  await createNotification({
+    userId: assistantId,
+    type: 'task_revision',
+    title: 'Yêu cầu sửa lại công việc',
+    message: `Mangaka yêu cầu chỉnh sửa công việc "${taskTitle}". Nhận xét: ${reviewNotes || 'Không có nhận xét thêm.'}`,
+    relatedId: taskId,
+    relatedType: 'Task',
+  });
+}

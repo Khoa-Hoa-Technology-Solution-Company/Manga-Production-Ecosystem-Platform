@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Series } from '../models/Series';
+import { uploadToR2 } from '../services/storage.service';
 
 export async function getAll(req: Request, res: Response): Promise<void> {
   try {
@@ -52,7 +53,20 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description, genre, coverImage } = req.body;
+    const { title, description } = req.body;
+    const genre = Array.isArray(req.body.genre)
+      ? req.body.genre
+      : String(req.body.genre || '')
+          .split(',')
+          .map((item: string) => item.trim())
+          .filter(Boolean);
+
+    let coverImage = typeof req.body.coverImage === 'string' ? req.body.coverImage : undefined;
+
+    if (req.file) {
+      coverImage = await uploadToR2(req.file, 'series');
+    }
+
     const series = await Series.create({
       title,
       description,
@@ -68,10 +82,21 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function update(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description, genre, coverImage, status, editorId } = req.body;
+    const { title, description, status, editorId } = req.body;
+    const genre = Array.isArray(req.body.genre)
+      ? req.body.genre
+      : typeof req.body.genre === 'string'
+        ? req.body.genre.split(',').map((item: string) => item.trim()).filter(Boolean)
+        : undefined;
+
+    const updateData: any = { title, description, status, editorId };
+    if (genre) updateData.genre = genre;
+    if (typeof req.body.coverImage === 'string') updateData.coverImage = req.body.coverImage;
+    if (req.file) updateData.coverImage = await uploadToR2(req.file, 'series');
+
     const series = await Series.findByIdAndUpdate(
       req.params.id,
-      { title, description, genre, coverImage, status, editorId },
+      updateData,
       { new: true, runValidators: true }
     );
     if (!series) {
