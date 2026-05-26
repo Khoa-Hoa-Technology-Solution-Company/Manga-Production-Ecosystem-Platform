@@ -226,7 +226,9 @@ export function EditorPortalPage() {
             try {
               const parsed = JSON.parse(trimmed)
               if (Array.isArray(parsed)) return parsed.join(', ')
-            } catch {}
+            } catch {
+              // ignore parse errors
+            }
           }
         }
         return String(item)
@@ -236,7 +238,9 @@ export function EditorPortalPage() {
         try {
           const parsed = JSON.parse(joined)
           if (Array.isArray(parsed)) return parsed.join(', ')
-        } catch {}
+        } catch {
+          // ignore parse errors
+        }
       }
       return joined
     }
