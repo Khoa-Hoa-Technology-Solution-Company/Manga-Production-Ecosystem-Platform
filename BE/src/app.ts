@@ -19,6 +19,7 @@ import zonesRoutes from './routes/zones.routes';
 import interactionsRoutes from './routes/interactions.routes';
 import commentsRoutes from './routes/comments.routes';
 import notificationsRoutes from './routes/notifications.routes';
+import annotationsRoutes from './routes/annotations.routes';
 
 const app = express();
 
@@ -29,8 +30,8 @@ app.use(helmet({
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    
-    const allowedOrigins = ['http://localhost:5173','http://localhost:3000', 'http://localhost:8081'];
+
+    const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8081'];
     if (env.CORS_ORIGIN) {
       env.CORS_ORIGIN.split(',').forEach(o => {
         const trimmed = o.trim();
@@ -40,11 +41,11 @@ app.use(cors({
       });
     }
 
-    const isAllowed = allowedOrigins.includes(origin) || 
-                      origin.includes('localhost') || 
-                      origin.includes('127.0.0.1') || 
-                      origin.startsWith('http://192.168.');
-                      
+    const isAllowed = allowedOrigins.includes(origin) ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.startsWith('http://192.168.');
+
     if (isAllowed) {
       callback(null, true);
     } else {
@@ -97,6 +98,7 @@ app.use('/api/zones', zonesRoutes);
 app.use('/api/chapters', interactionsRoutes);  // votes & comments nested under chapters
 app.use('/api/comments', commentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/annotations', annotationsRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {
