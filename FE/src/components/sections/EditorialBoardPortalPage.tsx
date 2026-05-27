@@ -75,7 +75,6 @@ export function EditorialBoardPortalPage() {
 
   /* ── data fetching ── */
   const fetchData = useCallback(async () => {
-    setLoading(true)
     try {
       const [pendingRes, rankingsRes] = await Promise.all([
         seriesAPI.getPendingReview({ role: 'editorial_board' }).catch(() => ({ data: { series: [] } })),
@@ -102,6 +101,7 @@ export function EditorialBoardPortalPage() {
     }
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])
 
   /* ── actions ── */

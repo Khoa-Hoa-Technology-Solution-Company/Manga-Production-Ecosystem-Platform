@@ -123,7 +123,9 @@ export function ManuscriptReviewPage() {
           try {
             const data = JSON.parse(a.note.slice(8))
             parsedAnns.push(data)
-          } catch (e) {}
+          } catch {
+            // Ignore parse errors
+          }
         }
       })
       setDraftAnnotations(parsedAnns)
