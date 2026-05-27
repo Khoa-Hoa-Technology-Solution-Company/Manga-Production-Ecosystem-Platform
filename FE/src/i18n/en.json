@@ -22,7 +22,9 @@
     "or": "or",
     "noResults": "No results found.",
     "currency": "${{amount}}",
-    "currencySymbol": "$"
+    "currencySymbol": "$",
+    "visible": "Visible",
+    "hidden": "Hidden"
   },
   "auth": {
     "login": "Log In",
@@ -54,6 +56,7 @@
     "studio": "Studio",
     "seriesManager": "Series Manager",
     "assistant": "Assistant",
+    "editorPortal": "Editor Portal",
     "discover": "Discover",
     "settings": "Settings",
     "create": "CREATE",
@@ -127,7 +130,13 @@
     "reviewAssistantTitle": "Review Assistant Submission",
     "submittedProduct": "Submitted Product",
     "openNewTab": "Open in new tab ↗",
-    "confirmDeletePage": "Are you sure you want to delete this page? All zones and tasks on this page will be lost."
+    "confirmDeletePage": "Are you sure you want to delete this page? All zones and tasks on this page will be lost.",
+    "reviewLockedTantou": "📝 Series is pending Tantou Editor review — Studio editing temporarily locked",
+    "reviewLockedEB": "📝 Series is pending Editorial Board review — Studio editing temporarily locked",
+    "reviewLockedDescription": "You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit until the review is complete or draft is returned.",
+    "rejectedWarning": "⚠️ Manuscript rejected — Please revise based on the corrections below",
+    "rejectionReason": "Reason: {{notes}}",
+    "reviewWarning": "⚠️ This feedback pin will only be visible to the Mangaka after you REJECT the manuscript from the Editor Portal. If you Approve, this pin will remain hidden."
   },
   "assistant": {
     "title": "Assistant Portal",

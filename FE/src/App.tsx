@@ -13,7 +13,9 @@ import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
-import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute } from './components/layout/ProtectedRoute'
+import { EditorPortalPage } from './components/sections/EditorPortalPage'
+import { ManuscriptReviewPage } from './components/sections/ManuscriptReviewPage'
+import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
 
@@ -80,6 +82,11 @@ function App() {
 
             <Route element={<ProtectedMangakaRoute />}>
               <Route path="/studio/manage" element={<MangakaSeriesManagerPage />} />
+            </Route>
+
+            <Route element={<ProtectedEditorRoute />}>
+              <Route path="/editor" element={<EditorPortalPage />} />
+              <Route path="/editor/review/:chapterId" element={<ManuscriptReviewPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

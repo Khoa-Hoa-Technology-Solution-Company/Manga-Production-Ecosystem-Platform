@@ -50,3 +50,22 @@ export function ProtectedMangakaRoute() {
 
   return <Outlet />
 }
+
+export function ProtectedEditorRoute() {
+  const { isAuthenticated, loading, user } = useAuth()
+
+  if (loading) {
+    return <div className="p-8 text-sm text-neutral-500">Loading...</div>
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  const role = user?.role?.toLowerCase()
+  if (role !== 'editor' && role !== 'editorial_board') {
+    return <Navigate to="/" replace />
+  }
+
+  return <Outlet />
+}
