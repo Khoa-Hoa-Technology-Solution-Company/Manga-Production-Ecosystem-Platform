@@ -8,13 +8,15 @@ import { Footer } from './components/layout/Footer'
 import { DashboardPage } from './components/sections/DashboardPage'
 import { StudioPage } from './components/sections/StudioPage'
 import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
+import { MangakaSeriesManagerPage } from './components/sections/MangakaSeriesManagerPage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
-import { TantouEditorPortalPage } from './components/sections/TantouEditorPortalPage'
 import { EditorialBoardPortalPage } from './components/sections/EditorialBoardPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
-import { ProtectedRoute, ProtectedReaderRoute } from './components/layout/ProtectedRoute'
+import { EditorPortalPage } from './components/sections/EditorPortalPage'
+import { ManuscriptReviewPage } from './components/sections/ManuscriptReviewPage'
+import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute, ProtectedEditorialBoardRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
 
@@ -56,21 +58,16 @@ function MainLayout() {
 function App() {
   const { isAuthenticated } = useAuth()
 
-  // Socket connection management
   useEffect(() => {
-    if (isAuthenticated) {
-      socketService.connect()
-    } else {
-      socketService.disconnect()
-    }
+    if (isAuthenticated) socketService.connect()
+    else socketService.disconnect()
   }, [isAuthenticated])
 
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        
-        {/* Protected routes wrapper */}
+
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<StudioPage />} />
@@ -78,15 +75,25 @@ function App() {
             <Route path="/read/:chapterId" element={<ReadingViewPage />} />
             <Route path="/settings" element={<div className="p-8">Settings Page (WIP)</div>} />
 
-            {/* Routes blocked for Readers */}
             <Route element={<ProtectedReaderRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/studio" element={<StudioWorkspacePage />} />
               <Route path="/tasks" element={<AssistantPortalPage />} />
-              <Route path="/editor-portal" element={<TantouEditorPortalPage />} />
+            </Route>
+
+            <Route element={<ProtectedMangakaRoute />}>
+              <Route path="/studio/manage" element={<MangakaSeriesManagerPage />} />
+            </Route>
+
+            <Route element={<ProtectedEditorRoute />}>
+              <Route path="/editor" element={<EditorPortalPage />} />
+              <Route path="/editor/review/:chapterId" element={<ManuscriptReviewPage />} />
+            </Route>
+
+            <Route element={<ProtectedEditorialBoardRoute />}>
               <Route path="/editorial-board" element={<EditorialBoardPortalPage />} />
             </Route>
-            
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>

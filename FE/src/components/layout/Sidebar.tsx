@@ -6,8 +6,9 @@ import { useAuth } from '../../lib/auth'
 import { notificationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { NotificationsModal } from './NotificationsModal'
 
-type SidebarKey = 'home' | 'dashboard' | 'studio' | 'tasks' | 'editor-portal' | 'editorial-board' | 'discover' | 'settings'
+type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series-manager' | 'tasks' | 'editor-portal' | 'editorial-board' | 'discover' | 'settings'
 
 type SidebarProps = {
   mobileOpen?: boolean
@@ -24,8 +25,9 @@ const navigation: Array<{
   { key: 'home', labelKey: 'sidebar.home', icon: Home, section: 'main' },
   { key: 'dashboard', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, section: 'main' },
   { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create', roles: ['mangaka'] },
+  { key: 'series-manager', labelKey: 'sidebar.seriesManager', icon: BookMarked, section: 'create', roles: ['mangaka'] },
   { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create', roles: ['mangaka', 'assistant'] },
-  { key: 'editor-portal', labelKey: 'sidebar.editorPortal', icon: FileEdit, section: 'manage', roles: ['editor'] },
+  { key: 'editor-portal', labelKey: 'sidebar.editorPortal', icon: LayoutDashboard, section: 'manage', roles: ['editor'] },
   { key: 'editorial-board', labelKey: 'sidebar.editorialBoard', icon: Gavel, section: 'manage', roles: ['editorial_board'] },
   { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
   { key: 'settings', labelKey: 'sidebar.settings', icon: Settings, section: 'other' },
@@ -38,6 +40,18 @@ const sections = [
   { key: 'explore', labelKey: 'sidebar.explore' },
   { key: 'other', labelKey: '' },
 ]
+
+const routeMap: Record<SidebarKey, string> = {
+  home: '/',
+  dashboard: '/dashboard',
+  studio: '/studio',
+  'series-manager': '/studio/manage',
+  tasks: '/tasks',
+  'editor-portal': '/editor',
+  'editorial-board': '/editorial-board',
+  discover: '/discover',
+  settings: '/settings',
+}
 
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const { t, i18n } = useTranslation()
@@ -56,6 +70,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     : '??'
 
   const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -116,7 +131,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           {sections.map((section) => {
             const userRole = user?.role?.toLowerCase() || 'reader'
             const isReader = userRole === 'reader'
-            const restrictedForReader = ['dashboard', 'studio', 'tasks', 'editor-portal', 'editorial-board']
+            const restrictedForReader = ['dashboard', 'studio', 'series-manager', 'tasks', 'editor-portal', 'editorial-board']
             
             const sectionItems = navigation.filter((n) => {
               if (n.section !== section.key) return false
@@ -146,7 +161,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                           : 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 text-neutral-500 font-normal'
                       }
                       onClick={() => {
-                        navigate(key === 'home' ? '/' : `/${key}`)
+                        navigate(routeMap[key])
                         onMobileClose?.()
                       }}
                     >
@@ -176,10 +191,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           <button
             type="button"
             className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-100 transition-colors"
-            onClick={() => {
-              setUnreadCount(0)
-              notificationsAPI.markAllRead()
-            }}
+            onClick={() => setShowNotifications(true)}
           >
             <div className="flex items-center gap-2.5">
               <div className="relative">
@@ -215,6 +227,12 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           </div>
         </div>
       </aside>
+
+      <NotificationsModal
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        onMarkReadComplete={() => setUnreadCount(0)}
+      />
     </>
   )
 }

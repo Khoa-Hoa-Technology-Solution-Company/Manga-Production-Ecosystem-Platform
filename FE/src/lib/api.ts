@@ -41,19 +41,35 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
   updateProfile: (data: unknown) => api.put('/auth/profile', data),
   search: (q: string) => api.get('/auth/search', { params: { q } }),
+  recommendAssistants: (params?: { skills?: string; limit?: number }) => api.get('/auth/assistants/recommend', { params }),
 };
 
 // ── Series API ──────────────────────────────────────
 export const seriesAPI = {
   getAll: (params?: Record<string, unknown>) => api.get('/series', { params }),
   getById: (id: string) => api.get(`/series/${id}`),
-  create: (data: unknown) => api.post('/series', data),
-  update: (id: string, data: unknown) => api.put(`/series/${id}`, data),
+  create: (data: FormData | unknown) => {
+    if (data instanceof FormData) {
+      return api.post('/series', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.post('/series', data);
+  },
+  update: (id: string, data: FormData | unknown) => {
+    if (data instanceof FormData) {
+      return api.put(`/series/${id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.put(`/series/${id}`, data);
+  },
   delete: (id: string) => api.delete(`/series/${id}`),
   // Approval workflow
   submitToEditor: (id: string) => api.patch(`/series/${id}/submit-to-editor`),
   getPendingReview: (params?: Record<string, unknown>) => api.get('/series/pending-review', { params }),
   getApprovalHistory: (id: string) => api.get(`/series/${id}/approval-history`),
+  getEditors: () => api.get('/series/editors'),
 };
 
 // ── Approval API ────────────────────────────────────
@@ -75,6 +91,7 @@ export const chaptersAPI = {
   getBySeries: (seriesId: string) => api.get(`/chapters/series/${seriesId}`),
   create: (seriesId: string, data: unknown) => api.post(`/chapters/series/${seriesId}`, data),
   update: (id: string, data: unknown) => api.put(`/chapters/${id}`, data),
+  delete: (id: string) => api.delete(`/chapters/${id}`),
   updateStatus: (id: string, status: string) => api.patch(`/chapters/${id}/status`, { status }),
   shareAccess: (id: string, data: { userId: string; role?: string; canEdit?: boolean; canComment?: boolean; canInvite?: boolean }) =>
     api.post(`/chapters/${id}/access`, data),
@@ -88,6 +105,7 @@ export const tasksAPI = {
   create: (data: unknown) => api.post('/tasks', data),
   update: (id: string, data: unknown) => api.put(`/tasks/${id}`, data),
   accept: (id: string) => api.patch(`/tasks/${id}/accept`),
+  decline: (id: string) => api.patch(`/tasks/${id}/decline`),
   updateStatus: (id: string, status: string) => api.patch(`/tasks/${id}/status`, { status }),
   submit: (id: string, formData: FormData) =>
     api.post(`/tasks/${id}/submit`, formData, {
@@ -146,4 +164,11 @@ export const earningsAPI = {
   getSummary: () => api.get('/tasks/earnings/summary'),
 };
 
-
+// ── Annotations API ─────────────────────────────────
+export const annotationsAPI = {
+  getByChapter: (chapterId: string, source?: 'review' | 'tracking') =>
+    api.get(`/annotations/chapter/${chapterId}${source ? `?source=${source}` : ''}`),
+  create: (data: { chapterId: string; pageId: string; x: number; y: number; note: string; source?: 'review' | 'tracking' }) =>
+    api.post('/annotations', data),
+  resolve: (id: string) => api.patch(`/annotations/${id}/resolve`),
+};

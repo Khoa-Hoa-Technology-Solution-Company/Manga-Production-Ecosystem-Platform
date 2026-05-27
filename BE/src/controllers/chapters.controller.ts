@@ -46,10 +46,13 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function update(req: Request, res: Response): Promise<void> {
   try {
-    const { title, totalPages, progress, editorId } = req.body;
+    const { chapterNumber, title, totalPages, progress, editorId } = req.body;
+    const updateData: any = { title, totalPages, progress, editorId };
+    if (chapterNumber !== undefined) updateData.chapterNumber = chapterNumber;
+
     const chapter = await Chapter.findByIdAndUpdate(
       req.params.id,
-      { title, totalPages, progress, editorId },
+      updateData,
       { new: true, runValidators: true }
     );
     if (!chapter) {
@@ -57,6 +60,19 @@ export async function update(req: Request, res: Response): Promise<void> {
       return;
     }
     res.json({ chapter });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function remove(req: Request, res: Response): Promise<void> {
+  try {
+    const chapter = await Chapter.findOneAndDelete({ _id: req.params.id, mangakaId: req.user?._id });
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found or you do not own it.' });
+      return;
+    }
+    res.json({ message: 'Chapter deleted.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

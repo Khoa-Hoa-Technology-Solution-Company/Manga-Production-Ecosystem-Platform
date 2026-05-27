@@ -22,7 +22,9 @@
     "or": "hoặc",
     "noResults": "Không tìm thấy kết quả.",
     "currency": "{{amount}}₫",
-    "currencySymbol": "₫"
+    "currencySymbol": "₫",
+    "visible": "Hiển thị",
+    "hidden": "Ẩn"
   },
   "auth": {
     "login": "Đăng nhập",
@@ -52,8 +54,9 @@
     "home": "Trang chủ",
     "dashboard": "Bảng điều khiển",
     "studio": "Xưởng vẽ",
+    "seriesManager": "Quản lý series",
     "assistant": "Trợ lý",
-    "editorPortal": "Cổng biên tập",
+    "editorPortal": "Cổng Tantou Editor",
     "editorialBoard": "Hội đồng biên tập",
     "discover": "Khám phá",
     "settings": "Cài đặt",
@@ -96,7 +99,46 @@
     "drawOnCanvas": "Vẽ hình chữ nhật trên canvas để tạo vùng",
     "createZone": "Tạo vùng",
     "zoneName": "Tên",
-    "zoneType": "Loại"
+    "zoneType": "Loại",
+    "zoneDetails": "Chi tiết phân khu",
+    "zoneTypeLabel": "Loại phân khu:",
+    "statusLabel": "Trạng thái:",
+    "progressLabel": "Tiến độ:",
+    "assigneeLabel": "Người thực hiện",
+    "unassigned": "Chưa giao cho trợ lý",
+    "associatedTask": "Công việc liên quan",
+    "assignToAssistant": "Giao việc cho Trợ lý",
+    "designateNewAssistant": "Chỉ định Trợ lý mới",
+    "reviewSubmission": "Duyệt bài nộp",
+    "noTaskForZone": "Chưa có công việc nào cho phân khu này.",
+    "declineTask": "Từ chối",
+    "wageLabel": "Mức lương:",
+    "deadlineLabel": "Hạn chót:",
+    "revisionRequired": "Yêu cầu sửa đổi:",
+    "reviewNotesLabel": "Nhận xét & Yêu cầu (nếu cần sửa)",
+    "reviewNotesPlaceholder": "Nhập nhận xét hoặc yêu cầu sửa đổi...",
+    "requestRevision": "Yêu cầu sửa lại",
+    "approveComplete": "Duyệt hoàn thành",
+    "designateBanner": "Bạn đang chỉ định Trợ lý mới cho công việc đã đăng. Các điều chỉnh bên dưới sẽ cập nhật lại công việc này.",
+    "recommendedTitle": "Trợ lý gợi ý ({{type}})",
+    "recommendedSubtitle": "Tự động đề xuất dựa trên kỹ năng",
+    "noRecommendedAssistants": "Không tìm thấy trợ lý có kỹ năng này. Bạn có thể đăng công khai.",
+    "activeTasksLabel": "Đang làm:",
+    "selectToAssign": "Chọn để giao",
+    "postPublicly": "Đăng công khai (Bất kỳ Trợ lý nào có thể nhận)",
+    "assignNow": "Giao việc ngay",
+    "designateAssistantTitle": "Chỉ định Trợ lý cho Công việc",
+    "assignAssistantTitle": "Giao việc cho Trợ lý",
+    "reviewAssistantTitle": "Duyệt bài nộp của Trợ lý",
+    "submittedProduct": "Sản phẩm đã nộp",
+    "openNewTab": "Mở tab mới ↗",
+    "confirmDeletePage": "Bạn có chắc chắn muốn xóa trang này không? Các zone và công việc trên trang này sẽ bị mất.",
+    "reviewLockedTantou": "📝 Series đang chờ Tantou Editor duyệt — Studio tạm khóa chỉnh sửa",
+    "reviewLockedEB": "📝 Series đang chờ Editorial Board duyệt — Studio tạm khóa chỉnh sửa",
+    "reviewLockedDescription": "Bạn chỉ có thể xem. Không thể upload trang, tạo zone, giao task, hay chỉnh sửa cho đến khi bản thảo được duyệt hoặc trả về.",
+    "rejectedWarning": "⚠️ Bản thảo đã bị từ chối — Vui lòng sửa lại theo feedback bên dưới",
+    "rejectionReason": "Lý do: {{notes}}",
+    "reviewWarning": "⚠️ Feedback pin này sẽ chỉ hiển thị cho Mangaka sau khi bạn Reject bản thảo từ Editor Portal. Nếu bạn Approve thì pin sẽ không hiển thị."
   },
   "assistant": {
     "title": "Cổng trợ lý",
@@ -129,7 +171,11 @@
     "noTasksHint": "Thử thay đổi bộ lọc hoặc quay lại sau.",
     "earningsOverview": "Tổng quan thu nhập",
     "earningsHint": "Thu nhập từ các công việc đã hoàn thành",
-    "totalEarned": "Tổng đã nhận"
+    "totalEarned": "Tổng đã nhận",
+    "revisionNotesFromMangaka": "Yêu cầu sửa đổi từ Mangaka:",
+    "declineTask": "Từ chối",
+    "startWork": "Nhận làm",
+    "confirmDecline": "Bạn có chắc chắn muốn từ chối công việc được giao này không?"
   },
   "discover": {
     "title": "Khám phá",
@@ -251,5 +297,10 @@
     "noPendingHint": "Tất cả đã được bỏ phiếu.",
     "maintain": "Duy trì",
     "noRankings": "Chưa có bảng xếp hạng"
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "noNotifications": "Không có thông báo mới",
+    "subtitle": "Các thông báo công việc, chương mới sẽ hiển thị tại đây."
   }
 }
