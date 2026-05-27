@@ -78,6 +78,22 @@ interface WarningItem {
   message: string
 }
 
+interface MilestonePhase {
+  title: string
+  range: string
+  percentage: number
+  totalPages: number
+  chapters: ChapterData[]
+}
+
+interface MilestonesData {
+  milestones: {
+    name: MilestonePhase
+    draft: MilestonePhase
+    final: MilestonePhase
+  }
+}
+
 interface AnalyticsData {
   mangaka: {
     _id: string

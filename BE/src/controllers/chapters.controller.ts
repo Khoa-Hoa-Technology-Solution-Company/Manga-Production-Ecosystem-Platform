@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Chapter } from '../models/Chapter';
 import { Series } from '../models/Series';
+import { User } from '../models/User';
 import { transitionChapterStatus } from '../services/workflow.service';
 
 function canManageCollaborators(userRole?: string) {
