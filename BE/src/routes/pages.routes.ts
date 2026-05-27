@@ -3,15 +3,16 @@ import * as ctrl from '../controllers/pages.controller';
 import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/rbac';
 import { upload } from '../middleware/upload';
+import { requireChapterAccess } from '../middleware/chapterAccess';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get('/chapter/:chapterId', ctrl.getByChapterId);
+router.get('/chapter/:chapterId', requireChapterAccess('read'), ctrl.getByChapterId);
 router.post(
   '/chapter/:chapterId',
-  authorize('mangaka'),
+  requireChapterAccess('edit'),
   upload.single('image'),
   ctrl.upload
 );

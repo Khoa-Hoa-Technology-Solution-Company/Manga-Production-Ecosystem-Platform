@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Series } from '../models/Series';
+import { Chapter } from '../models/Chapter';
 import { User } from '../models/User';
 import { uploadToR2 } from '../services/storage.service';
 import {
@@ -19,9 +20,15 @@ export async function getAll(req: Request, res: Response): Promise<void> {
     if (status) filter.status = status;
     if (genre) filter.genre = { $in: [genre] };
 
-    // Role-based filtering
     if (req.user?.role === 'mangaka') {
-      filter.mangakaId = req.user._id;
+      const accessibleChapterSeriesIds = await Chapter.find({
+        $or: [
+          { mangakaId: req.user._id },
+          { 'collaborators.userId': req.user._id },
+        ],
+      }).distinct('seriesId');
+
+      filter._id = { $in: accessibleChapterSeriesIds.length ? accessibleChapterSeriesIds : ['000000000000000000000000'] };
     } else if (req.user?.role === 'editor') {
       filter.editorId = req.user._id;
       filter.editorStatus = 'accepted';
@@ -74,9 +81,9 @@ export async function create(req: Request, res: Response): Promise<void> {
     const genre = Array.isArray(req.body.genre)
       ? req.body.genre
       : String(req.body.genre || '')
-          .split(',')
-          .map((item: string) => item.trim())
-          .filter(Boolean);
+        .split(',')
+        .map((item: string) => item.trim())
+        .filter(Boolean);
 
     let coverImage = typeof req.body.coverImage === 'string' ? req.body.coverImage : undefined;
 
@@ -155,7 +162,7 @@ export async function update(req: Request, res: Response): Promise<void> {
     // Role-based status transitions validation
     if (status && status !== oldSeries.status) {
       const userRole = req.user?.role;
-      
+
       // 1. Draft -> Pending_Editor
       if (oldSeries.status === 'Draft' && status === 'Pending_Editor') {
         if (userRole !== 'mangaka' || oldSeries.mangakaId.toString() !== req.user?._id.toString()) {
@@ -169,7 +176,7 @@ export async function update(req: Request, res: Response): Promise<void> {
         }
         updateData.rejectionNotes = ''; // clear previous comments
       }
-      
+
       // 2. Pending_Editor -> Pending_EB
       else if (oldSeries.status === 'Pending_Editor' && status === 'Pending_EB') {
         if (userRole !== 'editor' || oldSeries.editorId?.toString() !== req.user?._id.toString()) {
@@ -177,7 +184,7 @@ export async function update(req: Request, res: Response): Promise<void> {
           return;
         }
       }
-      
+
       // 3. Pending_Editor -> Draft (Reject)
       else if (oldSeries.status === 'Pending_Editor' && status === 'Draft') {
         if (userRole !== 'editor' || oldSeries.editorId?.toString() !== req.user?._id.toString()) {
@@ -186,7 +193,7 @@ export async function update(req: Request, res: Response): Promise<void> {
         }
         updateData.rejectionNotes = req.body.rejectionNotes || 'Rejected by Tantou Editor';
       }
-      
+
       // 4. Pending_EB -> Active (Publish)
       else if (oldSeries.status === 'Pending_EB' && status === 'Active') {
         if (userRole !== 'editorial_board') {
@@ -194,7 +201,7 @@ export async function update(req: Request, res: Response): Promise<void> {
           return;
         }
       }
-      
+
       // 5. Pending_EB -> Draft (Reject)
       else if (oldSeries.status === 'Pending_EB' && status === 'Draft') {
         if (userRole !== 'editorial_board') {
@@ -203,7 +210,7 @@ export async function update(req: Request, res: Response): Promise<void> {
         }
         updateData.rejectionNotes = req.body.rejectionNotes || 'Rejected by Editorial Board';
       }
-      
+
       else {
         if (userRole !== 'mangaka' && userRole !== 'editor' && userRole !== 'editorial_board') {
           res.status(403).json({ error: 'Unauthorized status transition.' });
@@ -217,8 +224,8 @@ export async function update(req: Request, res: Response): Promise<void> {
       updateData,
       { new: true, runValidators: true }
     )
-    .populate('mangakaId', 'displayName avatar')
-    .populate('editorId', 'displayName avatar');
+      .populate('mangakaId', 'displayName avatar')
+      .populate('editorId', 'displayName avatar');
 
     // Trigger real-time notifications for Series workflow
     if (status && status !== oldSeries.status) {
@@ -234,23 +241,23 @@ export async function update(req: Request, res: Response): Promise<void> {
             await notifySeriesSubmitted(editorIdStr, mangakaName, series?.title || oldSeries.title, oldSeries._id.toString());
           }
         }
-        
+
         // 2. Pending_Editor -> Pending_EB
         else if (oldSeries.status === 'Pending_Editor' && status === 'Pending_EB') {
           await notifySeriesApproved(mangakaIdStr, series?.title || oldSeries.title, oldSeries._id.toString());
         }
-        
+
         // 3. Pending_Editor -> Draft (Reject)
         else if (oldSeries.status === 'Pending_Editor' && status === 'Draft') {
           const notes = req.body.rejectionNotes || 'Rejected by Tantou Editor';
           await notifySeriesRejected(mangakaIdStr, series?.title || oldSeries.title, notes, oldSeries._id.toString());
         }
-        
+
         // 4. Pending_EB -> Active (Publish)
         else if (oldSeries.status === 'Pending_EB' && status === 'Active') {
           await notifySeriesPublished(mangakaIdStr, editorIdStr, series?.title || oldSeries.title, oldSeries._id.toString());
         }
-        
+
         // 5. Pending_EB -> Draft (Reject)
         else if (oldSeries.status === 'Pending_EB' && status === 'Draft') {
           const notes = req.body.rejectionNotes || 'Rejected by Editorial Board';

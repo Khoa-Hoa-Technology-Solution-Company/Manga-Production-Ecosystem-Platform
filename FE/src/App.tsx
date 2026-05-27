@@ -10,12 +10,13 @@ import { StudioPage } from './components/sections/StudioPage'
 import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
 import { MangakaSeriesManagerPage } from './components/sections/MangakaSeriesManagerPage'
 import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
+import { EditorialBoardPortalPage } from './components/sections/EditorialBoardPortalPage'
 import { ReaderHubPage } from './components/sections/ReaderHubPage'
 import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
 import { EditorPortalPage } from './components/sections/EditorPortalPage'
 import { ManuscriptReviewPage } from './components/sections/ManuscriptReviewPage'
-import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute } from './components/layout/ProtectedRoute'
+import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute, ProtectedEditorialBoardRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
 
@@ -87,6 +88,10 @@ function App() {
             <Route element={<ProtectedEditorRoute />}>
               <Route path="/editor" element={<EditorPortalPage />} />
               <Route path="/editor/review/:chapterId" element={<ManuscriptReviewPage />} />
+            </Route>
+
+            <Route element={<ProtectedEditorialBoardRoute />}>
+              <Route path="/editorial-board" element={<EditorialBoardPortalPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -111,9 +111,11 @@ function StudioWorkspacePageContent() {
   const [focusedObjects, setFocusedObjects] = useState<Record<string, { userId: string; role: string }>>({})
   const [lockedObjects, setLockedObjects] = useState<Record<string, { userId: string; role: string }>>({})
   const [shareUserId, setShareUserId] = useState('')
+  const [shareUserRole, setShareUserRole] = useState<'mangaka' | 'assistant' | 'editor' | ''>('')
   const [shareUserQuery, setShareUserQuery] = useState('')
   const [shareUserResults, setShareUserResults] = useState<any[]>([])
-  const [shareRole, setShareRole] = useState<'assistant' | 'editor'>('assistant')
+  const [shareError, setShareError] = useState('')
+  const [shareRole, setShareRole] = useState<'mangaka' | 'assistant' | 'editor'>('assistant')
   const [shareCanEdit, setShareCanEdit] = useState(true)
   const [shareCanComment, setShareCanComment] = useState(true)
   const [shareCanInvite, setShareCanInvite] = useState(false)
@@ -160,7 +162,7 @@ function StudioWorkspacePageContent() {
   const lastPanPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const isApplyingRemoteChange = useRef(false)
   const objectSyncCounter = useRef(0)
-  
+
   // History for manual tools (draw, text)
   type HistoryRecord = { type: 'manual_change', prevState: string, nextState: string }
   type SyncableObject = any & { _syncId?: string }
@@ -168,7 +170,7 @@ function StudioWorkspacePageContent() {
   const redoStack = useRef<HistoryRecord[]>([])
   const currentManualState = useRef<string>('[]')
   const isRestoring = useRef(false)
-  
+
   const [drawColor, setDrawColor] = useState('#000000')
   const [drawSize, setDrawSize] = useState(2)
   const [brushMode, setBrushMode] = useState<'ink' | 'marker' | 'pencil' | 'eraser'>('ink')
@@ -206,7 +208,7 @@ function StudioWorkspacePageContent() {
       if (changed) fc.requestRenderAll()
     }
   }, [drawColor, drawSize])
-  
+
   const currentPage = pages[currentPageIdx]
   const isMangaka = user?.role === 'mangaka'
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -225,8 +227,11 @@ function StudioWorkspacePageContent() {
   const wasRejected = seriesStatus === 'Draft' && !!currentSeries?.rejectionNotes
 
   useEffect(() => {
-    socketService.connect()
-    return () => socketService.disconnect()
+    const timer = setTimeout(() => socketService.connect(), 300)
+    return () => {
+      clearTimeout(timer)
+      socketService.disconnect()
+    }
   }, [])
 
   useEffect(() => {
@@ -394,7 +399,7 @@ function StudioWorkspacePageContent() {
   }, [selectedSeriesId])
 
   useEffect(() => {
-    refreshSeriesAndChapters().catch(() => {})
+    refreshSeriesAndChapters().catch(() => { })
   }, [refreshSeriesAndChapters])
 
   useEffect(() => {
@@ -402,7 +407,7 @@ function StudioWorkspacePageContent() {
     chaptersAPI.getBySeries(selectedSeriesId).then(res => {
       setChapters(res.data.chapters || [])
       if (res.data.chapters?.length > 0) setSelectedChapterId(res.data.chapters[0]._id)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [selectedSeriesId])
 
   useEffect(() => {
@@ -410,7 +415,7 @@ function StudioWorkspacePageContent() {
     pagesAPI.getByChapter(selectedChapterId).then(res => {
       setPages(res.data.pages || [])
       setCurrentPageIdx(0)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [selectedChapterId])
 
   const emitCanvasSync = useCallback((kind: 'object:added' | 'object:removed' | 'object:modified' | 'canvas:snapshot', payload: any) => {
@@ -437,7 +442,7 @@ function StudioWorkspacePageContent() {
         z.forEach((zone: ZoneData) => { if (next[zone._id] === undefined) next[zone._id] = true })
         return next
       })
-    }).catch(() => {})
+    }).catch(() => { })
   }, [currentPage?._id])
 
   useEffect(() => { loadZones() }, [loadZones])
@@ -446,7 +451,7 @@ function StudioWorkspacePageContent() {
     if (!currentPage?._id) { setPageTasks([]); return }
     tasksAPI.getAll({ pageId: currentPage._id }).then(res => {
       setPageTasks(res.data.tasks || [])
-    }).catch(() => {})
+    }).catch(() => { })
   }, [currentPage?._id])
 
   const loadAnnotations = useCallback(() => {
@@ -488,7 +493,7 @@ function StudioWorkspacePageContent() {
     if (!fc || isRestoring.current) return
     const manuals = fc.getObjects().filter((o: any) => !o._zoneId && o !== bgImageRef.current)
     const nextState = JSON.stringify(manuals.map(o => o.toObject()))
-    
+
     if (nextState !== currentManualState.current) {
       historyStack.current.push({
         type: 'manual_change',
@@ -504,11 +509,11 @@ function StudioWorkspacePageContent() {
   const restoreManualState = async (stateJson: string) => {
     const fc = fabricRef.current
     if (!fc) return
-    
+
     const objects = JSON.parse(stateJson)
     const currentManuals = fc.getObjects().filter((o: any) => !o._zoneId && o !== bgImageRef.current)
     currentManuals.forEach(o => fc.remove(o))
-    
+
     if (objects.length > 0) {
       try {
         const enlivened = await util.enlivenObjects(objects)
@@ -740,7 +745,7 @@ function StudioWorkspacePageContent() {
         hoverCursor: 'pointer',
       });
       (pin as any)._annotationId = ann._id;
-      
+
       // Inside indicator dot
       const dot = new Circle({
         originX: 'center',
@@ -814,7 +819,7 @@ function StudioWorkspacePageContent() {
         const bg = bgImageRef.current
         const bgScaleX = bg.scaleX || 1
         const bgScaleY = bg.scaleY || 1
-        
+
         const newX = ((target.left || 0) - (bg.left || 0)) / bgScaleX
         const newY = ((target.top || 0) - (bg.top || 0)) / bgScaleY
         const newW = ((target.width || 0) * (target.scaleX || 1)) / bgScaleX
@@ -868,7 +873,7 @@ function StudioWorkspacePageContent() {
         if (syncObj._syncId && lockedObjects[syncObj._syncId]) {
           const owner = lockedObjects[syncObj._syncId]
           obj.set({ selectable: false, evented: false, opacity: 0.75 })
-          ;(obj as any).lockLabel = owner
+            ; (obj as any).lockLabel = owner
         }
       })
 
@@ -1095,30 +1100,30 @@ function StudioWorkspacePageContent() {
   const handleUndo = useCallback(async () => {
     if (isRestoring.current || historyStack.current.length === 0) return
     isRestoring.current = true
-    
+
     const record = historyStack.current.pop()!
     redoStack.current.push(record)
-    
+
     if (record.type === 'manual_change') {
       await restoreManualState(record.prevState)
       currentManualState.current = record.prevState
     }
-    
+
     isRestoring.current = false
   }, [])
 
   const handleRedo = useCallback(async () => {
     if (isRestoring.current || redoStack.current.length === 0) return
     isRestoring.current = true
-    
+
     const record = redoStack.current.pop()!
     historyStack.current.push(record)
-    
+
     if (record.type === 'manual_change') {
       await restoreManualState(record.nextState)
       currentManualState.current = record.nextState
     }
-    
+
     isRestoring.current = false
   }, [])
 
@@ -1168,7 +1173,7 @@ function StudioWorkspacePageContent() {
         },
       })
       loadZones()
-    } catch {}
+    } catch { }
     setShowNewZoneDialog(false)
     setPendingZoneRect(null)
     setNewZoneName('Background')
@@ -1250,7 +1255,7 @@ function StudioWorkspacePageContent() {
           status: createTaskForm.assignedTo ? 'assigned' : 'open',
         })
       }
-      
+
       // Refresh page tasks and zones
       const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
       setPageTasks(tasksRes.data.tasks || [])
@@ -1276,7 +1281,7 @@ function StudioWorkspacePageContent() {
       } else {
         await tasksAPI.update(selectedReviewTask._id, { status: 'in_progress', reviewNotes })
       }
-      
+
       // Refresh page tasks and zones
       const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
       setPageTasks(tasksRes.data.tasks || [])
@@ -1327,7 +1332,7 @@ function StudioWorkspacePageContent() {
         const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
         setPageTasks(tasksRes.data.tasks || [])
       }
-    } catch {}
+    } catch { }
   }
 
   // ── Page upload handler ───────────────────────────
@@ -1344,7 +1349,7 @@ function StudioWorkspacePageContent() {
       const res = await pagesAPI.getByChapter(selectedChapterId)
       setPages(res.data.pages || [])
       setCurrentPageIdx(res.data.pages.length - 1)
-    } catch {}
+    } catch { }
   }
 
   const handleDeletePage = async (pageId: string) => {
@@ -1421,6 +1426,7 @@ function StudioWorkspacePageContent() {
 
   const handleShareAccess = async () => {
     if (!selectedChapterId || !shareUserId.trim()) return
+    setShareError('')
     try {
       await chaptersAPI.shareAccess(selectedChapterId, {
         userId: shareUserId.trim(),
@@ -1438,8 +1444,8 @@ function StudioWorkspacePageContent() {
       setShareCanEdit(true)
       setShareCanComment(true)
       setShareCanInvite(false)
-    } catch (error) {
-      console.error(error)
+    } catch (error: any) {
+      setShareError(error?.response?.data?.error || 'Failed to share access.')
     }
   }
 
@@ -1474,8 +1480,26 @@ function StudioWorkspacePageContent() {
         })
       }}
     >
+      {/* ── Cancellation Risk Alert ──────────────────── */}
+      {isMangaka && currentSeries?.cancellationRisk && (
+        <div className="bg-red-500 text-white px-4 py-2 text-xs font-medium flex items-center justify-center gap-2">
+          <span className="flex size-4 items-center justify-center rounded-full bg-white text-red-500 font-bold">!</span>
+          Warning: This series is currently at risk of cancellation due to low weekly votes. Please review reader feedback and consult with your Editor.
+        </div>
+      )}
+
       {/* ── Top toolbar ──────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 bg-white z-10">
+        <div className="flex items-center gap-4 border-r border-neutral-200 pr-4 mr-2">
+          <div>
+            <h1 className="text-sm font-semibold truncate max-w-[150px]">{currentSeries?.title || 'Studio Workspace'}</h1>
+            {isMangaka && currentSeries?.rank && (
+              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-100 text-amber-700 hover:bg-amber-100 mt-0.5">
+                Rank #{currentSeries.rank}
+              </Badge>
+            )}
+          </div>
+        </div>
         {/* Tools */}
         <div className="flex items-center gap-1">
           {tools.map(({ icon: Icon, label, key }) => {
@@ -1486,13 +1510,12 @@ function StudioWorkspacePageContent() {
                 key={key}
                 type="button"
                 title={isToolLocked ? `${label} (Locked — series under review)` : label}
-                className={`grid size-8 place-items-center rounded-lg transition-colors ${
-                  isToolLocked
+                className={`grid size-8 place-items-center rounded-lg transition-colors ${isToolLocked
                     ? 'text-neutral-300 cursor-not-allowed'
                     : activeTool === key
                       ? 'bg-neutral-900 text-white'
                       : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-                }`}
+                  }`}
                 onClick={() => { if (!isToolLocked) setActiveTool(key) }}
                 disabled={isToolLocked}
               >
@@ -1511,9 +1534,8 @@ function StudioWorkspacePageContent() {
                     key={mode}
                     type="button"
                     onClick={() => setBrushMode(mode)}
-                    className={`rounded-md px-2 py-1 text-[10px] font-medium capitalize transition-colors ${
-                      brushMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-white'
-                    }`}
+                    className={`rounded-md px-2 py-1 text-[10px] font-medium capitalize transition-colors ${brushMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-white'
+                      }`}
                   >
                     {mode}
                   </button>
@@ -1525,9 +1547,8 @@ function StudioWorkspacePageContent() {
                     key={c}
                     type="button"
                     onClick={() => setDrawColor(c)}
-                    className={`size-5 rounded-full border shadow-sm transition-transform hover:scale-110 ${
-                      drawColor === c ? 'scale-110 border-neutral-900 ring-1 ring-neutral-900 ring-offset-1' : 'border-neutral-300'
-                    }`}
+                    className={`size-5 rounded-full border shadow-sm transition-transform hover:scale-110 ${drawColor === c ? 'scale-110 border-neutral-900 ring-1 ring-neutral-900 ring-offset-1' : 'border-neutral-300'
+                      }`}
                     style={{ backgroundColor: c }}
                     title={c}
                   />
@@ -1815,15 +1836,14 @@ function StudioWorkspacePageContent() {
                             <span className="text-neutral-500">{t('studio.statusLabel', 'Status:')}</span>
                             <Badge
                               variant="default"
-                              className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${
-                                zone.status === 'done'
+                              className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${zone.status === 'done'
                                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                   : zone.status === 'review'
                                     ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
                                     : zone.status === 'in_progress'
                                       ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                                       : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
-                              }`}
+                                }`}
                             >
                               {zone.status.replace('_', ' ')}
                             </Badge>
@@ -1869,9 +1889,8 @@ function StudioWorkspacePageContent() {
                                 </div>
                                 <Badge
                                   variant="secondary"
-                                  className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${
-                                    zoneTask.status === 'done' ? 'text-emerald-600 bg-emerald-50' : zoneTask.status === 'review' ? 'text-amber-600 bg-amber-50' : 'text-neutral-500 bg-neutral-50'
-                                  }`}
+                                  className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${zoneTask.status === 'done' ? 'text-emerald-600 bg-emerald-50' : zoneTask.status === 'review' ? 'text-amber-600 bg-amber-50' : 'text-neutral-500 bg-neutral-50'
+                                    }`}
                                 >
                                   {zoneTask.status.replace('_', ' ')}
                                 </Badge>
@@ -1965,9 +1984,8 @@ function StudioWorkspacePageContent() {
                       zones.map((zone) => (
                         <div
                           key={zone._id}
-                          className={`rounded-xl border p-2.5 transition-all cursor-pointer ${
-                            selectedZoneId === zone._id ? 'border-neutral-900 shadow-sm' : 'border-neutral-200 hover:border-neutral-400'
-                          }`}
+                          className={`rounded-xl border p-2.5 transition-all cursor-pointer ${selectedZoneId === zone._id ? 'border-neutral-900 shadow-sm' : 'border-neutral-200 hover:border-neutral-400'
+                            }`}
                           onClick={() => setSelectedZoneId(zone._id)}
                         >
                           <div className="flex items-center justify-between mb-1.5">
@@ -2046,9 +2064,8 @@ function StudioWorkspacePageContent() {
                       <div className="flex items-center justify-between mt-2">
                         <Badge
                           variant="secondary"
-                          className={`text-[9px] px-1.5 py-0 h-4 ${
-                            task.status === 'done' ? 'text-emerald-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-neutral-500'
-                          }`}
+                          className={`text-[9px] px-1.5 py-0 h-4 ${task.status === 'done' ? 'text-emerald-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-neutral-500'
+                            }`}
                         >
                           {task.status.replace('_', ' ')}
                         </Badge>
@@ -2069,87 +2086,86 @@ function StudioWorkspacePageContent() {
               const visibleAnnotations = pageAnnotations
                 .filter(a => a.pageId === currentPage?._id)
               return (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-neutral-700">{t('studio.activeFeedback', 'Tantou Corrections')}</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowFeedbackPins(!showFeedbackPins)}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-200 text-[10px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 transition-all shadow-2xs bg-white"
-                    title={showFeedbackPins ? "Hide feedback pins on canvas" : "Show feedback pins on canvas"}
-                  >
-                    {showFeedbackPins ? <Eye className="size-3 text-neutral-600" /> : <EyeOff className="size-3 text-neutral-400" />}
-                    <span>{showFeedbackPins ? t('common.visible', 'Visible') : t('common.hidden', 'Hidden')}</span>
-                  </button>
-                </div>
-                
-                {visibleAnnotations.length === 0 ? (
-                  <div className="rounded-xl bg-neutral-50 p-4 text-center">
-                    <p className="text-xs text-neutral-500">{t('studio.noFeedback', 'No editor feedback on this page.')}</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-neutral-700">{t('studio.activeFeedback', 'Tantou Corrections')}</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowFeedbackPins(!showFeedbackPins)}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-200 text-[10px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 transition-all shadow-2xs bg-white"
+                      title={showFeedbackPins ? "Hide feedback pins on canvas" : "Show feedback pins on canvas"}
+                    >
+                      {showFeedbackPins ? <Eye className="size-3 text-neutral-600" /> : <EyeOff className="size-3 text-neutral-400" />}
+                      <span>{showFeedbackPins ? t('common.visible', 'Visible') : t('common.hidden', 'Hidden')}</span>
+                    </button>
                   </div>
-                ) : (
-                  visibleAnnotations
-                    .map((ann) => {
-                      const isOpen = ann.status === 'open'
-                      return (
-                        <div 
-                          key={ann._id} 
-                          className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all ${
-                            annotationVisibility[ann._id] === false ? 'opacity-40 border-neutral-200 bg-neutral-100/10' :
-                            isOpen ? 'border-red-200 bg-red-50/30' : 'border-neutral-100 bg-neutral-50/50 opacity-60'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                              annotationVisibility[ann._id] === false ? 'text-neutral-400' :
-                              isOpen ? 'text-red-600' : 'text-neutral-500'
-                            }`}>
-                              {isOpen ? 'Open Correction Note' : 'Resolved'}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                className="grid size-5 place-items-center rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer border-none bg-transparent"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setAnnotationVisibility(prev => ({
-                                    ...prev,
-                                    [ann._id]: prev[ann._id] === false
-                                  }))
-                                }}
-                                title={annotationVisibility[ann._id] !== false ? "Hide pin on canvas" : "Show pin on canvas"}
-                              >
-                                {annotationVisibility[ann._id] !== false ? <Eye className="size-3 text-neutral-500" /> : <EyeOff className="size-3 text-neutral-400" />}
-                              </button>
-                              <span className="text-[8px] text-neutral-400">{new Date(ann.createdAt).toLocaleDateString()}</span>
+
+                  {visibleAnnotations.length === 0 ? (
+                    <div className="rounded-xl bg-neutral-50 p-4 text-center">
+                      <p className="text-xs text-neutral-500">{t('studio.noFeedback', 'No editor feedback on this page.')}</p>
+                    </div>
+                  ) : (
+                    visibleAnnotations
+                      .map((ann) => {
+                        const isOpen = ann.status === 'open'
+                        return (
+                          <div
+                            key={ann._id}
+                            className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all ${annotationVisibility[ann._id] === false ? 'opacity-40 border-neutral-200 bg-neutral-100/10' :
+                                isOpen ? 'border-red-200 bg-red-50/30' : 'border-neutral-100 bg-neutral-50/50 opacity-60'
+                              }`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <span className={`text-[9px] font-bold uppercase tracking-wider ${annotationVisibility[ann._id] === false ? 'text-neutral-400' :
+                                  isOpen ? 'text-red-600' : 'text-neutral-500'
+                                }`}>
+                                {isOpen ? 'Open Correction Note' : 'Resolved'}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  className="grid size-5 place-items-center rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer border-none bg-transparent"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setAnnotationVisibility(prev => ({
+                                      ...prev,
+                                      [ann._id]: prev[ann._id] === false
+                                    }))
+                                  }}
+                                  title={annotationVisibility[ann._id] !== false ? "Hide pin on canvas" : "Show pin on canvas"}
+                                >
+                                  {annotationVisibility[ann._id] !== false ? <Eye className="size-3 text-neutral-500" /> : <EyeOff className="size-3 text-neutral-400" />}
+                                </button>
+                                <span className="text-[8px] text-neutral-400">{new Date(ann.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+
+                            <p className="text-xs text-neutral-700 leading-normal break-words">{ann.note}</p>
+
+                            <div className="flex items-center justify-between gap-2 border-t border-neutral-100/50 pt-2 mt-2">
+                              <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 min-w-0">
+                                <span className="truncate">By {ann.authorId?.displayName || 'Tantou Editor'}</span>
+                              </div>
+
+                              {isOpen && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 gap-1 rounded-lg shrink-0"
+                                  onClick={() => handleResolveAnnotation(ann._id)}
+                                >
+                                  <Check className="size-3" />
+                                  {t('studio.resolve', 'Resolve')}
+                                </Button>
+                              )}
                             </div>
                           </div>
-
-                          <p className="text-xs text-neutral-700 leading-normal break-words">{ann.note}</p>
-
-                          <div className="flex items-center justify-between gap-2 border-t border-neutral-100/50 pt-2 mt-2">
-                            <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 min-w-0">
-                              <span className="truncate">By {ann.authorId?.displayName || 'Tantou Editor'}</span>
-                            </div>
-                            
-                            {isOpen && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 px-2 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 gap-1 rounded-lg shrink-0"
-                                onClick={() => handleResolveAnnotation(ann._id)}
-                              >
-                                <Check className="size-3" />
-                                {t('studio.resolve', 'Resolve')}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
-                )}
-              </div>
-            )})()}
+                        )
+                      })
+                  )}
+                </div>
+              )
+            })()}
 
             {/* ── Pages tab ───────────────────────────── */}
             {rightTab === 'pages' && (
@@ -2162,9 +2178,8 @@ function StudioWorkspacePageContent() {
                   {pages.map((p, idx) => (
                     <div
                       key={p._id}
-                      className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer group ${
-                        idx === currentPageIdx ? 'border-neutral-900 shadow-md scale-105' : 'border-transparent opacity-70 hover:opacity-100'
-                      }`}
+                      className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer group ${idx === currentPageIdx ? 'border-neutral-900 shadow-md scale-105' : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
                       onClick={() => setCurrentPageIdx(idx)}
                     >
                       <img
@@ -2205,6 +2220,7 @@ function StudioWorkspacePageContent() {
                       onChange={(e) => setShareUserQuery(e.target.value)}
                       disabled={isReviewLocked}
                     />
+                    {shareError && <div className="text-[10px] text-red-500">{shareError}</div>}
                     <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-100 p-1">
                       {shareUserResults.length === 0 ? (
                         <div className="px-2 py-2 text-[10px] text-neutral-400">No users found.</div>
@@ -2215,7 +2231,13 @@ function StudioWorkspacePageContent() {
                           className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-left text-xs hover:bg-neutral-50"
                           onClick={() => {
                             setShareUserId(u._id)
+                            setShareUserRole(u.role)
                             setShareUserQuery(`${u.displayName} (${u.email})`)
+                            if (u.role === 'mangaka') {
+                              setShareRole('mangaka')
+                            } else if (shareRole === 'mangaka') {
+                              setShareRole('assistant')
+                            }
                           }}
                           disabled={isReviewLocked}
                         >
@@ -2225,15 +2247,22 @@ function StudioWorkspacePageContent() {
                       ))}
                     </div>
                     <div className="text-[10px] text-neutral-500">Selected user id: {shareUserId || 'none'}</div>
+                    <div className="rounded-lg bg-neutral-50 px-2 py-1.5 text-[10px] text-neutral-600">
+                      Selected user role: <span className="font-medium capitalize">{shareUserRole || 'none'}</span>
+                    </div>
                     <select
                       className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
                       value={shareRole}
-                      onChange={(e) => setShareRole(e.target.value as 'assistant' | 'editor')}
-                      disabled={isReviewLocked}
+                      onChange={(e) => setShareRole(e.target.value as 'mangaka' | 'assistant' | 'editor')}
+                      disabled={shareUserRole === 'mangaka'}
                     >
                       <option value="assistant">assistant</option>
                       <option value="editor">editor</option>
+                      <option value="mangaka">mangaka</option>
                     </select>
+                    {shareUserRole === 'mangaka' && (
+                      <div className="text-[10px] text-amber-600">Mangaka users can only be shared as mangaka.</div>
+                    )}
                     <div className="grid grid-cols-3 gap-2 text-[10px]">
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
                         <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} disabled={isReviewLocked} /> edit
@@ -2245,7 +2274,10 @@ function StudioWorkspacePageContent() {
                         <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} disabled={isReviewLocked} /> invite
                       </label>
                     </div>
-                    <Button size="sm" className="w-full" onClick={handleShareAccess} disabled={isReviewLocked}>Share</Button>
+                    {shareError && <div className="rounded-lg bg-red-50 px-2 py-1.5 text-[10px] text-red-600">{shareError}</div>}
+                    <Button size="sm" className="w-full" onClick={handleShareAccess} disabled={!shareUserId || (shareUserRole === 'mangaka' && shareRole !== 'mangaka')}>
+                      Share
+                    </Button>
                   </div>
                 </div>
 
@@ -2279,9 +2311,29 @@ function StudioWorkspacePageContent() {
 
           {/* ── Bottom info bar ─────────────────────── */}
           <div className="border-t border-neutral-200 px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[10px] text-neutral-400 truncate">
-              {currentChapter ? `Ch. ${currentChapter.chapterNumber}` : ''} · {currentSeries?.title || ''}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-neutral-400 truncate">
+                {currentChapter ? `Ch. ${currentChapter.chapterNumber}` : ''} · {currentSeries?.title || ''}
+              </span>
+              {isMangaka && currentSeries?.status === 'Draft' && (
+                <Button 
+                  size="sm" 
+                  className="h-6 text-[10px] px-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={async () => {
+                    try {
+                      // Submit the series for editor review
+                      await seriesAPI.update(currentSeries._id, { status: 'EditorReview' })
+                      alert('Draft submitted to Editor successfully!')
+                      window.location.reload()
+                    } catch (e) {
+                      console.error('Failed to submit draft', e)
+                    }
+                  }}
+                >
+                  Submit Draft to Editor
+                </Button>
+              )}
+            </div>
             <div className="flex items-center gap-1">
               <Minus className="size-3 text-neutral-400" />
               <span className="text-[10px] text-neutral-500">{zoom}%</span>
@@ -2370,9 +2422,8 @@ function StudioWorkspacePageContent() {
                   <button
                     key={type}
                     type="button"
-                    className={`rounded-lg border px-2 py-1.5 text-[10px] font-medium capitalize transition-all ${
-                      newZoneType === type ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 hover:border-neutral-400'
-                    }`}
+                    className={`rounded-lg border px-2 py-1.5 text-[10px] font-medium capitalize transition-all ${newZoneType === type ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 hover:border-neutral-400'
+                      }`}
                     onClick={() => { setNewZoneType(type); setNewZoneName(type.charAt(0).toUpperCase() + type.slice(1)) }}
                   >
                     <span className="inline-block size-1.5 rounded-full mr-1" style={{ backgroundColor: color }} />
@@ -2481,11 +2532,10 @@ function StudioWorkspacePageContent() {
                         <div
                           key={ass._id}
                           onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: isSelected ? '' : ass._id }))}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-                            isSelected
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${isSelected
                               ? 'border-neutral-900 bg-neutral-50/50 shadow-xs'
                               : 'border-neutral-200 bg-white hover:border-neutral-400 hover:shadow-xs'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-2.5">
                             <Avatar className="size-8 bg-neutral-200 border">
@@ -2505,11 +2555,10 @@ function StudioWorkspacePageContent() {
                                   return (
                                     <span
                                       key={sk}
-                                      className={`text-[8px] px-1 py-0.5 rounded font-medium ${
-                                        isMatching
+                                      className={`text-[8px] px-1 py-0.5 rounded font-medium ${isMatching
                                           ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                                           : 'bg-neutral-100 text-neutral-500'
-                                      }`}
+                                        }`}
                                     >
                                       {sk}
                                     </span>
@@ -2521,11 +2570,10 @@ function StudioWorkspacePageContent() {
 
                           <div className="flex flex-col items-end gap-1.5 shrink-0">
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                                hasHighWorkload
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${hasHighWorkload
                                   ? 'bg-rose-50 text-rose-600 flex items-center gap-0.5'
                                   : 'bg-neutral-100 text-neutral-600'
-                              }`}
+                                }`}
                               title={hasHighWorkload ? 'High workload' : ''}
                             >
                               {hasHighWorkload && <AlertCircle className="size-2.5" />}
@@ -2545,11 +2593,10 @@ function StudioWorkspacePageContent() {
                   <button
                     type="button"
                     onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: '' }))}
-                    className={`text-[10px] font-medium px-2 py-1 rounded transition-colors ${
-                      !createTaskForm.assignedTo
+                    className={`text-[10px] font-medium px-2 py-1 rounded transition-colors ${!createTaskForm.assignedTo
                         ? 'bg-neutral-900 text-white font-semibold'
                         : 'text-neutral-500 hover:text-neutral-900 bg-neutral-50'
-                    }`}
+                      }`}
                   >
                     {t('studio.postPublicly', 'Post Publicly (Any Assistant can accept)')}
                   </button>
@@ -2681,8 +2728,8 @@ class ErrorBoundary extends Component<{ children: any }, { hasError: boolean; er
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #fee2e2', color: '#1f2937', overflowX: 'auto' }}>
             {this.state.error?.stack || String(this.state.error)}
           </pre>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             style={{ marginTop: 16, padding: '8px 16px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'semibold', cursor: 'pointer' }}
           >
             Reload Page

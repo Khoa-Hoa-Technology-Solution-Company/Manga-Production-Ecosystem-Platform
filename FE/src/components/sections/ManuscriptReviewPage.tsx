@@ -13,8 +13,10 @@ import {
   CheckCircle,
   HelpCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  PenTool
 } from 'lucide-react'
+import { DraftReviewCanvas, type AnnotationData as DraftAnnotationData } from './DraftReviewCanvas'
 
 interface PageData {
   _id: string
@@ -56,6 +58,10 @@ export function ManuscriptReviewPage() {
   const [loading, setLoading] = useState(true)
   const [showFeedbackPins, setShowFeedbackPins] = useState(true)
   const [annotationVisibility, setAnnotationVisibility] = useState<Record<string, boolean>>({})
+
+  // Draft Canvas
+  const [showCanvas, setShowCanvas] = useState(false)
+  const [draftAnnotations, setDraftAnnotations] = useState<DraftAnnotationData[]>([])
 
   // Interactive Pin Placement states
   const [showAddModal, setShowAddModal] = useState(false)
@@ -106,8 +112,65 @@ export function ManuscriptReviewPage() {
     try {
       const res = await annotationsAPI.getByChapter(chapterId)
       setAnnotations(res.data.annotations || [])
+      
+      // Parse canvas annotations
+      const parsedAnns: DraftAnnotationData[] = []
+      ;(res.data.annotations || []).forEach((a: AnnotationData) => {
+        if (a.note.startsWith('[CANVAS]')) {
+          try {
+            const data = JSON.parse(a.note.slice(8))
+            parsedAnns.push(data)
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      })
+      setDraftAnnotations(parsedAnns)
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  // Handle Canvas Sync
+  const handleDraftAnnotationsChange = async (newAnns: DraftAnnotationData[]) => {
+    const added = newAnns.filter(a => !draftAnnotations.find(d => d.id === a.id));
+    const removed = draftAnnotations.filter(d => !newAnns.find(a => a.id === d.id));
+
+    setDraftAnnotations(newAnns);
+
+    if (added.length > 0) {
+      for (const ann of added) {
+        const pageId = pages[ann.pageIndex]?._id;
+        if (pageId && chapterId) {
+          try {
+            await annotationsAPI.create({
+              chapterId,
+              pageId,
+              x: ann.x,
+              y: ann.y,
+              note: `[CANVAS]${JSON.stringify(ann)}`,
+              source: 'review'
+            });
+          } catch (err) {
+            console.error('Failed to create canvas annotation', err);
+          }
+        }
+      }
+      refreshAnnotations();
+    }
+
+    if (removed.length > 0) {
+      for (const ann of removed) {
+        const backendAnn = annotations.find(a => a.note.startsWith('[CANVAS]') && a.note.includes(ann.id));
+        if (backendAnn) {
+          try {
+            await annotationsAPI.resolve(backendAnn._id);
+          } catch (err) {
+            console.error('Failed to remove canvas annotation', err);
+          }
+        }
+      }
+      refreshAnnotations();
     }
   }
 
@@ -180,6 +243,19 @@ export function ManuscriptReviewPage() {
               {chapter ? chapter.title : 'Manuscript Audit workbench'}
             </h1>
           </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 mr-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-neutral-800 text-neutral-400 hover:text-white"
+            onClick={() => setShowCanvas(true)}
+          >
+            <PenTool className="size-4 mr-2" />
+            Draw on Canvas
+          </Button>
         </div>
 
         {/* Page navigation */}
@@ -271,6 +347,7 @@ export function ManuscriptReviewPage() {
 
               {/* Glowing Coordinate Annotation Pins Overlay */}
               {showFeedbackPins && pageAnnotations.map((ann) => {
+                if (ann.note.startsWith('[CANVAS]')) return null;
                 const isOpen = ann.status === 'open'
                 const isAnnVisible = annotationVisibility[ann._id] !== false
                 if (!isAnnVisible) return null
@@ -332,13 +409,13 @@ export function ManuscriptReviewPage() {
                 <span>{showFeedbackPins ? t('common.visible', 'Visible') : t('common.hidden', 'Hidden')}</span>
               </button>
               <Badge variant="secondary" className="bg-red-500/20 text-red-400 border-none px-2 py-0 text-[9px]">
-                {pageAnnotations.filter(ann => ann.status === 'open').length} Pins
+                {pageAnnotations.filter(ann => ann.status === 'open' && !ann.note.startsWith('[CANVAS]')).length} Pins
               </Badge>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {pageAnnotations.length === 0 ? (
+            {pageAnnotations.filter(ann => !ann.note.startsWith('[CANVAS]')).length === 0 ? (
               <div className="text-center py-10 space-y-2">
                 <div className="grid size-10 place-items-center rounded-2xl bg-neutral-900 mx-auto text-neutral-500">
                   <CheckCircle className="size-4" />
@@ -349,7 +426,7 @@ export function ManuscriptReviewPage() {
                 </p>
               </div>
             ) : (
-              pageAnnotations.map((ann) => {
+              pageAnnotations.filter(ann => !ann.note.startsWith('[CANVAS]')).map((ann) => {
                 const isOpen = ann.status === 'open'
                 const isAnnVisible = annotationVisibility[ann._id] !== false
                 return (
@@ -449,6 +526,18 @@ export function ManuscriptReviewPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Advanced Drawing Canvas Overlay ────────────── */}
+      {showCanvas && chapter && pages.length > 0 && (
+        <DraftReviewCanvas
+          pages={pages}
+          annotations={draftAnnotations}
+          onAnnotationsChange={handleDraftAnnotationsChange}
+          onClose={() => setShowCanvas(false)}
+          seriesTitle="Series Review"
+          chapterTitle={chapter.title}
+        />
       )}
     </div>
   )

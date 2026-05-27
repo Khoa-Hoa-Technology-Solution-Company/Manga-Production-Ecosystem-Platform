@@ -12,6 +12,13 @@ declare global {
         displayName: string;
         role: string;
       };
+      chapterAccess?: {
+        chapterId: string;
+        role: string;
+        canEdit: boolean;
+        canComment: boolean;
+        canInvite: boolean;
+      };
     }
   }
 }

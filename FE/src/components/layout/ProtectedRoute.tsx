@@ -69,3 +69,21 @@ export function ProtectedEditorRoute() {
 
   return <Outlet />
 }
+
+export function ProtectedEditorialBoardRoute() {
+  const { isAuthenticated, loading, user } = useAuth()
+
+  if (loading) {
+    return <div className="p-8 text-sm text-neutral-500">Loading...</div>
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user?.role?.toLowerCase() !== 'editorial_board') {
+    return <Navigate to="/" replace />
+  }
+
+  return <Outlet />
+}
