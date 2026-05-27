@@ -88,15 +88,12 @@ export function ManuscriptReviewPage() {
     })
 
     Promise.all([
-      // We can fetch details via chaptersAPI
-      chaptersAPI.getBySeries(chapterId).catch(() => null), // backup
+      chaptersAPI.getById(chapterId).catch(() => null),
       pagesAPI.getByChapter(chapterId),
       annotationsAPI.getByChapter(chapterId)
-    ]).then(([seriesRes, pagesRes, annRes]) => {
-      // Find chapter details from series
-      if (seriesRes?.data?.chapters) {
-        const found = seriesRes.data.chapters.find((c: { _id: string }) => c._id === chapterId)
-        if (found) setChapter(found)
+    ]).then(([chapterRes, pagesRes, annRes]) => {
+      if (chapterRes?.data?.chapter) {
+        setChapter(chapterRes.data.chapter)
       }
       setPages(pagesRes.data.pages || [])
       setAnnotations(annRes.data.annotations || [])

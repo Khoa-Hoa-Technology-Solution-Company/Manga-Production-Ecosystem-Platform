@@ -9,6 +9,7 @@ import {
   notifySeriesRejected,
   notifySeriesPublished,
   notifySeriesEBRejected,
+  createNotification,
 } from '../services/notification.service';
 
 export async function getAll(req: Request, res: Response): Promise<void> {
@@ -30,6 +31,7 @@ export async function getAll(req: Request, res: Response): Promise<void> {
       filter._id = { $in: accessibleChapterSeriesIds.length ? accessibleChapterSeriesIds : ['000000000000000000000000'] };
     } else if (req.user?.role === 'editor') {
       filter.editorId = req.user._id;
+      filter.editorStatus = 'accepted';
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -61,18 +63,10 @@ export async function getById(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (req.user?.role === 'mangaka') {
-      const hasAccess = String(series.mangakaId?._id || series.mangakaId) === req.user._id;
-      if (!hasAccess) {
-        const shared = await Chapter.exists({
-          seriesId: series._id,
-          'collaborators.userId': req.user._id,
-        });
-        if (!shared) {
-          res.status(403).json({ error: 'You do not have access to this series.' });
-          return;
-        }
-      }
+    // Strict access control boundary for Editors
+    if (req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
+      res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
+      return;
     }
 
     res.json({ series });
@@ -83,7 +77,7 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description } = req.body;
+    const { title, description, editorId } = req.body;
     const genre = Array.isArray(req.body.genre)
       ? req.body.genre
       : String(req.body.genre || '')
@@ -103,7 +97,26 @@ export async function create(req: Request, res: Response): Promise<void> {
       genre,
       coverImage,
       mangakaId: req.user?._id,
+      editorId: editorId || undefined,
+      editorStatus: editorId ? 'pending' : 'none',
     });
+
+    if (editorId) {
+      try {
+        const mangakaName = req.user?.displayName || 'Mangaka';
+        await createNotification({
+          userId: editorId,
+          type: 'system',
+          title: 'Collaboration Invitation',
+          message: `Mangaka ${mangakaName} has invited you to be the Tantou Editor for their series "${title}".`,
+          relatedId: series._id.toString(),
+          relatedType: 'Series'
+        });
+      } catch (err) {
+        console.error('Failed to trigger handshake invitation notification during series creation:', err);
+      }
+    }
+
     res.status(201).json({ series });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -112,7 +125,7 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function update(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description, status, editorId } = req.body;
+    const { title, description, status, editorId, deadline } = req.body;
     const genre = Array.isArray(req.body.genre)
       ? req.body.genre
       : typeof req.body.genre === 'string'
@@ -125,10 +138,26 @@ export async function update(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const updateData: any = { title, description, status, editorId };
+    const updateData: any = { title, description, status };
     if (genre) updateData.genre = genre;
     if (typeof req.body.coverImage === 'string') updateData.coverImage = req.body.coverImage;
     if (req.file) updateData.coverImage = await uploadToR2(req.file, 'series');
+    if (deadline !== undefined) {
+      updateData.deadline = deadline ? new Date(deadline) : null;
+    }
+
+    // Automatically manage editor Status handshake when editorId changes
+    if (editorId !== undefined) {
+      if (editorId && editorId !== 'none' && editorId !== 'null' && editorId !== 'undefined') {
+        updateData.editorId = editorId;
+        if (!oldSeries.editorId || oldSeries.editorId.toString() !== editorId.toString()) {
+          updateData.editorStatus = 'pending';
+        }
+      } else {
+        updateData.editorId = null;
+        updateData.editorStatus = 'none';
+      }
+    }
 
     // Role-based status transitions validation
     if (status && status !== oldSeries.status) {
@@ -239,6 +268,22 @@ export async function update(req: Request, res: Response): Promise<void> {
       }
     }
 
+    if (updateData.editorStatus === 'pending' && updateData.editorId) {
+      try {
+        const mangakaName = req.user?.displayName || 'Mangaka';
+        await createNotification({
+          userId: updateData.editorId.toString(),
+          type: 'system',
+          title: 'Collaboration Invitation',
+          message: `Mangaka ${mangakaName} has invited you to be the Tantou Editor for their series "${series?.title || oldSeries.title}".`,
+          relatedId: oldSeries._id.toString(),
+          relatedType: 'Series'
+        });
+      } catch (err) {
+        console.error('Failed to trigger handshake invitation notification during series update:', err);
+      }
+    }
+
     res.json({ series });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -262,6 +307,74 @@ export async function remove(req: Request, res: Response): Promise<void> {
       return;
     }
     res.json({ message: 'Series deleted.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function handleHandshake(req: Request, res: Response): Promise<void> {
+  try {
+    const { action } = req.body;
+    if (action !== 'accept' && action !== 'decline') {
+      res.status(400).json({ error: 'Invalid handshake action. Must be "accept" or "decline".' });
+      return;
+    }
+
+    const series = await Series.findById(req.params.id);
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+
+    if (series.editorId?.toString() !== req.user?._id.toString()) {
+      res.status(403).json({ error: 'You are not authorized to respond to this assignment invitation.' });
+      return;
+    }
+
+    if (action === 'accept') {
+      series.editorStatus = 'accepted';
+      await series.save();
+      
+      try {
+        const editorName = req.user?.displayName || 'Editor';
+        const mangakaIdStr = series.mangakaId.toString();
+        await createNotification({
+          userId: mangakaIdStr,
+          type: 'system',
+          title: 'Handshake Accepted',
+          message: `Tantou Editor ${editorName} has accepted the assignment for series "${series.title}".`,
+          relatedId: series._id.toString(),
+          relatedType: 'Series'
+        });
+      } catch (notifErr) {
+        console.error('Failed to trigger handshake acceptance notification:', notifErr);
+      }
+    } else {
+      series.editorId = undefined;
+      series.editorStatus = 'none';
+      if (series.status === 'Pending_Editor') {
+        series.status = 'Draft';
+        series.rejectionNotes = 'Invitation declined by Editor.';
+      }
+      await series.save();
+
+      try {
+        const editorName = req.user?.displayName || 'Editor';
+        const mangakaIdStr = series.mangakaId.toString();
+        await createNotification({
+          userId: mangakaIdStr,
+          type: 'system',
+          title: 'Handshake Declined',
+          message: `Editor ${editorName} has declined the invitation for series "${series.title}".`,
+          relatedId: series._id.toString(),
+          relatedType: 'Series'
+        });
+      } catch (notifErr) {
+        console.error('Failed to trigger handshake decline notification:', notifErr);
+      }
+    }
+
+    res.json({ series, message: `Successfully responded with ${action}.` });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

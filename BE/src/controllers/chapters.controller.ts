@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Chapter } from '../models/Chapter';
+import { Series } from '../models/Series';
 import { User } from '../models/User';
 import { transitionChapterStatus } from '../services/workflow.service';
 
@@ -9,6 +10,18 @@ function canManageCollaborators(userRole?: string) {
 
 export async function getBySeriesId(req: Request, res: Response): Promise<void> {
   try {
+    const series = await Series.findById(req.params.seriesId);
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+
+    // Check boundaries for Editors
+    if (req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
+      res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
+      return;
+    }
+
     const chapters = await Chapter.find({ seriesId: req.params.seriesId })
       .populate('mangakaId', 'displayName avatar')
       .populate('editorId', 'displayName avatar')
@@ -181,5 +194,28 @@ export async function removeAccess(req: Request, res: Response): Promise<void> {
     res.json({ chapter: updated });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
+  }
+}
+
+export async function getById(req: Request, res: Response): Promise<void> {
+  try {
+    const chapter = await Chapter.findById(req.params.id)
+      .populate('mangakaId', 'displayName avatar')
+      .populate('editorId', 'displayName avatar');
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+    
+    // Check boundaries for Editors
+    const series = await Series.findById(chapter.seriesId);
+    if (series && req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
+      res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
+      return;
+    }
+
+    res.json({ chapter });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 }

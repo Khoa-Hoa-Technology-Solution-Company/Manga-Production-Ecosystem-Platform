@@ -70,6 +70,8 @@ export const seriesAPI = {
   getPendingReview: (params?: Record<string, unknown>) => api.get('/series/pending-review', { params }),
   getApprovalHistory: (id: string) => api.get(`/series/${id}/approval-history`),
   getEditors: () => api.get('/series/editors'),
+  respondToHandshake: (id: string, action: 'accept' | 'decline') =>
+    api.put(`/series/${id}/handshake`, { action }),
 };
 
 // ── Approval API ────────────────────────────────────
@@ -89,6 +91,7 @@ export const approvalAPI = {
 // ── Chapters API ────────────────────────────────────
 export const chaptersAPI = {
   getBySeries: (seriesId: string) => api.get(`/chapters/series/${seriesId}`),
+  getById: (id: string) => api.get(`/chapters/${id}`),
   create: (seriesId: string, data: unknown) => api.post(`/chapters/series/${seriesId}`, data),
   update: (id: string, data: unknown) => api.put(`/chapters/${id}`, data),
   delete: (id: string) => api.delete(`/chapters/${id}`),
@@ -172,3 +175,12 @@ export const annotationsAPI = {
     api.post('/annotations', data),
   resolve: (id: string) => api.patch(`/annotations/${id}/resolve`),
 };
+
+// ── Editor Analytics API ────────────────────────────
+export const editorAPI = {
+  getPortfolio: () => api.get('/editor/portfolio'),
+  getMilestones: (seriesId: string) => api.get(`/editor/milestones/${seriesId}`),
+  getWarnings: () => api.get('/editor/warnings'),
+  getAnalytics: (mangakaId: string) => api.get(`/editor/analytics/${mangakaId}`),
+};
+

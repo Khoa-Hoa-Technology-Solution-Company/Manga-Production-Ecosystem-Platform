@@ -9,6 +9,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/series/:seriesId', ctrl.getBySeriesId);
+router.get('/:id', ctrl.getById);
 router.post('/series/:seriesId', authorize('mangaka'), ctrl.create);
 router.put('/:id', requireChapterAccess('edit'), ctrl.update);
 router.delete('/:id', requireChapterAccess('edit'), ctrl.remove);
