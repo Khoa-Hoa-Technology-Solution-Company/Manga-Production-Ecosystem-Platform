@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { Chapter } from '../models/Chapter';
 import { Page } from '../models/Page';
 
-function hasAccess(chapter: any, userId: string, userRole: string, mode: 'read' | 'edit' | 'comment' | 'invite' = 'read') {
-  if (!chapter) return false;
+function hasAccess(chapter: any, userId: string | undefined, userRole: string, mode: 'read' | 'edit' | 'comment' | 'invite' = 'read') {
+  if (!chapter || !userId) return false;
   if (String(chapter.mangakaId?._id || chapter.mangakaId) === userId) return true;
 
   const collaborator = Array.isArray(chapter.collaborators)
