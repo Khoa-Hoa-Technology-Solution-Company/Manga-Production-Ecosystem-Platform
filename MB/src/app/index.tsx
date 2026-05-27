@@ -48,6 +48,7 @@ export default function HomeScreen() {
   // ── API data state ────────────────────────────────
   const [seriesList, setSeriesList] = useState<any[]>([]);
   const [rankings, setRankings] = useState<any[]>([]);
+  const [activeShelfTab, setActiveShelfTab] = useState<'all' | 'shared'>('all');
   const [loadingSeries, setLoadingSeries] = useState(true);
   const [loadingRankings, setLoadingRankings] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,9 +129,13 @@ export default function HomeScreen() {
         votes: s.totalVotes ? `${(s.totalVotes / 1000).toFixed(0)}K` : '0',
         cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/600/400`,
         hot: (s.weeklyVotes || 0) > 100,
+        shared: Boolean(s.sharedWithMe),
       })),
     [seriesList]
   );
+
+  const sharedSeries = useMemo(() => hotSeries.filter((item) => item.shared), [hotSeries]);
+  const visibleHotSeries = activeShelfTab === 'shared' ? sharedSeries : filteredHotSeries;
 
   const filteredHotSeries = useMemo(
     () => hotSeries.filter((item) => activeMood === 'All' || item.genre === activeMood),
@@ -321,9 +326,18 @@ export default function HomeScreen() {
               <Flame size={16} color="#f43f5e" />
               <ThemedText type="smallBold" style={styles.sectionTitle}>HOT TUẦN NÀY</ThemedText>
             </View>
+            <View style={styles.shelfTabs}>
+              {(['all', 'shared'] as const).map((tab) => (
+                <Pressable key={tab} onPress={() => setActiveShelfTab(tab)} style={[styles.shelfTab, activeShelfTab === tab && styles.shelfTabActive]}>
+                  <ThemedText style={[styles.shelfTabText, activeShelfTab === tab && styles.shelfTabTextActive]}>
+                    {tab === 'all' ? 'Tất cả' : 'Được chia sẻ'}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
           </View>
           <View style={styles.grid}>
-            {filteredHotSeries.map((item) => (
+            {visibleHotSeries.map((item) => (
               <Pressable key={item.id} onPress={() => handleOpenSeries(item.id)} style={styles.gridCard}>
                 <Image source={{ uri: item.cover }} style={styles.gridCover} contentFit="cover" />
                 <LinearGradient colors={['transparent', 'rgba(10,5,22,0.95)']} style={styles.gridCardOverlay} />
@@ -336,6 +350,7 @@ export default function HomeScreen() {
                 <View style={styles.gridTextWrap}>
                   <ThemedText style={styles.gridCardGenre}>{item.genre}</ThemedText>
                   <ThemedText style={styles.gridCardTitle} numberOfLines={1}>{item.title}</ThemedText>
+                  <ThemedText style={styles.gridCardAuthor} numberOfLines={1}>Tác giả: {item.author}</ThemedText>
                   <View style={styles.gridMeta}>
                     <ThemedText style={styles.gridMetaText}>{item.chapters} ch.</ThemedText>
                     <ThemedText style={styles.gridMetaText}><Heart size={10} color="#f43f5e" /> {item.votes}</ThemedText>
@@ -462,9 +477,15 @@ const styles = StyleSheet.create({
   gridTextWrap: { position: 'absolute', bottom: 12, left: 12, right: 12, gap: 2 },
   gridCardGenre: { color: '#a5b4fc', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
   gridCardTitle: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  gridCardAuthor: { color: '#cbd5e1', fontSize: 10, fontWeight: '600' },
   gridMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
   gridMetaText: { color: '#94a3b8', fontSize: 11, fontWeight: '700', flexDirection: 'row', alignItems: 'center', gap: 3 },
   leaderboardCard: { borderRadius: 24, padding: Spacing.three, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', gap: 10 },
+  shelfTabs: { flexDirection: 'row', gap: 8 },
+  shelfTab: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)' },
+  shelfTabActive: { backgroundColor: 'rgba(251,113,133,0.18)' },
+  shelfTabText: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
+  shelfTabTextActive: { color: '#fff' },
   leaderboardRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 10 },
   rankCol: { width: 30, alignItems: 'center' },
   rankCup: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },

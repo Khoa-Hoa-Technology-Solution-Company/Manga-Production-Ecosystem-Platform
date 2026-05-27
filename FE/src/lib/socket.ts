@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const rawBaseUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const SOCKET_URL = rawBaseUrl.replace(/\/api\/?$/, '');
 
 class SocketService {
   private socket: Socket | null = null;
@@ -17,6 +18,8 @@ class SocketService {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      transports: ['websocket'],
+      timeout: 10000,
     });
 
     this.socket.on('connect', () => {

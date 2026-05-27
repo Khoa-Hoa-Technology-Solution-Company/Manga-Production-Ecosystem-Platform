@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Chapter } from '../models/Chapter';
+import { User } from '../models/User';
 import { transitionChapterStatus } from '../services/workflow.service';
 
 function canManageCollaborators(userRole?: string) {
@@ -103,6 +104,19 @@ export async function shareAccess(req: Request, res: Response): Promise<void> {
     const { userId, role = 'assistant', canEdit = true, canComment = true, canInvite = false } = req.body;
     if (!userId) {
       res.status(400).json({ error: 'userId is required.' });
+      return;
+    }
+    const targetUser = await User.findById(userId).select('_id role displayName');
+    if (!targetUser) {
+      res.status(404).json({ error: 'Target user not found.' });
+      return;
+    }
+    if (targetUser.role === 'mangaka' && req.user?.role !== 'mangaka') {
+      res.status(403).json({ error: 'Only mangaka can grant access to other mangaka.' });
+      return;
+    }
+    if (targetUser.role === 'mangaka' && role !== 'mangaka') {
+      res.status(400).json({ error: 'Mangaka collaborators must be assigned the mangaka role.' });
       return;
     }
     const chapter = await Chapter.findById(req.params.id);

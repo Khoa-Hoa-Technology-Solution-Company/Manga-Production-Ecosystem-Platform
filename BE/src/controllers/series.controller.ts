@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Series } from '../models/Series';
+import { Chapter } from '../models/Chapter';
 import { uploadToR2 } from '../services/storage.service';
 
 export async function getAll(req: Request, res: Response): Promise<void> {
@@ -10,9 +11,15 @@ export async function getAll(req: Request, res: Response): Promise<void> {
     if (status) filter.status = status;
     if (genre) filter.genre = { $in: [genre] };
 
-    // Role-based filtering
     if (req.user?.role === 'mangaka') {
-      filter.mangakaId = req.user._id;
+      const accessibleChapterSeriesIds = await Chapter.find({
+        $or: [
+          { mangakaId: req.user._id },
+          { 'collaborators.userId': req.user._id },
+        ],
+      }).distinct('seriesId');
+
+      filter._id = { $in: accessibleChapterSeriesIds.length ? accessibleChapterSeriesIds : ['000000000000000000000000'] };
     } else if (req.user?.role === 'editor') {
       filter.editorId = req.user._id;
     }
@@ -45,6 +52,21 @@ export async function getById(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: 'Series not found.' });
       return;
     }
+
+    if (req.user?.role === 'mangaka') {
+      const hasAccess = String(series.mangakaId?._id || series.mangakaId) === req.user._id;
+      if (!hasAccess) {
+        const shared = await Chapter.exists({
+          seriesId: series._id,
+          'collaborators.userId': req.user._id,
+        });
+        if (!shared) {
+          res.status(403).json({ error: 'You do not have access to this series.' });
+          return;
+        }
+      }
+    }
+
     res.json({ series });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

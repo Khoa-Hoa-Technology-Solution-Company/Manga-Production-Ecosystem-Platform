@@ -107,9 +107,11 @@ export function StudioWorkspacePage() {
   const [focusedObjects, setFocusedObjects] = useState<Record<string, { userId: string; role: string }>>({})
   const [lockedObjects, setLockedObjects] = useState<Record<string, { userId: string; role: string }>>({})
   const [shareUserId, setShareUserId] = useState('')
+  const [shareUserRole, setShareUserRole] = useState<'mangaka' | 'assistant' | 'editor' | ''>('')
   const [shareUserQuery, setShareUserQuery] = useState('')
   const [shareUserResults, setShareUserResults] = useState<any[]>([])
-  const [shareRole, setShareRole] = useState<'assistant' | 'editor'>('assistant')
+  const [shareError, setShareError] = useState('')
+  const [shareRole, setShareRole] = useState<'mangaka' | 'assistant' | 'editor'>('assistant')
   const [shareCanEdit, setShareCanEdit] = useState(true)
   const [shareCanComment, setShareCanComment] = useState(true)
   const [shareCanInvite, setShareCanInvite] = useState(false)
@@ -209,8 +211,11 @@ export function StudioWorkspacePage() {
   const chapterRoom = selectedChapterId ? `chapter:${selectedChapterId}` : ''
 
   useEffect(() => {
-    socketService.connect()
-    return () => socketService.disconnect()
+    const timer = setTimeout(() => socketService.connect(), 300)
+    return () => {
+      clearTimeout(timer)
+      socketService.disconnect()
+    }
   }, [])
 
   useEffect(() => {
@@ -1281,6 +1286,7 @@ export function StudioWorkspacePage() {
 
   const handleShareAccess = async () => {
     if (!selectedChapterId || !shareUserId.trim()) return
+    setShareError('')
     try {
       await chaptersAPI.shareAccess(selectedChapterId, {
         userId: shareUserId.trim(),
@@ -1298,8 +1304,8 @@ export function StudioWorkspacePage() {
       setShareCanEdit(true)
       setShareCanComment(true)
       setShareCanInvite(false)
-    } catch (error) {
-      console.error(error)
+    } catch (error: any) {
+      setShareError(error?.response?.data?.error || 'Failed to share access.')
     }
   }
 
@@ -1934,6 +1940,7 @@ export function StudioWorkspacePage() {
                       value={shareUserQuery}
                       onChange={(e) => setShareUserQuery(e.target.value)}
                     />
+                    {shareError && <div className="text-[10px] text-red-500">{shareError}</div>}
                     <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-100 p-1">
                       {shareUserResults.length === 0 ? (
                         <div className="px-2 py-2 text-[10px] text-neutral-400">No users found.</div>
@@ -1944,7 +1951,13 @@ export function StudioWorkspacePage() {
                           className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-left text-xs hover:bg-neutral-50"
                           onClick={() => {
                             setShareUserId(u._id)
+                            setShareUserRole(u.role)
                             setShareUserQuery(`${u.displayName} (${u.email})`)
+                            if (u.role === 'mangaka') {
+                              setShareRole('mangaka')
+                            } else if (shareRole === 'mangaka') {
+                              setShareRole('assistant')
+                            }
                           }}
                         >
                           <div className="font-medium">{u.displayName}</div>
@@ -1953,14 +1966,22 @@ export function StudioWorkspacePage() {
                       ))}
                     </div>
                     <div className="text-[10px] text-neutral-500">Selected user id: {shareUserId || 'none'}</div>
+                    <div className="rounded-lg bg-neutral-50 px-2 py-1.5 text-[10px] text-neutral-600">
+                      Selected user role: <span className="font-medium capitalize">{shareUserRole || 'none'}</span>
+                    </div>
                     <select
                       className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
                       value={shareRole}
-                      onChange={(e) => setShareRole(e.target.value as 'assistant' | 'editor')}
+                      onChange={(e) => setShareRole(e.target.value as 'mangaka' | 'assistant' | 'editor')}
+                      disabled={shareUserRole === 'mangaka'}
                     >
                       <option value="assistant">assistant</option>
                       <option value="editor">editor</option>
+                      <option value="mangaka">mangaka</option>
                     </select>
+                    {shareUserRole === 'mangaka' && (
+                      <div className="text-[10px] text-amber-600">Mangaka users can only be shared as mangaka.</div>
+                    )}
                     <div className="grid grid-cols-3 gap-2 text-[10px]">
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
                         <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} /> edit
@@ -1972,7 +1993,10 @@ export function StudioWorkspacePage() {
                         <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} /> invite
                       </label>
                     </div>
-                    <Button size="sm" className="w-full" onClick={handleShareAccess}>Share</Button>
+                    {shareError && <div className="rounded-lg bg-red-50 px-2 py-1.5 text-[10px] text-red-600">{shareError}</div>}
+                    <Button size="sm" className="w-full" onClick={handleShareAccess} disabled={!shareUserId || (shareUserRole === 'mangaka' && shareRole !== 'mangaka')}>
+                      Share
+                    </Button>
                   </div>
                 </div>
 
