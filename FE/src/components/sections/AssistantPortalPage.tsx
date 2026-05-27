@@ -40,6 +40,7 @@ export function AssistantPortalPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
 
+  const [mainTab, setMainTab] = useState('tasks')
   const [activeFilter, setActiveFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tasks, setTasks] = useState<any[]>([])
@@ -169,8 +170,31 @@ export function AssistantPortalPage() {
         </div>
       </header>
 
+      <div className="border-b border-neutral-200 px-4 sm:px-6 lg:px-8">
+        <div className="flex gap-6 -mb-px">
+          <button
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+              mainTab === 'tasks' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+            }`}
+            onClick={() => setMainTab('tasks')}
+          >
+            My Tasks
+          </button>
+          <button
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+              mainTab === 'earnings' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+            }`}
+            onClick={() => setMainTab('earnings')}
+          >
+            My Earnings
+          </button>
+        </div>
+      </div>
+
       <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* ── Stats Row ──────────────────────────────── */}
+        {mainTab === 'tasks' && (
+          <>
+            {/* ── Stats Row ──────────────────────────────── */}
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((item) => {
             const Icon = item.icon
@@ -365,9 +389,13 @@ export function AssistantPortalPage() {
             ))}
           </section>
         )}
+          </>
+        )}
 
         {/* ── Earnings Section ───────────────────────── */}
-        <Card className="p-6 shadow-sm">
+        {mainTab === 'earnings' && (
+          <>
+            <Card className="p-6 shadow-sm">
           <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
             <div>
               <CardTitle className="text-base">{t('assistant.earningsOverview', 'Earnings Overview')}</CardTitle>
@@ -401,6 +429,37 @@ export function AssistantPortalPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── Monthly Breakdown (Mocked for visual) ── */}
+        <Card className="p-6 shadow-sm">
+          <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
+            <CardTitle className="text-base">Monthly Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-100 bg-neutral-50/80">
+                    <th className="px-4 py-3 text-left font-medium text-neutral-500">Month</th>
+                    <th className="px-4 py-3 text-right font-medium text-neutral-500">Pages Completed</th>
+                    <th className="px-4 py-3 text-right font-medium text-neutral-500">Total Earnings</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-neutral-50">
+                    <td className="px-4 py-3 font-medium">May 2026</td>
+                    <td className="px-4 py-3 text-right">{tasks.filter(t => t.status === 'done').length} pages</td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">
+                      {formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+          </>
+        )}
       </div>
     </div>
   )

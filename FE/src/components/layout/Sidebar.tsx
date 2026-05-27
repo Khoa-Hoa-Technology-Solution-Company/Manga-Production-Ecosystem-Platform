@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bell, BookMarked, Briefcase, Compass, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
+import { Bell, BookMarked, Briefcase, Compass, Gavel, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
 import { Avatar, AvatarFallback, Button } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { notificationsAPI } from '../../lib/api'
@@ -8,7 +8,7 @@ import { socketService } from '../../lib/socket'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { NotificationsModal } from './NotificationsModal'
 
-type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series-manager' | 'tasks' | 'editor-portal' | 'discover' | 'settings'
+type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series-manager' | 'tasks' | 'editor-portal' | 'editorial-board' | 'discover' | 'settings'
 
 type SidebarProps = {
   mobileOpen?: boolean
@@ -20,13 +20,15 @@ const navigation: Array<{
   labelKey: string
   icon: typeof LayoutDashboard
   section: string
+  roles?: string[] // restrict to these roles; undefined = all non-reader
 }> = [
   { key: 'home', labelKey: 'sidebar.home', icon: Home, section: 'main' },
   { key: 'dashboard', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, section: 'main' },
-  { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create' },
-  { key: 'series-manager', labelKey: 'sidebar.seriesManager', icon: BookMarked, section: 'create' },
-  { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create' },
-  { key: 'editor-portal', labelKey: 'sidebar.editorPortal', icon: LayoutDashboard, section: 'create' },
+  { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create', roles: ['mangaka'] },
+  { key: 'series-manager', labelKey: 'sidebar.seriesManager', icon: BookMarked, section: 'create', roles: ['mangaka'] },
+  { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create', roles: ['mangaka', 'assistant'] },
+  { key: 'editor-portal', labelKey: 'sidebar.editorPortal', icon: LayoutDashboard, section: 'manage', roles: ['editor'] },
+  { key: 'editorial-board', labelKey: 'sidebar.editorialBoard', icon: Gavel, section: 'manage', roles: ['editorial_board'] },
   { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
   { key: 'settings', labelKey: 'sidebar.settings', icon: Settings, section: 'other' },
 ]
@@ -34,6 +36,7 @@ const navigation: Array<{
 const sections = [
   { key: 'main', labelKey: '' },
   { key: 'create', labelKey: 'sidebar.create' },
+  { key: 'manage', labelKey: 'sidebar.manage' },
   { key: 'explore', labelKey: 'sidebar.explore' },
   { key: 'other', labelKey: '' },
 ]
@@ -45,6 +48,7 @@ const routeMap: Record<SidebarKey, string> = {
   'series-manager': '/studio/manage',
   tasks: '/tasks',
   'editor-portal': '/editor',
+  'editorial-board': '/editorial-board',
   discover: '/discover',
   settings: '/settings',
 }
@@ -125,19 +129,15 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
 
         <nav className="flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
           {sections.map((section) => {
-            const isReader = user?.role?.toLowerCase() === 'reader'
-            const isMangaka = user?.role?.toLowerCase() === 'mangaka'
-            const isEditor = user?.role?.toLowerCase() === 'editor'
-            const isEB = user?.role?.toLowerCase() === 'editorial_board'
-            const restrictedForReader = ['dashboard', 'studio', 'series-manager', 'tasks', 'editor-portal']
-            const mangakaOnly = ['studio', 'series-manager']
-            const editorOrEbOnly = ['editor-portal']
+            const userRole = user?.role?.toLowerCase() || 'reader'
+            const isReader = userRole === 'reader'
+            const restrictedForReader = ['dashboard', 'studio', 'series-manager', 'tasks', 'editor-portal', 'editorial-board']
             
             const sectionItems = navigation.filter((n) => {
               if (n.section !== section.key) return false
               if (isReader && restrictedForReader.includes(n.key)) return false
-              if (!isMangaka && mangakaOnly.includes(n.key)) return false
-              if (editorOrEbOnly.includes(n.key) && !isEditor && !isEB) return false
+              // Role-specific items: only show if user has matching role
+              if (n.roles && !n.roles.includes(userRole)) return false
               return true
             })
             if (sectionItems.length === 0) return null

@@ -65,7 +65,25 @@ export const seriesAPI = {
     return api.put(`/series/${id}`, data);
   },
   delete: (id: string) => api.delete(`/series/${id}`),
+  // Approval workflow
+  submitToEditor: (id: string) => api.patch(`/series/${id}/submit-to-editor`),
+  getPendingReview: (params?: Record<string, unknown>) => api.get('/series/pending-review', { params }),
+  getApprovalHistory: (id: string) => api.get(`/series/${id}/approval-history`),
   getEditors: () => api.get('/series/editors'),
+};
+
+// ── Approval API ────────────────────────────────────
+export const approvalAPI = {
+  editorDecision: (seriesId: string, data: { decision: string; comments?: string; annotations?: unknown[] }) =>
+    api.patch(`/series/${seriesId}/editor-decision`, data),
+  ebVote: (seriesId: string, data: { decision: string; comments?: string }) =>
+    api.post(`/series/${seriesId}/eb-vote`, data),
+  ebDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
+    api.patch(`/series/${seriesId}/eb-decision`, data),
+  inputReaderVotes: (seriesId: string, data: { weeklyVotes: number; week?: string }) =>
+    api.post(`/series/${seriesId}/reader-votes`, data),
+  cancelSeries: (seriesId: string, data: { reason: string }) =>
+    api.patch(`/series/${seriesId}/cancel`, data),
 };
 
 // ── Chapters API ────────────────────────────────────
@@ -140,6 +158,12 @@ export const notificationsAPI = {
   markAllRead: () => api.patch('/notifications/read-all'),
 };
 
+// ── Earnings API (Assistant) ────────────────────────
+export const earningsAPI = {
+  getMonthly: (params?: Record<string, unknown>) => api.get('/tasks/earnings/monthly', { params }),
+  getSummary: () => api.get('/tasks/earnings/summary'),
+};
+
 // ── Annotations API ─────────────────────────────────
 export const annotationsAPI = {
   getByChapter: (chapterId: string, source?: 'review' | 'tracking') =>
@@ -148,4 +172,3 @@ export const annotationsAPI = {
     api.post('/annotations', data),
   resolve: (id: string) => api.patch(`/annotations/${id}/resolve`),
 };
-
