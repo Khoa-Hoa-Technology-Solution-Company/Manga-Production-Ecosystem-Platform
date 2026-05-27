@@ -66,6 +66,8 @@ interface SeriesData {
   status?: string
   totalChapters?: number
   rejectionNotes?: string
+  editorId?: string | { _id: string; displayName?: string }
+  editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none'
 }
 
 interface ChapterData {
@@ -100,6 +102,7 @@ export function MangakaSeriesManagerPage() {
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [submitSeriesId, setSubmitSeriesId] = useState('')
   const [selectedEditorId, setSelectedEditorId] = useState('')
+  const [designatedEditorId, setDesignatedEditorId] = useState('')
   
   const [showSeriesForm, setShowSeriesForm] = useState(false)
   const [showEditSeriesForm, setShowEditSeriesForm] = useState(false)
@@ -261,6 +264,7 @@ export function MangakaSeriesManagerPage() {
     setSeriesCoverFile(null)
     setSeriesCoverPreview('')
     setSeriesCoverUrlInput('')
+    setDesignatedEditorId('')
   }
 
   const openEditSeries = () => {
@@ -271,6 +275,10 @@ export function MangakaSeriesManagerPage() {
     setSeriesCoverUrlInput(selectedSeries.coverImage || '')
     setSeriesCoverPreview(seriesCoverUrl(selectedSeries.coverImage))
     setSeriesCoverFile(null)
+    const eId = selectedSeries.editorId && typeof selectedSeries.editorId === 'object'
+      ? (selectedSeries.editorId as { _id: string })._id
+      : selectedSeries.editorId || ''
+    setDesignatedEditorId(eId)
     setShowEditSeriesForm(true)
   }
 
@@ -285,6 +293,7 @@ export function MangakaSeriesManagerPage() {
       formData.append('genre', genre.join(', '))
       if (seriesCoverFile) formData.append('coverImageFile', seriesCoverFile)
       if (seriesCoverUrlInput.trim()) formData.append('coverImage', seriesCoverUrlInput.trim())
+      if (designatedEditorId) formData.append('editorId', designatedEditorId)
 
       const res = await seriesAPI.create(formData)
       resetSeriesForm()
@@ -306,6 +315,7 @@ export function MangakaSeriesManagerPage() {
       formData.append('genre', genre.join(', '))
       if (seriesCoverFile) formData.append('coverImageFile', seriesCoverFile)
       if (seriesCoverUrlInput.trim()) formData.append('coverImage', seriesCoverUrlInput.trim())
+      formData.append('editorId', designatedEditorId || 'none')
 
       await seriesAPI.update(selectedSeriesId, formData)
       setShowEditSeriesForm(false)
@@ -445,6 +455,25 @@ export function MangakaSeriesManagerPage() {
                 <Input value={seriesTitle} onChange={(e) => setSeriesTitle(e.target.value)} placeholder={ui.seriesTitle} />
                 <textarea value={seriesDescription} onChange={(e) => setSeriesDescription(e.target.value)} placeholder={ui.seriesDescription} className="min-h-24 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none" />
                 <Input value={seriesGenre} onChange={(e) => setSeriesGenre(e.target.value)} placeholder={ui.seriesGenres} />
+                
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] block">
+                    {t('seriesManager.earlyDesignateEditor', 'Designated Tantou Editor (Optional)')}
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:bg-white focus:outline-none transition-all font-medium text-neutral-950 shadow-xs"
+                    value={designatedEditorId}
+                    onChange={(e) => setDesignatedEditorId(e.target.value)}
+                  >
+                    <option value="">{t('seriesManager.noEditor', 'None - Designate Later')}</option>
+                    {editorsList.map((e) => (
+                      <option key={e._id} value={e._id}>
+                        {e.displayName || e.username} ({e.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <Input value={seriesCoverUrlInput} onChange={(e) => setSeriesCoverUrlInput(e.target.value)} placeholder={ui.seriesCoverUrl} />
                 <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-neutral-300 px-3 py-3 text-sm text-neutral-600 hover:bg-neutral-50">
                   <Upload className="size-4" />
@@ -545,6 +574,84 @@ export function MangakaSeriesManagerPage() {
                       <span className="rounded-full bg-neutral-100 px-2.5 py-1">{toGenreText(selectedSeries.genre)}</span>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-neutral-600">{selectedSeries.description}</p>
+                    
+                    {/* Collaboration Handshake Status badge */}
+                    <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-3 space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        {t('seriesManager.tantouEditorCollaboration', 'Tantou Collaboration')}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        {selectedSeries.editorId ? (
+                          (() => {
+                            const editorName = typeof selectedSeries.editorId === 'object'
+                              ? selectedSeries.editorId.displayName
+                              : selectedSeries.editorId
+                            
+                            if (selectedSeries.editorStatus === 'accepted') {
+                              return (
+                                <>
+                                  <span className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                                    {t('seriesManager.statusAccepted', 'Accepted')}
+                                  </span>
+                                  <span className="text-xs text-neutral-600 font-medium truncate max-w-[150px]">
+                                    {editorName}
+                                  </span>
+                                </>
+                              )
+                            } else if (selectedSeries.editorStatus === 'pending') {
+                              return (
+                                <>
+                                  <span className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                                    {t('seriesManager.statusPendingInvite', 'Pending Handshake')}
+                                  </span>
+                                  <span className="text-xs text-neutral-600 font-medium truncate max-w-[150px]">
+                                    {editorName}
+                                  </span>
+                                </>
+                              )
+                            } else if (selectedSeries.editorStatus === 'rejected') {
+                              return (
+                                <>
+                                  <span className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                                    {t('seriesManager.statusRejectedInvite', 'Declined')}
+                                  </span>
+                                  <span className="text-xs text-neutral-600 font-medium truncate max-w-[150px]">
+                                    {editorName}
+                                  </span>
+                                </>
+                              )
+                            } else {
+                              return (
+                                <span className="text-xs text-neutral-500 italic">
+                                  {t('seriesManager.noDesignatedEditor', 'No editor designated')}
+                                </span>
+                              )
+                            }
+                          })()
+                        ) : (
+                          <span className="text-xs text-neutral-500 italic">
+                            {t('seriesManager.noDesignatedEditor', 'No editor designated')}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {(!selectedSeries.editorId || selectedSeries.editorStatus === 'none' || selectedSeries.editorStatus === 'rejected') && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full text-[11px] h-8 rounded-lg font-semibold"
+                          onClick={() => {
+                            setSubmitSeriesId(selectedSeries._id)
+                            setShowSubmitModal(true)
+                          }}
+                        >
+                          {t('seriesManager.inviteEditor', 'Invite Tantou Editor')}
+                        </Button>
+                      )}
+                    </div>
                     <div className="mt-4 grid grid-cols-3 gap-2">
                       <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
                         <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.totalPages}>{ui.totalPages}</div>
@@ -615,12 +722,31 @@ export function MangakaSeriesManagerPage() {
                     </div>
                   )}
 
-                  {showEditSeriesForm && (
+                   {showEditSeriesForm && (
                     <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="text-sm font-semibold text-neutral-950">{ui.editSeriesTitle}</div>
                       <Input value={seriesTitle} onChange={(e) => setSeriesTitle(e.target.value)} placeholder={ui.seriesTitle} />
                       <textarea value={seriesDescription} onChange={(e) => setSeriesDescription(e.target.value)} placeholder={ui.seriesDescription} className="min-h-24 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none" />
                       <Input value={seriesGenre} onChange={(e) => setSeriesGenre(e.target.value)} placeholder={ui.seriesGenres} />
+                      
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] block">
+                          {t('seriesManager.earlyDesignateEditor', 'Designated Tantou Editor (Optional)')}
+                        </label>
+                        <select
+                          className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:bg-white focus:outline-none transition-all font-medium text-neutral-950 shadow-xs"
+                          value={designatedEditorId}
+                          onChange={(e) => setDesignatedEditorId(e.target.value)}
+                        >
+                          <option value="">{t('seriesManager.noEditor', 'None - Designate Later')}</option>
+                          {editorsList.map((e) => (
+                            <option key={e._id} value={e._id}>
+                              {e.displayName || e.username} ({e.email})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <Input value={seriesCoverUrlInput} onChange={(e) => setSeriesCoverUrlInput(e.target.value)} placeholder={ui.seriesCoverUrl} />
                       <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-neutral-300 px-3 py-3 text-sm text-neutral-600 hover:bg-white">
                         <Upload className="size-4" />

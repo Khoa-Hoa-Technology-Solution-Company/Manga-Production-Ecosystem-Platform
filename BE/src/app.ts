@@ -20,6 +20,7 @@ import interactionsRoutes from './routes/interactions.routes';
 import commentsRoutes from './routes/comments.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import annotationsRoutes from './routes/annotations.routes';
+import editorRoutes from './routes/editor.routes';
 
 const app = express();
 
@@ -99,6 +100,7 @@ app.use('/api/chapters', interactionsRoutes);  // votes & comments nested under 
 app.use('/api/comments', commentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/annotations', annotationsRoutes);
+app.use('/api/editor', editorRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {

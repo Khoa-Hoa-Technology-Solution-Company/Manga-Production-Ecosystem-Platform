@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/series/:seriesId', ctrl.getBySeriesId);
+router.get('/:id', ctrl.getById);
 router.post('/series/:seriesId', authorize('mangaka'), ctrl.create);
 router.put('/:id', authorize('mangaka', 'editor'), ctrl.update);
 router.delete('/:id', authorize('mangaka'), ctrl.remove);

@@ -683,16 +683,9 @@ function StudioWorkspacePageContent() {
     const bgWidth = (bg.width || 800) * (bg.scaleX || 1)
     const bgHeight = (bg.height || 1200) * (bg.scaleY || 1)
 
-    // Filter which annotations are visible based on our business logic:
-    // - source: 'tracking' is always visible
-    // - source: 'review' is only visible when wasRejected
+    // Filter which annotations are visible on this page:
     const visibleAnnotations = pageAnnotations
       .filter(a => a.pageId === currentPage?._id)
-      .filter(a => {
-        const source = (a as any).source || 'tracking'
-        if (source === 'review') return wasRejected
-        return true
-      })
 
     visibleAnnotations.forEach((ann) => {
       // Safety guard against missing or malformed coordinates to prevent canvas rendering loops from crashing
@@ -2073,16 +2066,8 @@ function StudioWorkspacePageContent() {
 
             {/* ── Editor Annotations tab ────────────────── */}
             {rightTab === 'annotations' && (() => {
-              // Filter annotations by source:
-              // - 'tracking' always visible
-              // - 'review' only visible when series was rejected (wasRejected)
               const visibleAnnotations = pageAnnotations
                 .filter(a => a.pageId === currentPage?._id)
-                .filter(a => {
-                  const source = (a as any).source || 'tracking'
-                  if (source === 'review') return wasRejected
-                  return true // tracking annotations always visible
-                })
               return (
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-2">

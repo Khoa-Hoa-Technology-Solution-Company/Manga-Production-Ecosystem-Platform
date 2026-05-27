@@ -13,6 +13,8 @@ export interface ISeries extends Document {
   totalVotes: number;
   weeklyVotes: number;
   readerCount: number;
+  deadline?: Date;
+  editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +33,8 @@ const seriesSchema = new Schema<ISeries>(
     totalVotes: { type: Number, default: 0 },
     weeklyVotes: { type: Number, default: 0 },
     readerCount: { type: Number, default: 0 },
+    deadline: { type: Date },
+    editorStatus: { type: String, enum: ['pending', 'accepted', 'rejected', 'none'], default: 'none' },
   },
   { timestamps: true }
 );
