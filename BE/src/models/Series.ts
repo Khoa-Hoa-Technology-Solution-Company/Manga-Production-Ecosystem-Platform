@@ -7,7 +7,8 @@ export interface ISeries extends Document {
   coverImage?: string;
   mangakaId: mongoose.Types.ObjectId;
   editorId?: mongoose.Types.ObjectId;
-  status: 'Draft' | 'Active' | 'Completed' | 'Hiatus';
+  status: 'Draft' | 'Pending_Editor' | 'Pending_EB' | 'Active' | 'Rejected' | 'Completed' | 'Hiatus';
+  rejectionNotes?: string;
   totalChapters: number;
   totalVotes: number;
   weeklyVotes: number;
@@ -24,7 +25,8 @@ const seriesSchema = new Schema<ISeries>(
     coverImage: { type: String },
     mangakaId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     editorId: { type: Schema.Types.ObjectId, ref: 'User' },
-    status: { type: String, enum: ['Draft', 'Active', 'Completed', 'Hiatus'], default: 'Draft' },
+    status: { type: String, enum: ['Draft', 'Pending_Editor', 'Pending_EB', 'Active', 'Rejected', 'Completed', 'Hiatus'], default: 'Draft' },
+    rejectionNotes: { type: String },
     totalChapters: { type: Number, default: 0 },
     totalVotes: { type: Number, default: 0 },
     weeklyVotes: { type: Number, default: 0 },

@@ -48,9 +48,24 @@ export const authAPI = {
 export const seriesAPI = {
   getAll: (params?: Record<string, unknown>) => api.get('/series', { params }),
   getById: (id: string) => api.get(`/series/${id}`),
-  create: (data: FormData | unknown) => api.post('/series', data),
-  update: (id: string, data: FormData | unknown) => api.put(`/series/${id}`, data),
+  create: (data: FormData | unknown) => {
+    if (data instanceof FormData) {
+      return api.post('/series', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.post('/series', data);
+  },
+  update: (id: string, data: FormData | unknown) => {
+    if (data instanceof FormData) {
+      return api.put(`/series/${id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.put(`/series/${id}`, data);
+  },
   delete: (id: string) => api.delete(`/series/${id}`),
+  getEditors: () => api.get('/series/editors'),
 };
 
 // ── Chapters API ────────────────────────────────────
@@ -123,5 +138,14 @@ export const notificationsAPI = {
   getAll: (params?: Record<string, unknown>) => api.get('/notifications', { params }),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   markAllRead: () => api.patch('/notifications/read-all'),
+};
+
+// ── Annotations API ─────────────────────────────────
+export const annotationsAPI = {
+  getByChapter: (chapterId: string, source?: 'review' | 'tracking') =>
+    api.get(`/annotations/chapter/${chapterId}${source ? `?source=${source}` : ''}`),
+  create: (data: { chapterId: string; pageId: string; x: number; y: number; note: string; source?: 'review' | 'tracking' }) =>
+    api.post('/annotations', data),
+  resolve: (id: string) => api.patch(`/annotations/${id}/resolve`),
 };
 

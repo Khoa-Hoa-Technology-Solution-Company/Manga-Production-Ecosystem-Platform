@@ -6,8 +6,46 @@ import { seriesAPI, chaptersAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 
 function toGenreText(value: unknown): string {
-  if (Array.isArray(value)) return value.join(', ')
-  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    const mapped = value.map(item => {
+      if (typeof item === 'string') {
+        const trimmed = item.trim()
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(trimmed)
+            if (Array.isArray(parsed)) return parsed.join(', ')
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+      return String(item)
+    })
+    const joined = mapped.join(', ')
+    if (joined.startsWith('[') && joined.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(joined)
+        if (Array.isArray(parsed)) return parsed.join(', ')
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return joined
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => toGenreText(item)).join(', ')
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return trimmed
+  }
   return ''
 }
 
@@ -27,6 +65,7 @@ interface SeriesData {
   mangakaId?: string | { _id: string }
   status?: string
   totalChapters?: number
+  rejectionNotes?: string
 }
 
 interface ChapterData {
@@ -40,6 +79,13 @@ interface ChapterData {
   collaborators?: { userId: { _id: string; displayName: string; avatar?: string } }[]
 }
 
+interface EditorUserData {
+  _id: string
+  displayName?: string
+  username: string
+  email: string
+}
+
 export function MangakaSeriesManagerPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
@@ -49,6 +95,11 @@ export function MangakaSeriesManagerPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState('series')
+  
+  const [editorsList, setEditorsList] = useState<EditorUserData[]>([])
+  const [showSubmitModal, setShowSubmitModal] = useState(false)
+  const [submitSeriesId, setSubmitSeriesId] = useState('')
+  const [selectedEditorId, setSelectedEditorId] = useState('')
   
   const [showSeriesForm, setShowSeriesForm] = useState(false)
   const [showEditSeriesForm, setShowEditSeriesForm] = useState(false)
@@ -161,6 +212,36 @@ export function MangakaSeriesManagerPage() {
   }, [user?._id])
 
   useEffect(() => {
+    seriesAPI.getEditors()
+      .then((res) => {
+        const list = res.data.editors || []
+        setEditorsList(list)
+        if (list.length > 0) {
+          setSelectedEditorId(list[0]._id)
+        }
+      })
+      .catch(console.error)
+  }, [])
+
+  const handleSubmitForApproval = async () => {
+    if (!submitSeriesId || !selectedEditorId) return
+    setSaving(true)
+    try {
+      await seriesAPI.update(submitSeriesId, {
+        status: 'Pending_Editor',
+        editorId: selectedEditorId
+      })
+      setShowSubmitModal(false)
+      await loadData(selectedSeriesId)
+    } catch (err) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to submit series')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  useEffect(() => {
     if (!selectedSeriesId) return
     chaptersAPI.getBySeries(selectedSeriesId)
       .then((res) => setChapters(res.data.chapters || []))
@@ -201,7 +282,7 @@ export function MangakaSeriesManagerPage() {
       const formData = new FormData()
       formData.append('title', seriesTitle.trim())
       formData.append('description', seriesDescription.trim())
-      formData.append('genre', JSON.stringify(genre))
+      formData.append('genre', genre.join(', '))
       if (seriesCoverFile) formData.append('coverImageFile', seriesCoverFile)
       if (seriesCoverUrlInput.trim()) formData.append('coverImage', seriesCoverUrlInput.trim())
 
@@ -222,7 +303,7 @@ export function MangakaSeriesManagerPage() {
       const formData = new FormData()
       formData.append('title', seriesTitle.trim())
       formData.append('description', seriesDescription.trim())
-      formData.append('genre', JSON.stringify(genre))
+      formData.append('genre', genre.join(', '))
       if (seriesCoverFile) formData.append('coverImageFile', seriesCoverFile)
       if (seriesCoverUrlInput.trim()) formData.append('coverImage', seriesCoverUrlInput.trim())
 
@@ -431,10 +512,10 @@ export function MangakaSeriesManagerPage() {
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">{ui.editSeriesHint}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="ghost" className="bg-white/10 text-white hover:bg-white/15" disabled={!selectedSeries} onClick={openEditSeries}>
+                  <Button variant="ghost" className="bg-white/10 text-white hover:bg-white/15" disabled={!selectedSeries || ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')} onClick={openEditSeries}>
                     <Pencil className="mr-2 size-4" /> {ui.edit}
                   </Button>
-                  <Button variant="ghost" className="bg-red-500/20 text-white hover:bg-red-500/30" disabled={!selectedSeries} onClick={handleDeleteSeries}>
+                  <Button variant="ghost" className="bg-red-500/20 text-white hover:bg-red-500/30" disabled={!selectedSeries || ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')} onClick={handleDeleteSeries}>
                     <Trash2 className="mr-2 size-4" /> {ui.delete}
                   </Button>
                 </div>
@@ -478,10 +559,30 @@ export function MangakaSeriesManagerPage() {
                         <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.collaborators?.length || 0), 0)}</div>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center gap-2">
-                      <Button variant="outline" className="w-full" onClick={openEditSeries}>
+                    <div className="mt-4 flex flex-col gap-2">
+                      <Button variant="outline" className="w-full" disabled={!selectedSeries || ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')} onClick={openEditSeries}>
                         <Pencil className="mr-2 size-4" /> {ui.editCover}
                       </Button>
+                      
+                      {['Draft', 'Rejected', ''].includes(selectedSeries.status || '') && (
+                        <div className="mt-2 space-y-2">
+                          {selectedSeries.rejectionNotes && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                              <span className="font-semibold">{t('seriesManager.rejectionFeedback', 'Feedback:')} </span>
+                              {selectedSeries.rejectionNotes}
+                            </div>
+                          )}
+                          <Button
+                            className="w-full bg-neutral-950 text-white hover:bg-neutral-900 border-none shadow-xs text-xs font-semibold rounded-xl h-10"
+                            onClick={() => {
+                              setSubmitSeriesId(selectedSeries._id)
+                              setShowSubmitModal(true)
+                            }}
+                          >
+                            {t('seriesManager.submitForApproval', 'Submit to Tantou Editor')}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -492,10 +593,16 @@ export function MangakaSeriesManagerPage() {
                       <h3 className="text-sm font-semibold text-neutral-950">{ui.chapterListTitle}</h3>
                       <p className="text-xs text-neutral-500">{ui.chapterListHint}</p>
                     </div>
-                    <Button disabled={!selectedSeriesId} onClick={() => setShowChapterForm(true)}>
+                    <Button disabled={!selectedSeriesId || selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => setShowChapterForm(true)}>
                       <Plus className="mr-2 size-4" /> {ui.newChapter}
                     </Button>
                   </div>
+
+                  {['Pending_Editor', 'Pending_EB'].includes(selectedSeries?.status || '') && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 leading-relaxed">
+                      {t('seriesManager.lockedWarning', 'This series is currently in the review queue. Structure updates and chapter modifications are locked.')}
+                    </div>
+                  )}
 
                   {showChapterForm && (
                     <div className="mt-4 grid gap-3 rounded-2xl border border-neutral-200 p-4 sm:grid-cols-2">
@@ -563,10 +670,10 @@ export function MangakaSeriesManagerPage() {
                             <div>{ui.collaborators}: {chapter.collaborators?.length || 0}</div>
                           </div>
                           <div className="mt-4 flex items-center justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                            <Button variant="outline" size="sm" onClick={() => openEditChapter(chapter)}>
+                            <Button variant="outline" size="sm" disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => openEditChapter(chapter)}>
                               <Pencil className="mr-2 size-4" /> {ui.edit}
                             </Button>
-                            <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleDeleteChapter(chapter._id)}>
+                            <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50" disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => handleDeleteChapter(chapter._id)}>
                               <Trash2 className="mr-2 size-4" /> {ui.delete}
                             </Button>
                           </div>
@@ -605,6 +712,65 @@ export function MangakaSeriesManagerPage() {
             {selectedChapters.length === 0 && <div className="rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-500">{ui.noData}</div>}
           </div>
         </Card>
+      )}
+
+      {/* ── Submit to Editor Approval Modal ────────────────────── */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-neutral-950">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">
+                {t('seriesManager.submitForReview', 'Submit for Editor Review')}
+              </h3>
+              <p className="text-xs text-neutral-500 mt-1">
+                {t('seriesManager.submitDesc', 'Choose a designated Tantou Editor to review your series and chapters production structure. During active review, editing will be locked.')}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-neutral-600 block">
+                {t('seriesManager.chooseEditor', 'Select designated Tantou Editor:')}
+              </label>
+              {editorsList.length === 0 ? (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                  {t('seriesManager.noEditorsFound', 'No editors available to review at this time.')}
+                </div>
+              ) : (
+                <select
+                  className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-neutral-50 focus:bg-white focus:outline-none transition-all font-semibold shadow-xs"
+                  value={selectedEditorId}
+                  onChange={(e) => setSelectedEditorId(e.target.value)}
+                >
+                  {editorsList.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.displayName || e.username} ({e.email})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl px-4 text-xs font-semibold border-neutral-200"
+                onClick={() => setShowSubmitModal(false)}
+                disabled={saving}
+              >
+                {ui.cancel}
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-xl px-4 text-xs font-semibold bg-neutral-950 text-white hover:bg-neutral-900"
+                onClick={handleSubmitForApproval}
+                disabled={!selectedEditorId || saving || editorsList.length === 0}
+              >
+                {saving ? ui.loading : t('seriesManager.submitConfirm', 'Submit Draft')}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

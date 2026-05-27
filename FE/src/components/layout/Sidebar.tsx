@@ -8,7 +8,7 @@ import { socketService } from '../../lib/socket'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { NotificationsModal } from './NotificationsModal'
 
-type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series-manager' | 'tasks' | 'discover' | 'settings'
+type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series-manager' | 'tasks' | 'editor-portal' | 'discover' | 'settings'
 
 type SidebarProps = {
   mobileOpen?: boolean
@@ -26,6 +26,7 @@ const navigation: Array<{
   { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create' },
   { key: 'series-manager', labelKey: 'sidebar.seriesManager', icon: BookMarked, section: 'create' },
   { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create' },
+  { key: 'editor-portal', labelKey: 'sidebar.editorPortal', icon: LayoutDashboard, section: 'create' },
   { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
   { key: 'settings', labelKey: 'sidebar.settings', icon: Settings, section: 'other' },
 ]
@@ -43,6 +44,7 @@ const routeMap: Record<SidebarKey, string> = {
   studio: '/studio',
   'series-manager': '/studio/manage',
   tasks: '/tasks',
+  'editor-portal': '/editor',
   discover: '/discover',
   settings: '/settings',
 }
@@ -125,13 +127,17 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           {sections.map((section) => {
             const isReader = user?.role?.toLowerCase() === 'reader'
             const isMangaka = user?.role?.toLowerCase() === 'mangaka'
-            const restrictedForReader = ['dashboard', 'studio', 'series-manager', 'tasks']
+            const isEditor = user?.role?.toLowerCase() === 'editor'
+            const isEB = user?.role?.toLowerCase() === 'editorial_board'
+            const restrictedForReader = ['dashboard', 'studio', 'series-manager', 'tasks', 'editor-portal']
             const mangakaOnly = ['studio', 'series-manager']
+            const editorOrEbOnly = ['editor-portal']
             
             const sectionItems = navigation.filter((n) => {
               if (n.section !== section.key) return false
               if (isReader && restrictedForReader.includes(n.key)) return false
               if (!isMangaka && mangakaOnly.includes(n.key)) return false
+              if (editorOrEbOnly.includes(n.key) && !isEditor && !isEB) return false
               return true
             })
             if (sectionItems.length === 0) return null

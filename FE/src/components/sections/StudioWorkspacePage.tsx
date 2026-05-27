@@ -1,7 +1,7 @@
 /* eslint-disable */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, Component } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Canvas as FabricCanvas, Rect, FabricImage, IText, PencilBrush, Point, util } from 'fabric'
+import { Canvas as FabricCanvas, Rect, Circle, FabricImage, IText, PencilBrush, Point, util } from 'fabric'
 import {
   ChevronLeft,
   ChevronRight,
@@ -27,10 +27,11 @@ import {
   Star,
   AlertCircle,
   CheckSquare,
+  Check,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
-import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI } from '../../lib/api'
+import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI, annotationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -83,7 +84,7 @@ const tools = [
   { icon: Type, label: 'Text', key: 'text' },
 ]
 
-export function StudioWorkspacePage() {
+function StudioWorkspacePageContent() {
   const { t } = useTranslation()
   const { user } = useAuth()
 
@@ -100,6 +101,9 @@ export function StudioWorkspacePage() {
   const [currentPageIdx, setCurrentPageIdx] = useState(0)
   const [zones, setZones] = useState<ZoneData[]>([])
   const [pageTasks, setPageTasks] = useState<TaskData[]>([])
+  const [pageAnnotations, setPageAnnotations] = useState<any[]>([])
+  const [showFeedbackPins, setShowFeedbackPins] = useState(true)
+  const [annotationVisibility, setAnnotationVisibility] = useState<Record<string, boolean>>({})
   const [zoneVisibility, setZoneVisibility] = useState<Record<string, boolean>>({})
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; color: string; name: string }>>({})
@@ -207,6 +211,18 @@ export function StudioWorkspacePage() {
   const isMangaka = user?.role === 'mangaka'
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
   const chapterRoom = selectedChapterId ? `chapter:${selectedChapterId}` : ''
+
+  // ── Computed ──────────────────────────────────────
+  const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
+  const currentChapter = chapters.find(c => c._id === selectedChapterId)
+  const chapterCollaborators = (currentChapter as any)?.collaborators || []
+
+  // ── Review Lock Logic ──────────────────────────────
+  // Series is locked when submitted for review (Pending_Editor or Pending_EB)
+  const seriesStatus = currentSeries?.status || 'Draft'
+  const isReviewLocked = seriesStatus === 'Pending_Editor' || seriesStatus === 'Pending_EB'
+  // Series was recently rejected (has rejection notes and is back to Draft)
+  const wasRejected = seriesStatus === 'Draft' && !!currentSeries?.rejectionNotes
 
   useEffect(() => {
     socketService.connect()
@@ -433,6 +449,26 @@ export function StudioWorkspacePage() {
     }).catch(() => {})
   }, [currentPage?._id])
 
+  const loadAnnotations = useCallback(() => {
+    if (!selectedChapterId) return
+    annotationsAPI.getByChapter(selectedChapterId).then(res => {
+      setPageAnnotations(res.data.annotations || [])
+    }).catch(console.error)
+  }, [selectedChapterId])
+
+  useEffect(() => {
+    loadAnnotations()
+  }, [loadAnnotations])
+
+  const handleResolveAnnotation = async (id: string) => {
+    try {
+      await annotationsAPI.resolve(id)
+      loadAnnotations()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   // ═══════════════════════════════════════════════════
   // FABRIC.JS CANVAS
   // ═══════════════════════════════════════════════════
@@ -625,6 +661,117 @@ export function StudioWorkspacePage() {
 
     fc.requestRenderAll()
   }, [zones, zoneVisibility, activeTool])
+
+  // Render feedback annotations when annotations, visibility, or background changes
+  useEffect(() => {
+    const fc = fabricRef.current
+    if (!fc) return
+
+    // Remove existing annotation pins (tagged objects)
+    const toRemove = fc.getObjects().filter((obj: any) => obj._annotationId)
+    toRemove.forEach((obj) => fc.remove(obj))
+
+    if (!showFeedbackPins) {
+      fc.requestRenderAll()
+      return
+    }
+
+    const bg = bgImageRef.current
+    if (!bg) return
+    const bgLeft = bg.left || 0
+    const bgTop = bg.top || 0
+    const bgWidth = (bg.width || 800) * (bg.scaleX || 1)
+    const bgHeight = (bg.height || 1200) * (bg.scaleY || 1)
+
+    // Filter which annotations are visible based on our business logic:
+    // - source: 'tracking' is always visible
+    // - source: 'review' is only visible when wasRejected
+    const visibleAnnotations = pageAnnotations
+      .filter(a => a.pageId === currentPage?._id)
+      .filter(a => {
+        const source = (a as any).source || 'tracking'
+        if (source === 'review') return wasRejected
+        return true
+      })
+
+    visibleAnnotations.forEach((ann) => {
+      // Safety guard against missing or malformed coordinates to prevent canvas rendering loops from crashing
+      if (ann.x === undefined || ann.y === undefined || isNaN(ann.x) || isNaN(ann.y)) {
+        return
+      }
+
+      // Read individual visibility from annotationVisibility state (default to true)
+      const isVisible = annotationVisibility[ann._id] !== false
+      if (!isVisible) return
+
+      const pinX = bgLeft + (ann.x / 100) * bgWidth
+      const pinY = bgTop + (ann.y / 100) * bgHeight
+      const isOpen = ann.status === 'open'
+
+      // Glow circle for open annotations
+      const glow = new Circle({
+        originX: 'center',
+        originY: 'center',
+        left: pinX,
+        top: pinY,
+        radius: 12,
+        fill: isOpen ? 'rgba(239, 68, 68, 0.15)' : 'rgba(115, 115, 115, 0.1)',
+        stroke: isOpen ? 'rgba(239, 68, 68, 0.3)' : 'rgba(115, 115, 115, 0.2)',
+        strokeWidth: 1,
+        selectable: false,
+        evented: false,
+      });
+      (glow as any)._annotationId = ann._id;
+      fc.add(glow)
+
+      // Main pin circle
+      const pin = new Circle({
+        originX: 'center',
+        originY: 'center',
+        left: pinX,
+        top: pinY,
+        radius: 8,
+        fill: isOpen ? '#ef4444' : '#737373',
+        stroke: '#ffffff',
+        strokeWidth: 1.5,
+        shadow: {
+          color: 'rgba(0, 0, 0, 0.3)',
+          blur: 4,
+          offsetX: 0,
+          offsetY: 2,
+        } as any,
+        selectable: activeTool === 'select',
+        hasControls: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        hoverCursor: 'pointer',
+      });
+      (pin as any)._annotationId = ann._id;
+      
+      // Inside indicator dot
+      const dot = new Circle({
+        originX: 'center',
+        originY: 'center',
+        left: pinX,
+        top: pinY,
+        radius: 2.5,
+        fill: '#ffffff',
+        selectable: false,
+        evented: false,
+      });
+      (dot as any)._annotationId = ann._id;
+
+      // Click event to select annotation in sidebar
+      pin.on('mousedown', () => {
+        setRightTab('annotations')
+      })
+
+      fc.add(pin)
+      fc.add(dot)
+    })
+
+    fc.requestRenderAll()
+  }, [pageAnnotations, showFeedbackPins, annotationVisibility, wasRejected, currentPage?._id, activeTool, rightTab])
 
   // ── Tool mode handling ────────────────────────────
   useEffect(() => {
@@ -1314,10 +1461,7 @@ export function StudioWorkspacePage() {
     }
   }
 
-  // ── Computed ──────────────────────────────────────
-  const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
-  const currentChapter = chapters.find(c => c._id === selectedChapterId)
-  const chapterCollaborators = (currentChapter as any)?.collaborators || []
+
 
   return (
     <div
@@ -1341,21 +1485,28 @@ export function StudioWorkspacePage() {
       <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 bg-white z-10">
         {/* Tools */}
         <div className="flex items-center gap-1">
-          {tools.map(({ icon: Icon, label, key }) => (
-            <button
-              key={key}
-              type="button"
-              title={label}
-              className={`grid size-8 place-items-center rounded-lg transition-colors ${
-                activeTool === key
-                  ? 'bg-neutral-900 text-white'
-                  : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-              }`}
-              onClick={() => setActiveTool(key)}
-            >
-              <Icon className="size-4" />
-            </button>
-          ))}
+          {tools.map(({ icon: Icon, label, key }) => {
+            // When series is locked for review, only allow select & pan
+            const isToolLocked = isReviewLocked && (key === 'zone' || key === 'draw' || key === 'text')
+            return (
+              <button
+                key={key}
+                type="button"
+                title={isToolLocked ? `${label} (Locked — series under review)` : label}
+                className={`grid size-8 place-items-center rounded-lg transition-colors ${
+                  isToolLocked
+                    ? 'text-neutral-300 cursor-not-allowed'
+                    : activeTool === key
+                      ? 'bg-neutral-900 text-white'
+                      : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
+                }`}
+                onClick={() => { if (!isToolLocked) setActiveTool(key) }}
+                disabled={isToolLocked}
+              >
+                <Icon className="size-4" />
+              </button>
+            )
+          })}
 
           {/* Color & Size tools */}
           {(activeTool === 'draw' || activeTool === 'text' || activeTool === 'select') && (
@@ -1422,7 +1573,7 @@ export function StudioWorkspacePage() {
             <Trash2 className="size-4" />
           </button>
 
-          {isMangaka && (
+          {isMangaka && !isReviewLocked && (
             <>
               <div className="mx-2 h-5 w-px bg-neutral-200" />
               <label className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 cursor-pointer" title="Upload page">
@@ -1451,9 +1602,9 @@ export function StudioWorkspacePage() {
           </select>
           <button
             type="button"
-            className="h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white hover:bg-neutral-50"
-            onClick={() => setShowCreateChapterDialog(true)}
-            disabled={!selectedSeriesId}
+            className={`h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white ${isReviewLocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-neutral-50'}`}
+            onClick={() => { if (!isReviewLocked) setShowCreateChapterDialog(true) }}
+            disabled={!selectedSeriesId || isReviewLocked}
           >
             New Chapter
           </button>
@@ -1489,6 +1640,44 @@ export function StudioWorkspacePage() {
         </div>
       </div>
 
+      {/* ── Review Lock Banner ──────────────────────────── */}
+      {isReviewLocked && (
+        <div className="flex items-center gap-2.5 border-b border-amber-200 bg-amber-50 px-4 py-2 shrink-0">
+          <div className="grid size-6 place-items-center rounded-lg bg-amber-100">
+            <AlertCircle className="size-3.5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-800">
+              {seriesStatus === 'Pending_Editor'
+                ? t('studio.reviewLockedTantou', '📝 Series is pending Tantou Editor review — Studio editing temporarily locked')
+                : t('studio.reviewLockedEB', '📝 Series is pending Editorial Board review — Studio editing temporarily locked')}
+            </p>
+            <p className="text-[10px] text-amber-600 mt-0.5">
+              {t('studio.reviewLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit until the review is complete or draft is returned.')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rejection Warning Banner ──────────────────── */}
+      {wasRejected && (
+        <div className="flex items-center gap-2.5 border-b border-red-200 bg-red-50 px-4 py-2 shrink-0">
+          <div className="grid size-6 place-items-center rounded-lg bg-red-100">
+            <AlertCircle className="size-3.5 text-red-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-red-800">
+              {t('studio.rejectedWarning', '⚠️ Manuscript rejected — Please revise based on the corrections below')}
+            </p>
+            {currentSeries?.rejectionNotes && (
+              <p className="text-[10px] text-red-600 mt-0.5 line-clamp-2">
+                {t('studio.rejectionReason', 'Reason: {{notes}}', { notes: currentSeries.rejectionNotes })}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Main area: Canvas + Right Panel ──────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── Fabric.js Canvas ────────────────────────── */}
@@ -1508,7 +1697,7 @@ export function StudioWorkspacePage() {
                     ? t('studio.uploadHint', 'Upload manga pages to get started.')
                     : t('studio.waitHint', 'Waiting for mangaka to upload pages.')}
                 </p>
-                {isMangaka && (
+                {isMangaka && !isReviewLocked && (
                   <label className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-900 text-white px-4 py-2 text-xs font-medium cursor-pointer hover:bg-neutral-800 transition-colors">
                     <Upload className="size-3.5" />
                     {t('studio.uploadPage', 'Upload Page')}
@@ -1585,6 +1774,7 @@ export function StudioWorkspacePage() {
               tabs={[
                 { key: 'zones', label: t('studio.zones', 'Zones') },
                 { key: 'tasks', label: t('studio.tasks', 'Tasks'), count: pageTasks.filter(t => t.status !== 'done').length },
+                { key: 'annotations', label: t('studio.editorFeedback', 'Feedback'), count: pageAnnotations.filter(a => a.pageId === currentPage?._id && a.status === 'open').length },
                 { key: 'pages', label: t('studio.pages', 'Pages') },
                 { key: 'access', label: 'Access' },
               ]}
@@ -1712,7 +1902,7 @@ export function StudioWorkspacePage() {
                                 </div>
                               )}
 
-                              {zoneTask.status === 'review' && isMangaka && (
+                              {zoneTask.status === 'review' && isMangaka && !isReviewLocked && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleOpenReview(zoneTask)}
@@ -1723,7 +1913,7 @@ export function StudioWorkspacePage() {
                                 </Button>
                               )}
 
-                              {zoneTask.status === 'open' && isMangaka && (
+                              {zoneTask.status === 'open' && isMangaka && !isReviewLocked && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleOpenAssignExistingTask(zoneTask)}
@@ -1737,7 +1927,7 @@ export function StudioWorkspacePage() {
                           ) : (
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 text-center space-y-2">
                               <p className="text-xs text-neutral-500">{t('studio.noTaskForZone', 'No task created for this zone yet.')}</p>
-                              {isMangaka && (
+                              {isMangaka && !isReviewLocked && (
                                 <Button
                                   onClick={() => handleOpenCreateTask(zone)}
                                   className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors"
@@ -1759,7 +1949,7 @@ export function StudioWorkspacePage() {
                         <Layers className="size-4 text-neutral-500" />
                         <span className="text-xs font-semibold text-neutral-700">{t('studio.pageZones', 'Page Zones')}</span>
                       </div>
-                      {isMangaka && (
+                      {isMangaka && !isReviewLocked && (
                         <Button
                           variant="ghost" size="sm" className="size-6 p-0 rounded-md"
                           onClick={() => setActiveTool('zone')}
@@ -1800,7 +1990,7 @@ export function StudioWorkspacePage() {
                               >
                                 {zoneVisibility[zone._id] ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
                               </button>
-                              {isMangaka && (
+                              {isMangaka && !isReviewLocked && (
                                 <button
                                   type="button"
                                   className="grid size-5 place-items-center rounded text-neutral-400 hover:text-red-500 transition-colors"
@@ -1881,6 +2071,101 @@ export function StudioWorkspacePage() {
               </div>
             )}
 
+            {/* ── Editor Annotations tab ────────────────── */}
+            {rightTab === 'annotations' && (() => {
+              // Filter annotations by source:
+              // - 'tracking' always visible
+              // - 'review' only visible when series was rejected (wasRejected)
+              const visibleAnnotations = pageAnnotations
+                .filter(a => a.pageId === currentPage?._id)
+                .filter(a => {
+                  const source = (a as any).source || 'tracking'
+                  if (source === 'review') return wasRejected
+                  return true // tracking annotations always visible
+                })
+              return (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-neutral-700">{t('studio.activeFeedback', 'Tantou Corrections')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFeedbackPins(!showFeedbackPins)}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-200 text-[10px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 transition-all shadow-2xs bg-white"
+                    title={showFeedbackPins ? "Hide feedback pins on canvas" : "Show feedback pins on canvas"}
+                  >
+                    {showFeedbackPins ? <Eye className="size-3 text-neutral-600" /> : <EyeOff className="size-3 text-neutral-400" />}
+                    <span>{showFeedbackPins ? t('common.visible', 'Visible') : t('common.hidden', 'Hidden')}</span>
+                  </button>
+                </div>
+                
+                {visibleAnnotations.length === 0 ? (
+                  <div className="rounded-xl bg-neutral-50 p-4 text-center">
+                    <p className="text-xs text-neutral-500">{t('studio.noFeedback', 'No editor feedback on this page.')}</p>
+                  </div>
+                ) : (
+                  visibleAnnotations
+                    .map((ann) => {
+                      const isOpen = ann.status === 'open'
+                      return (
+                        <div 
+                          key={ann._id} 
+                          className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all ${
+                            annotationVisibility[ann._id] === false ? 'opacity-40 border-neutral-200 bg-neutral-100/10' :
+                            isOpen ? 'border-red-200 bg-red-50/30' : 'border-neutral-100 bg-neutral-50/50 opacity-60'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                              annotationVisibility[ann._id] === false ? 'text-neutral-400' :
+                              isOpen ? 'text-red-600' : 'text-neutral-500'
+                            }`}>
+                              {isOpen ? 'Open Correction Note' : 'Resolved'}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                className="grid size-5 place-items-center rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer border-none bg-transparent"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setAnnotationVisibility(prev => ({
+                                    ...prev,
+                                    [ann._id]: prev[ann._id] === false
+                                  }))
+                                }}
+                                title={annotationVisibility[ann._id] !== false ? "Hide pin on canvas" : "Show pin on canvas"}
+                              >
+                                {annotationVisibility[ann._id] !== false ? <Eye className="size-3 text-neutral-500" /> : <EyeOff className="size-3 text-neutral-400" />}
+                              </button>
+                              <span className="text-[8px] text-neutral-400">{new Date(ann.createdAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-neutral-700 leading-normal break-words">{ann.note}</p>
+
+                          <div className="flex items-center justify-between gap-2 border-t border-neutral-100/50 pt-2 mt-2">
+                            <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 min-w-0">
+                              <span className="truncate">By {ann.authorId?.displayName || 'Tantou Editor'}</span>
+                            </div>
+                            
+                            {isOpen && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 gap-1 rounded-lg shrink-0"
+                                onClick={() => handleResolveAnnotation(ann._id)}
+                              >
+                                <Check className="size-3" />
+                                {t('studio.resolve', 'Resolve')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })
+                )}
+              </div>
+            )})()}
+
             {/* ── Pages tab ───────────────────────────── */}
             {rightTab === 'pages' && (
               <div className="space-y-2">
@@ -1905,7 +2190,7 @@ export function StudioWorkspacePage() {
                       <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] py-0.5 text-center">
                         {p.pageNumber}
                       </span>
-                      {isMangaka && (
+                      {isMangaka && !isReviewLocked && (
                         <button
                           type="button"
                           className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-black/50 text-white opacity-0 transition-all hover:bg-red-500 group-hover:opacity-100"
@@ -1928,11 +2213,12 @@ export function StudioWorkspacePage() {
               <div className="space-y-3">
                 <div>
                   <div className="text-xs font-semibold text-neutral-700 mb-2">Share access</div>
-                  <div className="space-y-2 rounded-xl border border-neutral-200 p-3">
+                  <div className={`space-y-2 rounded-xl border border-neutral-200 p-3 ${isReviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <Input
                       placeholder="Search user by name or email"
                       value={shareUserQuery}
                       onChange={(e) => setShareUserQuery(e.target.value)}
+                      disabled={isReviewLocked}
                     />
                     <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-100 p-1">
                       {shareUserResults.length === 0 ? (
@@ -1946,6 +2232,7 @@ export function StudioWorkspacePage() {
                             setShareUserId(u._id)
                             setShareUserQuery(`${u.displayName} (${u.email})`)
                           }}
+                          disabled={isReviewLocked}
                         >
                           <div className="font-medium">{u.displayName}</div>
                           <div className="text-[10px] text-neutral-500">{u.email} · {u.role}</div>
@@ -1957,22 +2244,23 @@ export function StudioWorkspacePage() {
                       className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
                       value={shareRole}
                       onChange={(e) => setShareRole(e.target.value as 'assistant' | 'editor')}
+                      disabled={isReviewLocked}
                     >
                       <option value="assistant">assistant</option>
                       <option value="editor">editor</option>
                     </select>
                     <div className="grid grid-cols-3 gap-2 text-[10px]">
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} /> edit
+                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} disabled={isReviewLocked} /> edit
                       </label>
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} /> comment
+                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} disabled={isReviewLocked} /> comment
                       </label>
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} /> invite
+                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} disabled={isReviewLocked} /> invite
                       </label>
                     </div>
-                    <Button size="sm" className="w-full" onClick={handleShareAccess}>Share</Button>
+                    <Button size="sm" className="w-full" onClick={handleShareAccess} disabled={isReviewLocked}>Share</Button>
                   </div>
                 </div>
 
@@ -1992,7 +2280,7 @@ export function StudioWorkspacePage() {
                           </div>
                         </div>
                         {isMangaka && String(member.userId?._id || member.userId) !== String(user?._id) && (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))}>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))} disabled={isReviewLocked}>
                             Remove
                           </Button>
                         )}
@@ -2383,5 +2671,48 @@ export function StudioWorkspacePage() {
         </div>
       )}
     </div>
+  )
+}
+
+class ErrorBoundary extends Component<{ children: any }, { hasError: boolean; error: any }> {
+  constructor(props: any) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 24, color: '#ef4444', background: '#fef2f2', border: '2px dashed #fca5a5', margin: 24, borderRadius: 16, fontFamily: 'sans-serif' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>Something went wrong in StudioWorkspacePage:</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #fee2e2', color: '#1f2937', overflowX: 'auto' }}>
+            {this.state.error?.stack || String(this.state.error)}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()} 
+            style={{ marginTop: 16, padding: '8px 16px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'semibold', cursor: 'pointer' }}
+          >
+            Reload Page
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+export function StudioWorkspacePage() {
+  return (
+    <ErrorBoundary>
+      <StudioWorkspacePageContent />
+    </ErrorBoundary>
   )
 }
