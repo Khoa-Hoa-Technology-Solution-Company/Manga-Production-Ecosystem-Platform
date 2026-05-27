@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, MouseEvent } from 'react'
+import { useEffect, useState, useRef, type MouseEvent, } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { pagesAPI, annotationsAPI, chaptersAPI } from '../../lib/api'
@@ -24,6 +24,7 @@ interface PageData {
   width: number
   height: number
 }
+
 
 interface AnnotationData {
   _id: string
@@ -79,7 +80,7 @@ export function ManuscriptReviewPage() {
     Promise.resolve().then(() => {
       setLoading(true)
     })
-    
+
     Promise.all([
       // We can fetch details via chaptersAPI
       chaptersAPI.getBySeries(chapterId).catch(() => null), // backup
@@ -94,12 +95,12 @@ export function ManuscriptReviewPage() {
       setPages(pagesRes.data.pages || [])
       setAnnotations(annRes.data.annotations || [])
     })
-    .catch(console.error)
-    .finally(() => {
-      Promise.resolve().then(() => {
-        setLoading(false)
+      .catch(console.error)
+      .finally(() => {
+        Promise.resolve().then(() => {
+          setLoading(false)
+        })
       })
-    })
   }, [chapterId])
 
   // Load annotations
@@ -116,13 +117,13 @@ export function ManuscriptReviewPage() {
   // Handle Canvas/Image Click
   const handleImageClick = (e: MouseEvent<HTMLDivElement>) => {
     if (!currentPage) return
-    
+
     const rect = e.currentTarget.getBoundingClientRect()
-    
+
     // Compute dynamic percentage-based coordinates (X & Y from 0 to 100)
     const clickX = ((e.clientX - rect.left) / rect.width) * 100
     const clickY = ((e.clientY - rect.top) / rect.height) * 100
-    
+
     setActiveClickCoords({ x: clickX, y: clickY })
     setNoteInput('')
     setShowAddModal(true)
@@ -226,21 +227,20 @@ export function ManuscriptReviewPage() {
             {pages.map((p, idx) => {
               const isActive = idx === currentPageIdx
               const pageAnnsCount = annotations.filter(ann => ann.pageId === p._id && ann.status === 'open').length
-              
+
               return (
                 <button
                   key={p._id}
                   onClick={() => setCurrentPageIdx(idx)}
-                  className={`w-full text-left rounded-xl overflow-hidden border transition-all flex flex-col relative ${
-                    isActive ? 'border-white bg-white/5 ring-1 ring-white/10' : 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
-                  }`}
+                  className={`w-full text-left rounded-xl overflow-hidden border transition-all flex flex-col relative ${isActive ? 'border-white bg-white/5 ring-1 ring-white/10' : 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
+                    }`}
                 >
                   <div className="aspect-[3/4] w-full relative overflow-hidden bg-neutral-950 flex items-center justify-center">
                     <img src={mediaUrl(p.originalImage)} alt={`Page ${idx + 1}`} className="h-full w-full object-cover opacity-60" />
                     <span className="absolute left-2 top-2 bg-black/60 rounded-lg px-1.5 py-0.5 text-[9px] font-bold">
                       Page {p.pageNumber}
                     </span>
-                    
+
                     {pageAnnsCount > 0 && (
                       <span className="absolute right-2 top-2 bg-red-600 rounded-full h-4 min-w-4 flex items-center justify-center text-[9px] font-bold px-1 ring-2 ring-neutral-950 animate-pulse">
                         {pageAnnsCount}
@@ -261,14 +261,14 @@ export function ManuscriptReviewPage() {
               <span className="text-xs text-neutral-400">Loading drawing canvas...</span>
             </div>
           ) : currentPage ? (
-            <div 
+            <div
               ref={imageContainerRef}
               onClick={handleImageClick}
               className="relative aspect-[3/4] max-h-[80vh] bg-white rounded-xl shadow-2xl cursor-crosshair overflow-hidden border border-neutral-800 select-none"
             >
-              <img 
-                src={mediaUrl(currentPage.originalImage)} 
-                alt={`Page ${currentPage.pageNumber}`} 
+              <img
+                src={mediaUrl(currentPage.originalImage)}
+                alt={`Page ${currentPage.pageNumber}`}
                 className="h-full w-full object-contain pointer-events-none"
               />
 
@@ -288,15 +288,13 @@ export function ManuscriptReviewPage() {
                       left: `${ann.x}%`,
                       top: `${ann.y}%`,
                     }}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 group size-5 flex items-center justify-center transition-all ${
-                      isOpen ? 'z-20' : 'z-10'
-                    }`}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 group size-5 flex items-center justify-center transition-all ${isOpen ? 'z-20' : 'z-10'
+                      }`}
                   >
                     {/* Pulsing visual core */}
-                    <span className={`absolute size-4 rounded-full border-2 ring-2 ring-neutral-950 ${
-                      isOpen ? 'bg-red-500 border-white ring-red-500/20 animate-pulse' : 'bg-neutral-600 border-neutral-400 ring-neutral-500/20 opacity-70'
-                    }`} />
-                    
+                    <span className={`absolute size-4 rounded-full border-2 ring-2 ring-neutral-950 ${isOpen ? 'bg-red-500 border-white ring-red-500/20 animate-pulse' : 'bg-neutral-600 border-neutral-400 ring-neutral-500/20 opacity-70'
+                      }`} />
+
                     {/* Hover tooltip displaying correction content */}
                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 bg-neutral-950 border border-neutral-800 p-3 rounded-xl shadow-xl w-48 text-left select-text">
                       <div className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-red-400 mb-1">
@@ -304,7 +302,7 @@ export function ManuscriptReviewPage() {
                         <span>{isOpen ? 'Correction Note' : 'Resolved'}</span>
                       </div>
                       <p className="text-[10px] leading-normal text-white break-words">{ann.note}</p>
-                      
+
                       <div className="flex items-center gap-1.5 mt-2 border-t border-neutral-900 pt-1.5 text-[8px] text-neutral-500">
                         <span>{ann.authorId?.displayName || 'Tantou Editor'}</span>
                         <span>·</span>
@@ -358,18 +356,16 @@ export function ManuscriptReviewPage() {
                 const isOpen = ann.status === 'open'
                 const isAnnVisible = annotationVisibility[ann._id] !== false
                 return (
-                  <div 
-                    key={ann._id} 
-                    className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all ${
-                      !isAnnVisible ? 'opacity-40 border-neutral-900 bg-neutral-950/20' :
-                      isOpen ? 'border-red-950 bg-red-950/20' : 'border-neutral-900 bg-neutral-900/30 opacity-60'
-                    }`}
+                  <div
+                    key={ann._id}
+                    className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all ${!isAnnVisible ? 'opacity-40 border-neutral-900 bg-neutral-950/20' :
+                        isOpen ? 'border-red-950 bg-red-950/20' : 'border-neutral-900 bg-neutral-900/30 opacity-60'
+                      }`}
                   >
                     <div className="flex justify-between items-start gap-2">
-                      <span className={`text-[8px] font-bold uppercase tracking-wider ${
-                        !isAnnVisible ? 'text-neutral-600' :
-                        isOpen ? 'text-red-400' : 'text-neutral-500'
-                      }`}>
+                      <span className={`text-[8px] font-bold uppercase tracking-wider ${!isAnnVisible ? 'text-neutral-600' :
+                          isOpen ? 'text-red-400' : 'text-neutral-500'
+                        }`}>
                         {isOpen ? 'Open Correction' : 'Resolved'}
                       </span>
                       <div className="flex items-center gap-1.5 shrink-0">
