@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Canvas as FabricCanvas, FabricImage, Rect, Circle, IText, PencilBrush, Point } from 'fabric'
 import {
   ChevronLeft, ChevronRight, Hand, Minus, MousePointer2,
-  Pen, Plus, Square, Type, X, ZoomIn, ZoomOut, RotateCcw,
+  Pen, Plus, Square, Type, X, RotateCcw,
   MessageCircle, Trash2, CircleDot, Loader2
 } from 'lucide-react'
 import { Badge, Button } from '../ui'
@@ -417,7 +417,6 @@ export function DraftReviewCanvas({
         const bg = bgImageRef.current
         if (bg) {
           const bgLeft = bg.left || 0
-          const bgTop = bg.top || 0
           const bgScaleX = bg.scaleX || 1
 
           const newAnnotation: AnnotationData = {

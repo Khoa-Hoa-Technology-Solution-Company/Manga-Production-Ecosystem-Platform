@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bell, BookMarked, Briefcase, Compass, FileEdit, Gavel, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
+import { Bell, BookMarked, Briefcase, Compass, Gavel, Globe, Home, LayoutDashboard, LogOut, PenTool, Settings, X } from 'lucide-react'
 import { Avatar, AvatarFallback, Button } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { notificationsAPI } from '../../lib/api'

@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
 import { seriesAPI, approvalAPI, dashboardAPI } from '../../lib/api'
-import { useAuth } from '../../lib/auth'
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -38,7 +37,6 @@ type RankingItem = SeriesItem & {
 /* ──────────────────────────────────── component ── */
 export function EditorialBoardPortalPage() {
   const { t } = useTranslation()
-  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('votes')
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
