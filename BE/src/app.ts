@@ -21,6 +21,7 @@ import commentsRoutes from './routes/comments.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import annotationsRoutes from './routes/annotations.routes';
 import editorRoutes from './routes/editor.routes';
+import dedicatedAssistantRoutes from './routes/dedicated-assistant.routes';
 
 const app = express();
 
@@ -101,6 +102,7 @@ app.use('/api/comments', commentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/annotations', annotationsRoutes);
 app.use('/api/editor', editorRoutes);
+app.use('/api/series', dedicatedAssistantRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {

@@ -60,3 +60,16 @@ export async function resolve(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: error.message });
   }
 }
+
+export async function remove(req: Request, res: Response): Promise<void> {
+  try {
+    const annotation = await Annotation.findByIdAndDelete(req.params.id);
+    if (!annotation) {
+      res.status(404).json({ error: 'Annotation not found.' });
+      return;
+    }
+    res.json({ message: 'Annotation deleted successfully.', id: req.params.id });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}

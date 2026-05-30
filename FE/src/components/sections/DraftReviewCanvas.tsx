@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Canvas as FabricCanvas, FabricImage, Rect, Circle, IText, PencilBrush, Point } from 'fabric'
+import { Canvas as FabricCanvas, FabricImage, Rect, Circle, IText, PencilBrush, Point, Path } from 'fabric'
 import {
   ChevronLeft, ChevronRight, Hand, Minus, MousePointer2,
   Pen, Plus, Square, Type, X, RotateCcw,
@@ -22,6 +22,7 @@ export type AnnotationData = {
   color: string
   pageIndex: number
   createdAt: string
+  pathData?: string
 }
 
 type PageData = {
@@ -30,6 +31,40 @@ type PageData = {
   originalImage: string
   width: number
   height: number
+}
+
+// Normalize path commands relative to background image as percentages (0 to 100)
+const normalizePathCommands = (pathCommands: any[], bgLeft: number, bgTop: number, displayW: number, displayH: number) => {
+  return pathCommands.map(cmd => {
+    const type = cmd[0]
+    const newCmd = [type]
+    for (let i = 1; i < cmd.length; i += 2) {
+      const px = cmd[i]
+      const py = cmd[i + 1]
+      if (px !== undefined && py !== undefined) {
+        newCmd.push(((px - bgLeft) / displayW) * 100)
+        newCmd.push(((py - bgTop) / displayH) * 100)
+      }
+    }
+    return newCmd
+  })
+}
+
+// Denormalize path commands from percentages to absolute canvas coordinates
+const denormalizePathCommands = (normalizedCommands: any[], bgLeft: number, bgTop: number, displayW: number, displayH: number) => {
+  return normalizedCommands.map(cmd => {
+    const type = cmd[0]
+    const newCmd = [type]
+    for (let i = 1; i < cmd.length; i += 2) {
+      const px = cmd[i]
+      const py = cmd[i + 1]
+      if (px !== undefined && py !== undefined) {
+        newCmd.push(bgLeft + (px / 100) * displayW)
+        newCmd.push(bgTop + (py / 100) * displayH)
+      }
+    }
+    return newCmd
+  })
 }
 
 type DraftReviewCanvasProps = {
@@ -81,6 +116,12 @@ export function DraftReviewCanvas({
   const [activeColor, setActiveColor] = useState('#ef4444')
   const [zoom, setZoom] = useState(100)
   const [imageLoading, setImageLoading] = useState(true)
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
+
+  // Reset selected annotation when page changes
+  useEffect(() => {
+    setSelectedAnnotationId(null)
+  }, [currentPageIdx])
 
   // Refs
   const canvasContainerRef = useRef<HTMLDivElement>(null)
@@ -136,7 +177,7 @@ export function DraftReviewCanvas({
       ? currentPage.originalImage
       : `${apiBase}${currentPage.originalImage}`
 
-    FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' }).then((img) => {
+    FabricImage.fromURL(imgUrl).then((img) => {
       // Remove old background
       if (bgImageRef.current) {
         fc.remove(bgImageRef.current)
@@ -169,9 +210,6 @@ export function DraftReviewCanvas({
       fc.setViewportTransform([1, 0, 0, 1, 0, 0])
       setZoom(100)
 
-      // Render existing annotations for this page
-      renderAnnotations(fc, img)
-
       fc.requestRenderAll()
       setImageLoading(false)
     }).catch((err) => {
@@ -182,81 +220,140 @@ export function DraftReviewCanvas({
 
   /* ──── Render annotation objects on canvas ──── */
   const renderAnnotations = useCallback((fc: FabricCanvas, bg: FabricImage) => {
-    // Clear existing annotation objects
-    const toRemove = fc.getObjects().filter((o: any) => o._annotationId)
-    toRemove.forEach(o => fc.remove(o))
-
     const bgLeft = bg.left || 0
     const bgTop = bg.top || 0
     const bgScaleX = bg.scaleX || 1
     const bgScaleY = bg.scaleY || 1
+    const imgW = bg.width || 800
+    const imgH = bg.height || 1200
+    const displayW = imgW * bgScaleX
+    const displayH = imgH * bgScaleY
 
+    // 1. Get all current annotation objects on the canvas
+    const existingObjects = fc.getObjects().filter((o: any) => o._annotationId)
+
+    // Remove all existing annotation objects to redraw them fresh with the correct active selection styles
+    existingObjects.forEach((obj: any) => {
+      fc.remove(obj)
+    })
+
+    // Add or update annotations
     pageAnnotations.forEach((ann) => {
       let obj: any = null
+      const isSelected = selectedAnnotationId === ann.id
 
       if (ann.type === 'rect') {
         obj = new Rect({
-          left: bgLeft + ann.x * bgScaleX,
-          top: bgTop + ann.y * bgScaleY,
-          width: (ann.width || 100) * bgScaleX,
-          height: (ann.height || 60) * bgScaleY,
-          fill: ann.color + '15',
+          left: bgLeft + (ann.x / 100) * displayW,
+          top: bgTop + (ann.y / 100) * displayH,
+          width: ((ann.width || 10) / 100) * displayW,
+          height: ((ann.height || 6) / 100) * displayH,
+          fill: isSelected ? ann.color + '30' : ann.color + '15',
           stroke: ann.color,
-          strokeWidth: 3,
+          strokeWidth: isSelected ? 5.5 : 3,
+          strokeDashArray: isSelected ? [8, 4] : undefined,
           selectable: !readOnly && activeTool === 'select',
           hasControls: !readOnly,
           cornerColor: ann.color,
           cornerStrokeColor: '#fff',
           cornerStyle: 'circle' as const,
           transparentCorners: false,
+          shadow: isSelected ? {
+            color: ann.color,
+            blur: 15,
+            offsetX: 0,
+            offsetY: 0,
+          } as any : undefined,
         })
       } else if (ann.type === 'circle') {
         obj = new Circle({
-          left: bgLeft + ann.x * bgScaleX,
-          top: bgTop + ann.y * bgScaleY,
-          radius: (ann.radius || 30) * bgScaleX,
-          fill: ann.color + '15',
+          left: bgLeft + (ann.x / 100) * displayW,
+          top: bgTop + (ann.y / 100) * displayH,
+          radius: ((ann.radius || 3) / 100) * displayW,
+          fill: isSelected ? ann.color + '30' : ann.color + '15',
           stroke: ann.color,
-          strokeWidth: 3,
+          strokeWidth: isSelected ? 5.5 : 3,
+          strokeDashArray: isSelected ? [8, 4] : undefined,
           selectable: !readOnly && activeTool === 'select',
           hasControls: !readOnly,
           cornerColor: ann.color,
           cornerStrokeColor: '#fff',
           cornerStyle: 'circle' as const,
           transparentCorners: false,
+          shadow: isSelected ? {
+            color: ann.color,
+            blur: 15,
+            offsetX: 0,
+            offsetY: 0,
+          } as any : undefined,
         })
       } else if (ann.type === 'text') {
         obj = new IText(ann.text || 'Note', {
-          left: bgLeft + ann.x * bgScaleX,
-          top: bgTop + ann.y * bgScaleY,
-          fontSize: 16 * bgScaleX,
+          left: bgLeft + (ann.x / 100) * displayW,
+          top: bgTop + (ann.y / 100) * displayH,
+          fontSize: (isSelected ? 18 : 16) * bgScaleX,
           fontFamily: 'Inter, sans-serif',
           fontWeight: 'bold',
           fill: ann.color,
-          backgroundColor: '#fff',
-          padding: 6,
+          backgroundColor: isSelected ? '#fffdf3' : '#fff',
+          padding: isSelected ? 8 : 6,
           selectable: !readOnly && activeTool === 'select',
           editable: !readOnly,
           hasControls: !readOnly,
+          stroke: isSelected ? ann.color : undefined,
+          strokeWidth: isSelected ? 1 : 0,
+          shadow: isSelected ? {
+            color: ann.color,
+            blur: 12,
+            offsetX: 0,
+            offsetY: 0,
+          } as any : undefined,
         })
+      } else if (ann.type === 'freehand' && ann.pathData) {
+        try {
+          const parsedPath = JSON.parse(ann.pathData)
+          const absoluteCommands = denormalizePathCommands(parsedPath, bgLeft, bgTop, displayW, displayH)
+          const pathString = absoluteCommands.map((cmd: any) => cmd.join(' ')).join(' ')
+          obj = new Path(pathString, {
+            fill: null,
+            stroke: ann.color,
+            strokeWidth: isSelected ? 6 : 3,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            selectable: !readOnly && activeTool === 'select',
+            hasControls: !readOnly,
+            shadow: isSelected ? {
+              color: ann.color,
+              blur: 15,
+              offsetX: 0,
+              offsetY: 0,
+            } as any : undefined,
+          })
+        } catch (e) {
+          console.error('Failed to reconstruct freehand path:', e)
+        }
       }
 
       if (obj) {
         (obj as any)._annotationId = ann.id
         fc.add(obj)
+        // If this is the selected annotation on render, make it active in Fabric too
+        if (isSelected) {
+          fc.setActiveObject(obj)
+        }
       }
     })
 
     fc.requestRenderAll()
-  }, [pageAnnotations, readOnly, activeTool])
+  }, [pageAnnotations, readOnly, activeTool, selectedAnnotationId])
 
-  // Re-render annotations when they change
+  // Re-render annotations when they change or background image finishes loading
   useEffect(() => {
     const fc = fabricRef.current
     const bg = bgImageRef.current
-    if (!fc || !bg) return
+    if (!fc || !bg || imageLoading) return
     renderAnnotations(fc, bg)
-  }, [annotations, currentPageIdx, renderAnnotations])
+  }, [annotations, currentPageIdx, renderAnnotations, imageLoading])
 
   /* ──── Tool handling ──── */
   useEffect(() => {
@@ -296,6 +393,19 @@ export function DraftReviewCanvas({
           obj.selectable = true
           obj.hasControls = true
         }
+      })
+
+      const handleSelection = (opt: any) => {
+        const target = opt.selected?.[0] as any
+        if (target?._annotationId) {
+          setSelectedAnnotationId(target._annotationId)
+        }
+      }
+
+      fc.on('selection:created', handleSelection)
+      fc.on('selection:updated', handleSelection)
+      fc.on('selection:cleared', () => {
+        setSelectedAnnotationId(null)
       })
     } else if (activeTool === 'pan') {
       fc.defaultCursor = 'grab'
@@ -365,14 +475,18 @@ export function DraftReviewCanvas({
           const bgTop = bg.top || 0
           const bgScaleX = bg.scaleX || 1
           const bgScaleY = bg.scaleY || 1
+          const imgW = bg.width || 800
+          const imgH = bg.height || 1200
+          const displayW = imgW * bgScaleX
+          const displayH = imgH * bgScaleY
 
           const newAnnotation: AnnotationData = {
             id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: 'rect',
-            x: ((drawingRect.left || 0) - bgLeft) / bgScaleX,
-            y: ((drawingRect.top || 0) - bgTop) / bgScaleY,
-            width: w / bgScaleX,
-            height: h / bgScaleY,
+            x: (((drawingRect.left || 0) - bgLeft) / displayW) * 100,
+            y: (((drawingRect.top || 0) - bgTop) / displayH) * 100,
+            width: (w / displayW) * 100,
+            height: (h / displayH) * 100,
             color: activeColor,
             pageIndex: currentPageIdx,
             createdAt: new Date().toISOString(),
@@ -417,14 +531,20 @@ export function DraftReviewCanvas({
         const bg = bgImageRef.current
         if (bg) {
           const bgLeft = bg.left || 0
+          const bgTop = bg.top || 0
           const bgScaleX = bg.scaleX || 1
+          const bgScaleY = bg.scaleY || 1
+          const imgW = bg.width || 800
+          const imgH = bg.height || 1200
+          const displayW = imgW * bgScaleX
+          const displayH = imgH * bgScaleY
 
           const newAnnotation: AnnotationData = {
             id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: 'circle',
-            x: (centerX - bgLeft) / bgScaleX,
-            y: (centerY - (bg.top || 0)) / (bg.scaleY || 1),
-            radius: r / bgScaleX,
+            x: ((centerX - bgLeft) / displayW) * 100,
+            y: ((centerY - bgTop) / displayH) * 100,
+            radius: (r / displayW) * 100,
             color: activeColor,
             pageIndex: currentPageIdx,
             createdAt: new Date().toISOString(),
@@ -447,19 +567,31 @@ export function DraftReviewCanvas({
         if (path) {
           const id = `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
           ;(path as any)._annotationId = id
-          // Save freehand as annotation for persistence
           const bg = bgImageRef.current
           if (bg) {
+            const bgLeft = bg.left || 0
+            const bgTop = bg.top || 0
+            const bgScaleX = bg.scaleX || 1
+            const bgScaleY = bg.scaleY || 1
+            const imgW = bg.width || 800
+            const imgH = bg.height || 1200
+            const displayW = imgW * bgScaleX
+            const displayH = imgH * bgScaleY
+
+            // Normalize path commands relative to the background image dimensions
+            const normalized = normalizePathCommands(path.path, bgLeft, bgTop, displayW, displayH)
+
             const newAnnotation: AnnotationData = {
               id,
               type: 'freehand',
-              x: ((path.left || 0) - (bg.left || 0)) / (bg.scaleX || 1),
-              y: ((path.top || 0) - (bg.top || 0)) / (bg.scaleY || 1),
-              width: (path.width || 0) / (bg.scaleX || 1),
-              height: (path.height || 0) / (bg.scaleY || 1),
+              x: (((path.left || 0) - bgLeft) / displayW) * 100,
+              y: (((path.top || 0) - bgTop) / displayH) * 100,
+              width: ((path.width || 0) / displayW) * 100,
+              height: ((path.height || 0) / displayH) * 100,
               color: activeColor,
               pageIndex: currentPageIdx,
               createdAt: new Date().toISOString(),
+              pathData: JSON.stringify(normalized)
             }
             onAnnotationsChange([...annotations, newAnnotation])
           }
@@ -476,9 +608,18 @@ export function DraftReviewCanvas({
         if (!bg) return
 
         const id = `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const bgLeft = bg.left || 0
+        const bgTop = bg.top || 0
+        const bgScaleX = bg.scaleX || 1
+        const bgScaleY = bg.scaleY || 1
+        const imgW = bg.width || 800
+        const imgH = bg.height || 1200
+        const displayW = imgW * bgScaleX
+        const displayH = imgH * bgScaleY
+
         const text = new IText('Edit note...', {
           left: pointer.x, top: pointer.y,
-          fontSize: 16 * (bg.scaleX || 1),
+          fontSize: 16 * bgScaleX,
           fontFamily: 'Inter, sans-serif',
           fontWeight: 'bold',
           fill: activeColor,
@@ -499,8 +640,8 @@ export function DraftReviewCanvas({
         const newAnnotation: AnnotationData = {
           id,
           type: 'text',
-          x: (pointer.x - (bg.left || 0)) / (bg.scaleX || 1),
-          y: (pointer.y - (bg.top || 0)) / (bg.scaleY || 1),
+          x: ((pointer.x - bgLeft) / displayW) * 100,
+          y: ((pointer.y - bgTop) / displayH) * 100,
           text: 'Edit note...',
           color: activeColor,
           pageIndex: currentPageIdx,
@@ -510,14 +651,65 @@ export function DraftReviewCanvas({
       })
     }
 
+    // Capture dragging, scaling and editing modifications
+    fc.on('object:modified', (opt: any) => {
+      const obj = opt.target
+      if (obj && obj._annotationId) {
+        const bg = bgImageRef.current
+        if (!bg) return
+        const bgLeft = bg.left || 0
+        const bgTop = bg.top || 0
+        const bgScaleX = bg.scaleX || 1
+        const bgScaleY = bg.scaleY || 1
+        const imgW = bg.width || 800
+        const imgH = bg.height || 1200
+        const displayW = imgW * bgScaleX
+        const displayH = imgH * bgScaleY
+
+        const updatedAnnotations = annotations.map(ann => {
+          if (ann.id !== obj._annotationId) return ann
+
+          if (ann.type === 'rect') {
+            return {
+              ...ann,
+              x: (((obj.left || 0) - bgLeft) / displayW) * 100,
+              y: (((obj.top || 0) - bgTop) / displayH) * 100,
+              width: (((obj.width || 0) * (obj.scaleX || 1)) / displayW) * 100,
+              height: (((obj.height || 0) * (obj.scaleY || 1)) / displayH) * 100,
+            }
+          } else if (ann.type === 'circle') {
+            return {
+              ...ann,
+              x: (((obj.left || 0) - bgLeft) / displayW) * 100,
+              y: (((obj.top || 0) - bgTop) / displayH) * 100,
+              radius: (((obj.radius || 0) * (obj.scaleX || 1)) / displayW) * 100,
+            }
+          } else if (ann.type === 'text') {
+            return {
+              ...ann,
+              x: (((obj.left || 0) - bgLeft) / displayW) * 100,
+              y: (((obj.top || 0) - bgTop) / displayH) * 100,
+              text: obj.text || '',
+            }
+          }
+          return ann
+        })
+        onAnnotationsChange(updatedAnnotations)
+      }
+    })
+
     return () => {
       fc.off('mouse:down')
       fc.off('mouse:move')
       fc.off('mouse:up')
       fc.off('mouse:wheel')
       fc.off('path:created')
+      fc.off('object:modified')
+      fc.off('selection:created')
+      fc.off('selection:updated')
+      fc.off('selection:cleared')
     }
-  }, [activeTool, activeColor, readOnly, currentPageIdx, annotations, onAnnotationsChange])
+  }, [activeTool, activeColor, readOnly, currentPageIdx, annotations, onAnnotationsChange, setSelectedAnnotationId])
 
   /* ──── Zoom ──── */
   const handleZoom = useCallback((delta: number) => {
@@ -547,11 +739,14 @@ export function DraftReviewCanvas({
       if (obj._annotationId) {
         onAnnotationsChange(annotations.filter(a => a.id !== obj._annotationId))
         fc.remove(obj)
+        if (selectedAnnotationId === obj._annotationId) {
+          setSelectedAnnotationId(null)
+        }
       }
     })
     fc.discardActiveObject()
     fc.requestRenderAll()
-  }, [annotations, onAnnotationsChange])
+  }, [annotations, onAnnotationsChange, selectedAnnotationId])
 
   /* ──── Delete specific annotation ──── */
   const handleDeleteAnnotation = useCallback((annId: string) => {
@@ -561,8 +756,11 @@ export function DraftReviewCanvas({
       if (obj) fc.remove(obj)
       fc.requestRenderAll()
     }
+    if (selectedAnnotationId === annId) {
+      setSelectedAnnotationId(null)
+    }
     onAnnotationsChange(annotations.filter(a => a.id !== annId))
-  }, [annotations, onAnnotationsChange])
+  }, [annotations, onAnnotationsChange, selectedAnnotationId])
 
   /* ──── Page navigation ──── */
   const goToPage = (idx: number) => {
@@ -724,36 +922,63 @@ export function DraftReviewCanvas({
                 )}
               </div>
             ) : (
-              pageAnnotations.map((ann) => (
-                <div
-                  key={ann.id}
-                  className="group flex items-start gap-2 rounded-xl bg-white/5 p-3 transition-colors hover:bg-white/10"
-                >
+              pageAnnotations.map((ann) => {
+                const isSelected = selectedAnnotationId === ann.id
+                return (
                   <div
-                    className="mt-0.5 size-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: ann.color }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium capitalize text-white/80">
-                      {ann.type === 'freehand' ? 'Freehand' : ann.type === 'rect' ? 'Rectangle' : ann.type === 'circle' ? 'Circle' : 'Text Note'}
-                    </p>
-                    {ann.text && (
-                      <p className="mt-0.5 truncate text-[10px] text-white/40">{ann.text}</p>
+                    key={ann.id}
+                    onClick={() => {
+                      setSelectedAnnotationId(isSelected ? null : ann.id)
+                      const fc = fabricRef.current
+                      if (fc) {
+                        if (isSelected) {
+                          fc.discardActiveObject()
+                        } else {
+                          const obj = fc.getObjects().find((o: any) => o._annotationId === ann.id)
+                          if (obj) {
+                            fc.setActiveObject(obj)
+                          } else {
+                            fc.discardActiveObject()
+                          }
+                        }
+                        fc.requestRenderAll()
+                      }
+                    }}
+                    className={`group flex items-start gap-2 rounded-xl p-3 border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-violet-500/20 border-violet-500 ring-2 ring-violet-500/10 shadow-xs'
+                        : 'bg-white/5 border-transparent hover:bg-white/10 hover:border-white/10'
+                    }`}
+                  >
+                    <div
+                      className="mt-0.5 size-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: ann.color }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium capitalize text-white/80">
+                        {ann.type === 'freehand' ? 'Freehand' : ann.type === 'rect' ? 'Rectangle' : ann.type === 'circle' ? 'Circle' : 'Text Note'}
+                      </p>
+                      {ann.text && (
+                        <p className="mt-0.5 truncate text-[10px] text-white/40">{ann.text}</p>
+                      )}
+                      <p className="mt-0.5 text-[10px] text-white/20">
+                        {new Date(ann.createdAt).toLocaleTimeString()}
+                      </p>
+                    </div>
+                    {!readOnly && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteAnnotation(ann.id)
+                        }}
+                        className="shrink-0 rounded-lg p-1 text-white/20 opacity-0 transition-opacity hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
                     )}
-                    <p className="mt-0.5 text-[10px] text-white/20">
-                      {new Date(ann.createdAt).toLocaleTimeString()}
-                    </p>
                   </div>
-                  {!readOnly && (
-                    <button
-                      onClick={() => handleDeleteAnnotation(ann.id)}
-                      className="shrink-0 rounded-lg p-1 text-white/20 opacity-0 transition-opacity hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  )}
-                </div>
-              ))
+                )
+              })
             )}
           </div>
 

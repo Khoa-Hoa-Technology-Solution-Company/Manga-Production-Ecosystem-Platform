@@ -9,5 +9,6 @@ router.use(authenticate);
 router.get('/chapter/:chapterId', ctrl.getByChapterId);
 router.post('/', ctrl.create);
 router.patch('/:id/resolve', ctrl.resolve);
+router.delete('/:id', ctrl.remove);
 
 export default router;
