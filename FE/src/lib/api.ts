@@ -72,6 +72,13 @@ export const seriesAPI = {
   getEditors: () => api.get('/series/editors'),
   respondToHandshake: (id: string, action: 'accept' | 'decline') =>
     api.put(`/series/${id}/handshake`, { action }),
+  // Dedicated Assistants
+  getDedicatedAssistants: (seriesId: string) =>
+    api.get(`/series/${seriesId}/dedicated-assistants`),
+  addDedicatedAssistant: (seriesId: string, userId: string) =>
+    api.post(`/series/${seriesId}/dedicated-assistants`, { userId }),
+  removeDedicatedAssistant: (seriesId: string, userId: string) =>
+    api.delete(`/series/${seriesId}/dedicated-assistants/${userId}`),
 };
 
 // ── Approval API ────────────────────────────────────
@@ -174,6 +181,7 @@ export const annotationsAPI = {
   create: (data: { chapterId: string; pageId: string; x: number; y: number; note: string; source?: 'review' | 'tracking' }) =>
     api.post('/annotations', data),
   resolve: (id: string) => api.patch(`/annotations/${id}/resolve`),
+  delete: (id: string) => api.delete(`/annotations/${id}`),
 };
 
 // ── Editor Analytics API ────────────────────────────

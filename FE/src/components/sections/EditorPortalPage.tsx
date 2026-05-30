@@ -1319,6 +1319,10 @@ export function EditorPortalPage() {
                         <Badge variant="secondary" className="text-[10px] px-2 py-0 font-semibold bg-neutral-100 text-neutral-600">
                           {toGenreText(series.genre)}
                         </Badge>
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0 font-semibold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                          <BookOpen className="size-2.5" />
+                          {t('editor.chaptersCountBadge', '{{count}} Chapters', { count: series.totalChapters || 0 })}
+                        </Badge>
                       </div>
                     </div>
 

@@ -26,7 +26,7 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
         return;
       }
 
-      const chapter = await Chapter.findById(chapterId).select('mangakaId collaborators');
+      const chapter = await Chapter.findById(chapterId).select('seriesId mangakaId collaborators');
       if (!chapter) {
         res.status(404).json({ error: 'Chapter not found.' });
         return;
@@ -34,7 +34,31 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
 
       const userId = req.user?._id;
       const userRole = req.user?.role || 'reader';
-      const can = hasAccess(chapter, userId, userRole, mode);
+      
+      let can = hasAccess(chapter, userId, userRole, mode);
+      
+      // Grant automatic access to accepted Tantou Editor or Editorial Board
+      if (!can && userId) {
+        const { Series } = await import('../models/Series');
+        const series = await Series.findById(chapter.seriesId);
+        
+        if (series) {
+          const isTantouEditor = userRole === 'editor' && 
+                                 series.editorId?.toString() === String(userId) && 
+                                 series.editorStatus === 'accepted';
+                                 
+          const isEditorialBoard = userRole === 'editorial_board';
+          
+          if (isTantouEditor) {
+            // Tantou Editor has full read, comment, and edit rights
+            can = true;
+          } else if (isEditorialBoard && mode === 'read') {
+            // EB has read access for publication reviews
+            can = true;
+          }
+        }
+      }
+
       if (!can) {
         res.status(403).json({ error: 'You do not have access to this chapter.' });
         return;
@@ -43,9 +67,9 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
       req.chapterAccess = {
         chapterId: String(chapterId),
         role: userRole,
-        canEdit: hasAccess(chapter, userId, userRole, 'edit'),
-        canComment: hasAccess(chapter, userId, userRole, 'comment'),
-        canInvite: hasAccess(chapter, userId, userRole, 'invite'),
+        canEdit: userRole === 'editor' ? true : hasAccess(chapter, userId, userRole, 'edit'),
+        canComment: userRole === 'editor' ? true : hasAccess(chapter, userId, userRole, 'comment'),
+        canInvite: userRole === 'editor' ? false : hasAccess(chapter, userId, userRole, 'invite'),
       };
 
       next();

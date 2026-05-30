@@ -1,5 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IDedicatedAssistant {
+  userId: mongoose.Types.ObjectId;
+  addedAt: Date;
+}
+
 export interface ISeries extends Document {
   title: string;
   description: string;
@@ -15,6 +20,7 @@ export interface ISeries extends Document {
   readerCount: number;
   deadline?: Date;
   editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none';
+  dedicatedAssistants: IDedicatedAssistant[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +41,12 @@ const seriesSchema = new Schema<ISeries>(
     readerCount: { type: Number, default: 0 },
     deadline: { type: Date },
     editorStatus: { type: String, enum: ['pending', 'accepted', 'rejected', 'none'], default: 'none' },
+    dedicatedAssistants: [
+      {
+        userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        addedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

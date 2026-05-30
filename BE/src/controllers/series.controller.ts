@@ -28,7 +28,10 @@ export async function getAll(req: Request, res: Response): Promise<void> {
         ],
       }).distinct('seriesId');
 
-      filter._id = { $in: accessibleChapterSeriesIds.length ? accessibleChapterSeriesIds : ['000000000000000000000000'] };
+      filter.$or = [
+        { mangakaId: req.user._id },
+        { _id: { $in: accessibleChapterSeriesIds } },
+      ];
     } else if (req.user?.role === 'editor') {
       filter.editorId = req.user._id;
       filter.editorStatus = 'accepted';
@@ -172,6 +175,12 @@ export async function update(req: Request, res: Response): Promise<void> {
         const targetEditorId = editorId || oldSeries.editorId;
         if (!targetEditorId) {
           res.status(400).json({ error: 'A Tantou Editor must be assigned before submitting for review.' });
+          return;
+        }
+        // Enforce at least 1 draft chapter exists before submitting
+        const draftChaptersCount = await Chapter.countDocuments({ seriesId: req.params.id });
+        if (draftChaptersCount === 0) {
+          res.status(400).json({ error: 'Series must have at least one draft chapter before submitting for review.' });
           return;
         }
         updateData.rejectionNotes = ''; // clear previous comments

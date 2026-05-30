@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, type MouseEvent, } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { pagesAPI, annotationsAPI, chaptersAPI } from '../../lib/api'
-import { Button, Badge } from '../ui'
+import { Badge } from '../ui'
 import {
   ArrowLeft,
   MessageSquare,
@@ -14,7 +14,8 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
-  PenTool
+  PenTool,
+  Trash2
 } from 'lucide-react'
 import { DraftReviewCanvas, type AnnotationData as DraftAnnotationData } from './DraftReviewCanvas'
 
@@ -96,7 +97,23 @@ export function ManuscriptReviewPage() {
         setChapter(chapterRes.data.chapter)
       }
       setPages(pagesRes.data.pages || [])
-      setAnnotations(annRes.data.annotations || [])
+      
+      const rawAnns = annRes.data.annotations || []
+      setAnnotations(rawAnns)
+
+      // Parse and initialize canvas annotations
+      const parsedAnns: DraftAnnotationData[] = []
+      rawAnns.forEach((a: any) => {
+        if (a.note.startsWith('[CANVAS]')) {
+          try {
+            const data = JSON.parse(a.note.slice(8))
+            parsedAnns.push(data)
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      })
+      setDraftAnnotations(parsedAnns)
     })
       .catch(console.error)
       .finally(() => {
@@ -164,7 +181,7 @@ export function ManuscriptReviewPage() {
         const backendAnn = annotations.find(a => a.note.startsWith('[CANVAS]') && a.note.includes(ann.id));
         if (backendAnn) {
           try {
-            await annotationsAPI.resolve(backendAnn._id);
+            await annotationsAPI.delete(backendAnn._id);
           } catch (err) {
             console.error('Failed to remove canvas annotation', err);
           }
@@ -212,6 +229,26 @@ export function ManuscriptReviewPage() {
     }
   }
 
+  // Handle resolving annotation
+  const handleResolveAnnotation = async (id: string) => {
+    try {
+      await annotationsAPI.resolve(id)
+      await refreshAnnotations()
+    } catch (err) {
+      console.error('Failed to resolve annotation', err)
+    }
+  }
+
+  // Handle deleting annotation
+  const handleDeleteAnnotation = async (id: string) => {
+    try {
+      await annotationsAPI.delete(id)
+      await refreshAnnotations()
+    } catch (err) {
+      console.error('Failed to delete annotation', err)
+    }
+  }
+
   // Filter annotations for active page
   const pageAnnotations = annotations.filter(
     (ann) => ann.pageId === currentPage?._id
@@ -222,14 +259,12 @@ export function ManuscriptReviewPage() {
       {/* ── Top Audit Toolbar ────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-950 px-6 py-3 shrink-0">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-9 p-0 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800"
+          <button
             onClick={() => navigate('/editor')}
+            className="size-9 p-0 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors border-none bg-transparent cursor-pointer"
           >
             <ArrowLeft className="size-4" />
-          </Button>
+          </button>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Manuscript Review</span>
@@ -247,38 +282,34 @@ export function ManuscriptReviewPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 mr-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-neutral-800 text-neutral-400 hover:text-white"
+          <button
             onClick={() => setShowCanvas(true)}
+            className="h-8 px-3 text-xs font-semibold border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-xl flex items-center gap-2 transition-colors bg-transparent cursor-pointer"
           >
-            <PenTool className="size-4 mr-2" />
-            Draw on Canvas
-          </Button>
+            <PenTool className="size-3.5" />
+            <span>Draw on Canvas</span>
+          </button>
         </div>
 
         {/* Page navigation */}
         <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-850 px-3 py-1 rounded-xl">
-          <Button
-            variant="ghost"
-            className="size-7 p-0 rounded-lg text-neutral-400 hover:text-white"
+          <button
             onClick={() => setCurrentPageIdx(Math.max(0, currentPageIdx - 1))}
             disabled={currentPageIdx === 0}
+            className="size-7 p-0 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none transition-colors border-none bg-transparent cursor-pointer"
           >
             <ChevronLeft className="size-4" />
-          </Button>
-          <span className="text-xs font-semibold select-none">
+          </button>
+          <span className="text-xs font-semibold select-none text-neutral-200">
             {pages.length > 0 ? `Page ${currentPageIdx + 1} / ${pages.length}` : 'No Pages'}
           </span>
-          <Button
-            variant="ghost"
-            className="size-7 p-0 rounded-lg text-neutral-400 hover:text-white"
+          <button
             onClick={() => setCurrentPageIdx(Math.min(pages.length - 1, currentPageIdx + 1))}
             disabled={currentPageIdx >= pages.length - 1}
+            className="size-7 p-0 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none transition-colors border-none bg-transparent cursor-pointer"
           >
             <ChevronRight className="size-4" />
-          </Button>
+          </button>
         </div>
 
         {/* Legend */}
@@ -370,17 +401,45 @@ export function ManuscriptReviewPage() {
                       }`} />
 
                     {/* Hover tooltip displaying correction content */}
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 bg-neutral-950 border border-neutral-800 p-3 rounded-xl shadow-xl w-48 text-left select-text">
-                      <div className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-red-400 mb-1">
-                        <Pin className="size-2.5 shrink-0" />
-                        <span>{isOpen ? 'Correction Note' : 'Resolved'}</span>
-                      </div>
-                      <p className="text-[10px] leading-normal text-white break-words">{ann.note}</p>
+                    <div className="absolute bottom-full pb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 w-48 text-left select-text">
+                      <div className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl shadow-xl space-y-2">
+                        <div className="flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wider text-red-400">
+                          <div className="flex items-center gap-1">
+                            <Pin className="size-2.5 shrink-0" />
+                            <span>{isOpen ? 'Correction Note' : 'Resolved'}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isOpen && (
+                              <button
+                                type="button"
+                                onClick={() => handleResolveAnnotation(ann._id)}
+                                className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-emerald-400 transition-colors border-none bg-transparent cursor-pointer"
+                                title="Resolve Pin"
+                              >
+                                <CheckCircle className="size-3" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm('Delete this pin?')) {
+                                  handleDeleteAnnotation(ann._id)
+                                }
+                              }}
+                              className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-red-400 transition-colors border-none bg-transparent cursor-pointer"
+                              title="Delete Pin"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[10px] leading-normal text-white break-words">{ann.note}</p>
 
-                      <div className="flex items-center gap-1.5 mt-2 border-t border-neutral-900 pt-1.5 text-[8px] text-neutral-500">
-                        <span>{ann.authorId?.displayName || 'Tantou Editor'}</span>
-                        <span>·</span>
-                        <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
+                        <div className="flex items-center gap-1.5 mt-2 border-t border-neutral-900 pt-1.5 text-[8px] text-neutral-500">
+                          <span>{ann.authorId?.displayName || 'Tantou Editor'}</span>
+                          <span>·</span>
+                          <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -442,7 +501,7 @@ export function ManuscriptReviewPage() {
                         }`}>
                         {isOpen ? 'Open Correction' : 'Resolved'}
                       </span>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           className="grid size-4 place-items-center rounded text-neutral-500 hover:text-white hover:bg-neutral-800 transition-all cursor-pointer border-none bg-transparent"
@@ -457,15 +516,43 @@ export function ManuscriptReviewPage() {
                         >
                           {isAnnVisible ? <Eye className="size-2.5 text-neutral-400" /> : <EyeOff className="size-2.5 text-neutral-600" />}
                         </button>
-                        <span className="text-[7px] text-neutral-500">{new Date(ann.createdAt).toLocaleDateString()}</span>
+                        {isOpen && (
+                          <button
+                            type="button"
+                            className="grid size-4 place-items-center rounded text-neutral-500 hover:text-emerald-400 hover:bg-neutral-800 transition-all cursor-pointer border-none bg-transparent"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleResolveAnnotation(ann._id)
+                            }}
+                            title="Resolve pin"
+                          >
+                            <CheckCircle className="size-2.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="grid size-4 place-items-center rounded text-neutral-500 hover:text-red-400 hover:bg-neutral-800 transition-all cursor-pointer border-none bg-transparent"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm('Are you sure you want to delete this feedback pin?')) {
+                              handleDeleteAnnotation(ann._id)
+                            }
+                          }}
+                          title="Delete pin"
+                        >
+                          <Trash2 className="size-2.5" />
+                        </button>
                       </div>
                     </div>
 
                     <p className="text-[10px] text-neutral-300 leading-normal break-words">{ann.note}</p>
 
-                    <div className="flex items-center gap-1.5 text-[8px] text-neutral-500">
-                      <MessageSquare className="size-2.5 shrink-0" />
-                      <span>{ann.authorId?.displayName || 'Tantou Editor'}</span>
+                    <div className="flex items-center justify-between gap-1.5 text-[8px] text-neutral-500">
+                      <div className="flex items-center gap-1.5">
+                        <MessageSquare className="size-2.5 shrink-0" />
+                        <span>{ann.authorId?.displayName || 'Tantou Editor'}</span>
+                      </div>
+                      <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 )
@@ -506,23 +593,22 @@ export function ManuscriptReviewPage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl px-4 text-xs font-semibold border-neutral-800 text-neutral-400 hover:text-white"
+              <button
+                type="button"
                 onClick={() => { setShowAddModal(false); setActiveClickCoords(null) }}
                 disabled={submittingPin}
+                className="rounded-xl px-4 py-2 text-xs font-semibold border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900 disabled:opacity-50 transition-colors bg-transparent cursor-pointer"
               >
                 {t('common.cancel')}
-              </Button>
-              <Button
-                size="sm"
-                className="rounded-xl px-4 text-xs font-semibold bg-red-600 hover:bg-red-500 text-white border-none"
+              </button>
+              <button
+                type="button"
                 onClick={handlePinSubmit}
                 disabled={!noteInput.trim() || submittingPin}
+                className="rounded-xl px-4 py-2 text-xs font-semibold bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors border-none cursor-pointer"
               >
                 {submittingPin ? 'Saving...' : 'Place Pin'}
-              </Button>
+              </button>
             </div>
           </div>
         </div>

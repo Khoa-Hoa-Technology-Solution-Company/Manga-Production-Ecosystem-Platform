@@ -62,8 +62,25 @@ export async function getAll(req: Request, res: Response): Promise<void> {
       if (assignedTo === 'me') {
         filter.assignedTo = req.user._id;
       } else {
-        // Show open tasks + my tasks
-        filter.$or = [{ status: 'open' }, { assignedTo: req.user._id }];
+        // Determine which series this assistant is a dedicated member of
+        const { Series } = await import('../models/Series');
+        const dedicatedSeries = await Series.find(
+          { 'dedicatedAssistants.userId': req.user._id },
+          '_id'
+        );
+        const dedicatedSeriesIds = dedicatedSeries.map((s: any) => s._id);
+
+        // Show:
+        // 1. All freelance open tasks
+        // 2. Dedicated tasks only from series where this assistant is dedicated
+        // 3. Tasks already assigned to me
+        filter.$or = [
+          { assignedTo: req.user._id },
+          { status: 'open', assistantType: 'freelance' },
+          ...(dedicatedSeriesIds.length > 0
+            ? [{ status: 'open', assistantType: 'dedicated', seriesId: { $in: dedicatedSeriesIds } }]
+            : []),
+        ];
       }
     } else if (req.user?.role === 'mangaka') {
       filter.assignedBy = req.user._id;
@@ -109,6 +126,21 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
+    // Validate that the series is Active before allowing task creation
+    const seriesId = req.body.seriesId;
+    if (seriesId) {
+      const { Series } = await import('../models/Series');
+      const series = await Series.findById(seriesId);
+      if (!series) {
+        res.status(404).json({ error: 'Series not found.' });
+        return;
+      }
+      if (series.status !== 'Active') {
+        res.status(400).json({ error: 'Tasks can only be created for Active (published) series. Current status: ' + series.status });
+        return;
+      }
+    }
+
     const task = await Task.create({
       ...req.body,
       assignedBy: req.user?._id,

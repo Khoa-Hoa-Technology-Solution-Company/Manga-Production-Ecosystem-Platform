@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type TaskType = 'inking' | 'background' | 'tone' | 'lettering' | 'effects';
 export type TaskStatus = 'open' | 'assigned' | 'in_progress' | 'review' | 'done';
+export type AssistantType = 'dedicated' | 'freelance';
 
 export interface ITask extends Document {
   zoneId?: mongoose.Types.ObjectId;
@@ -14,6 +15,7 @@ export interface ITask extends Document {
   assignedTo?: mongoose.Types.ObjectId;
   assignedBy: mongoose.Types.ObjectId;
   status: TaskStatus;
+  assistantType: AssistantType;
   wage: number;
   deadline: Date;
   submittedFile?: string;
@@ -34,6 +36,7 @@ const taskSchema = new Schema<ITask>(
     assignedTo: { type: Schema.Types.ObjectId, ref: 'User' },
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     status: { type: String, enum: ['open', 'assigned', 'in_progress', 'review', 'done'], default: 'open' },
+    assistantType: { type: String, enum: ['dedicated', 'freelance'], default: 'freelance' },
     wage: { type: Number, required: true, default: 0 },
     deadline: { type: Date, required: true },
     submittedFile: { type: String },

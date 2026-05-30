@@ -42,6 +42,7 @@ export function AssistantPortalPage() {
 
   const [mainTab, setMainTab] = useState('tasks')
   const [activeFilter, setActiveFilter] = useState('all')
+  const [assistantTypeFilter, setAssistantTypeFilter] = useState<'all' | 'dedicated' | 'freelance'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -147,6 +148,10 @@ export function AssistantPortalPage() {
     if (activeFilter === 'completed') return t.status === 'done'
     if (activeFilter === 'review') return t.status === 'review'
     return true
+  }).filter((t) => {
+    if (assistantTypeFilter === 'dedicated') return t.assistantType === 'dedicated'
+    if (assistantTypeFilter === 'freelance') return t.assistantType === 'freelance' || !t.assistantType
+    return true
   }).filter((t) =>
     searchQuery === '' ||
     t.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -248,6 +253,26 @@ export function AssistantPortalPage() {
               />
             </div>
           </div>
+
+          {/* Assistant Type Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Type:</span>
+            {(['all', 'dedicated', 'freelance'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setAssistantTypeFilter(type)}
+                className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${
+                  assistantTypeFilter === type
+                    ? type === 'dedicated' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : type === 'freelance' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-neutral-100 text-neutral-800 border-neutral-300'
+                    : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                }`}
+              >
+                {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Task Grid ──────────────────────────────── */}
@@ -290,9 +315,18 @@ export function AssistantPortalPage() {
                   <p className="text-xs font-medium truncate">{task.title}</p>
 
                   <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className={`text-[10px] px-2 py-0.5 capitalize ${typeColors[task.type] || ''}`}>
-                      {task.type}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary" className={`text-[10px] px-2 py-0.5 capitalize ${typeColors[task.type] || ''}`}>
+                        {task.type}
+                      </Badge>
+                      <Badge variant="secondary" className={`text-[10px] px-1.5 py-0.5 ${
+                        task.assistantType === 'dedicated'
+                          ? 'bg-blue-50 text-blue-600 border-blue-200'
+                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                      }`}>
+                        {task.assistantType === 'dedicated' ? '★ Dedicated' : '◇ Freelance'}
+                      </Badge>
+                    </div>
                     <Badge variant="default" className={`text-[10px] px-2 py-0.5 capitalize ${statusColors[task.status] || ''}`}>
                       {task.status.replace('_', ' ')}
                     </Badge>
