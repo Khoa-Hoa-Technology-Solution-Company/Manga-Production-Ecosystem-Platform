@@ -88,6 +88,23 @@ interface EditorUserData {
   email: string
 }
 
+interface UserData {
+  _id: string
+  displayName?: string
+  username: string
+  email: string
+  role: string
+}
+
+interface DedicatedAssistantData {
+  userId: string | {
+    _id: string
+    displayName?: string
+    email?: string
+    skills?: string[]
+  }
+}
+
 export function MangakaSeriesManagerPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
@@ -121,9 +138,9 @@ export function MangakaSeriesManagerPage() {
   const [chapterTitle, setChapterTitle] = useState('Chapter 1')
 
   // Dedicated Assistant Management
-  const [dedicatedAssistants, setDedicatedAssistants] = useState<any[]>([])
+  const [dedicatedAssistants, setDedicatedAssistants] = useState<DedicatedAssistantData[]>([])
   const [assistantSearchQuery, setAssistantSearchQuery] = useState('')
-  const [assistantSearchResults, setAssistantSearchResults] = useState<any[]>([])
+  const [assistantSearchResults, setAssistantSearchResults] = useState<UserData[]>([])
   const [addingAssistant, setAddingAssistant] = useState(false)
   const [loadingAssistants, setLoadingAssistants] = useState(false)
   
@@ -270,10 +287,14 @@ export function MangakaSeriesManagerPage() {
   // Load dedicated assistants when series changes and is Active
   useEffect(() => {
     if (!selectedSeriesId || selectedSeries?.status !== 'Active') {
-      setDedicatedAssistants([])
+      Promise.resolve().then(() => {
+        setDedicatedAssistants([])
+      })
       return
     }
-    setLoadingAssistants(true)
+    Promise.resolve().then(() => {
+      setLoadingAssistants(true)
+    })
     seriesAPI.getDedicatedAssistants(selectedSeriesId)
       .then((res) => setDedicatedAssistants(res.data.dedicatedAssistants || []))
       .catch(() => setDedicatedAssistants([]))
@@ -289,7 +310,7 @@ export function MangakaSeriesManagerPage() {
     }
     try {
       const res = await authAPI.search(query)
-      const results = (res.data.users || []).filter((u: any) => u.role === 'assistant')
+      const results = (res.data.users || []).filter((u: UserData) => u.role === 'assistant')
       setAssistantSearchResults(results)
     } catch {
       setAssistantSearchResults([])
@@ -305,8 +326,9 @@ export function MangakaSeriesManagerPage() {
       setDedicatedAssistants(res.data.dedicatedAssistants || [])
       setAssistantSearchQuery('')
       setAssistantSearchResults([])
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to add assistant')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to add assistant')
     } finally {
       setAddingAssistant(false)
     }
@@ -319,11 +341,12 @@ export function MangakaSeriesManagerPage() {
     try {
       await seriesAPI.removeDedicatedAssistant(selectedSeriesId, userId)
       setDedicatedAssistants(prev => prev.filter(a => {
-        const aId = a.userId?._id || a.userId
+        const aId = typeof a.userId === 'object' && a.userId ? a.userId._id : a.userId
         return aId !== userId
       }))
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to remove assistant')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to remove assistant')
     }
   }
 
@@ -997,7 +1020,7 @@ export function MangakaSeriesManagerPage() {
               <div className="space-y-2">
                 {dedicatedAssistants.map((da) => {
                   const assistantUser = da.userId && typeof da.userId === 'object' ? da.userId : null
-                  const userId = assistantUser?._id || da.userId
+                  const userId = assistantUser?._id || (typeof da.userId === 'string' ? da.userId : '')
                   return (
                     <div key={userId} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3 hover:border-neutral-300 transition-all">
                       <div className="flex items-center gap-3 min-w-0">
@@ -1007,7 +1030,7 @@ export function MangakaSeriesManagerPage() {
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{assistantUser?.displayName || userId}</p>
                           <p className="text-[10px] text-neutral-400">{assistantUser?.email}</p>
-                          {assistantUser?.skills?.length > 0 && (
+                          {assistantUser?.skills && assistantUser.skills.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {assistantUser.skills.slice(0, 3).map((skill: string) => (
                                 <span key={skill} className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[8px] font-semibold text-blue-600">{skill}</span>
@@ -1057,9 +1080,9 @@ export function MangakaSeriesManagerPage() {
             {/* Search Results */}
             {assistantSearchResults.length > 0 && (
               <div className="space-y-2 mb-6">
-                {assistantSearchResults.map((u: any) => {
+                {assistantSearchResults.map((u: UserData) => {
                   const isAlready = dedicatedAssistants.some(da => {
-                    const aId = da.userId?._id || da.userId
+                    const aId = typeof da.userId === 'object' && da.userId ? da.userId._id : da.userId
                     return aId === u._id
                   })
                   return (
@@ -1147,15 +1170,15 @@ export function MangakaSeriesManagerPage() {
                 <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-lg border border-neutral-100 shadow-2xs">
                   <Avatar className="size-8 bg-neutral-200">
                     <AvatarFallback className="text-[10px] font-bold">
-                      {(typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as any).displayName : '')?.[0] || 'E'}
+                      {(typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as EditorUserData).displayName : '')?.[0] || 'E'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-neutral-800 truncate">
-                      {typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as any).displayName : 'Tantou Editor'}
+                      {typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as EditorUserData).displayName : 'Tantou Editor'}
                     </p>
                     <p className="text-[10px] text-neutral-400 truncate">
-                      {typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as any).email : ''}
+                      {typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as EditorUserData).email : ''}
                     </p>
                   </div>
                 </div>

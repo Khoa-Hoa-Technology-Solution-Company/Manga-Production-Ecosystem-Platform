@@ -103,7 +103,7 @@ export function ManuscriptReviewPage() {
 
       // Parse and initialize canvas annotations
       const parsedAnns: DraftAnnotationData[] = []
-      rawAnns.forEach((a: any) => {
+      rawAnns.forEach((a: AnnotationData) => {
         if (a.note.startsWith('[CANVAS]')) {
           try {
             const data = JSON.parse(a.note.slice(8))
