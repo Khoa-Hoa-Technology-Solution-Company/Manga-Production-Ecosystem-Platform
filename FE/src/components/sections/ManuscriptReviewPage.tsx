@@ -47,6 +47,19 @@ interface ChapterReviewData {
   _id: string
   chapterNumber: number
   title: string
+  seriesId?: string
+}
+
+interface SeriesReviewData {
+  _id: string
+  title: string
+  description?: string
+  genre?: string[] | string
+  coverImage?: string
+  status?: string
+  publicationSchedule?: string
+  rejectionNotes?: string
+  mangakaId?: { _id: string; displayName: string; avatar?: string }
 }
 
 export function ManuscriptReviewPage() {
@@ -56,7 +69,7 @@ export function ManuscriptReviewPage() {
   const { user } = useAuth()
 
   const [chapter, setChapter] = useState<ChapterReviewData | null>(null)
-  const [series, setSeries] = useState<any | null>(null)
+  const [series, setSeries] = useState<SeriesReviewData | null>(null)
   const [showSeriesDetails, setShowSeriesDetails] = useState(false)
   const [pages, setPages] = useState<PageData[]>([])
   const [currentPageIdx, setCurrentPageIdx] = useState(0)
@@ -527,7 +540,7 @@ export function ManuscriptReviewPage() {
               
               <div className="flex flex-wrap gap-1">
                 {series.genre && (Array.isArray(series.genre) ? series.genre : String(series.genre).split(',')).map((g: string) => {
-                  const cleaned = g.trim().replace(/[\[\]"]/g, '')
+                  const cleaned = g.trim().replaceAll('[', '').replaceAll(']', '').replaceAll('"', '')
                   if (!cleaned) return null
                   return (
                     <span key={cleaned} className="bg-white/10 text-white text-[9px] px-1.5 py-0.5 rounded-lg font-semibold">

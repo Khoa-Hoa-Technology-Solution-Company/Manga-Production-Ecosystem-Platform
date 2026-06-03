@@ -35,6 +35,15 @@ type SeriesItem = {
   userVote?: string | null
 }
 
+type ChapterItem = {
+  _id: string
+  chapterNumber: number
+  title: string
+  status: string
+  totalPages: number
+  progress: number
+}
+
 type RankingItem = SeriesItem & {
   rank: number
 }
@@ -57,7 +66,7 @@ export function EditorialBoardPortalPage() {
 
   // Details inspection state
   const [inspectSeriesId, setInspectSeriesId] = useState<string | null>(null)
-  const [inspectChapters, setInspectChapters] = useState<any[]>([])
+  const [inspectChapters, setInspectChapters] = useState<ChapterItem[]>([])
   const [loadingChapters, setLoadingChapters] = useState(false)
 
   const handleToggleInspect = async (seriesId: string) => {
