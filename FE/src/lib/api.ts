@@ -85,14 +85,20 @@ export const seriesAPI = {
 export const approvalAPI = {
   editorDecision: (seriesId: string, data: { decision: string; comments?: string; annotations?: unknown[] }) =>
     api.patch(`/series/${seriesId}/editor-decision`, data),
-  ebVote: (seriesId: string, data: { decision: string; comments?: string }) =>
-    api.post(`/series/${seriesId}/eb-vote`, data),
-  ebDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
-    api.patch(`/series/${seriesId}/eb-decision`, data),
-  inputReaderVotes: (seriesId: string, data: { weeklyVotes: number; week?: string }) =>
-    api.post(`/series/${seriesId}/reader-votes`, data),
+};
+
+// ── Editorial Board API ─────────────────────────────
+export const ebAPI = {
+  getPending: () => api.get('/eb/pending'),
+  getDashboard: () => api.get('/eb/dashboard'),
+  castVote: (seriesId: string, data: { decision: string; comments?: string }) =>
+    api.post(`/eb/vote/${seriesId}`, data),
+  makeFinalDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
+    api.patch(`/eb/decision/${seriesId}`, data),
+  inputReaderVotes: (seriesId: string, data: { weeklyVotes: number }) =>
+    api.post(`/eb/reader-votes/${seriesId}`, data),
   cancelSeries: (seriesId: string, data: { reason: string }) =>
-    api.patch(`/series/${seriesId}/cancel`, data),
+    api.patch(`/eb/cancel/${seriesId}`, data),
 };
 
 // ── Chapters API ────────────────────────────────────

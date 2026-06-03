@@ -1353,7 +1353,7 @@ export function EditorPortalPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="flex-1 border-neutral-200 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-xl h-8 gap-1.5"
+                        className="flex-1 border-neutral-200 !text-red-600 !bg-red-50 hover:!bg-red-100 hover:!text-red-700 text-xs font-semibold rounded-xl h-8 gap-1.5"
                         disabled={submittingAction}
                         onClick={() => handleOpenReject(series._id)}
                       >

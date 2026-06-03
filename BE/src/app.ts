@@ -22,6 +22,7 @@ import notificationsRoutes from './routes/notifications.routes';
 import annotationsRoutes from './routes/annotations.routes';
 import editorRoutes from './routes/editor.routes';
 import dedicatedAssistantRoutes from './routes/dedicated-assistant.routes';
+import ebRoutes from './routes/eb.routes';
 
 const app = express();
 
@@ -103,6 +104,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/annotations', annotationsRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/series', dedicatedAssistantRoutes);
+app.use('/api/eb', ebRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {
