@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import {
   Gavel, Clock, Trophy, BarChart3, ThumbsUp, ThumbsDown,
   BookOpen, ChevronDown, ChevronUp, AlertTriangle, Send,
   Calendar, Ban, Loader2, TrendingUp, TrendingDown,
-  LayoutDashboard, Activity
+  LayoutDashboard, Activity, ChevronRight
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
-import { ebAPI, dashboardAPI } from '../../lib/api'
+import { ebAPI, dashboardAPI, chaptersAPI } from '../../lib/api'
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -48,10 +49,36 @@ type DashboardStats = {
 /* ──────────────────────────────────── component ── */
 export function EditorialBoardPortalPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Details inspection state
+  const [inspectSeriesId, setInspectSeriesId] = useState<string | null>(null)
+  const [inspectChapters, setInspectChapters] = useState<any[]>([])
+  const [loadingChapters, setLoadingChapters] = useState(false)
+
+  const handleToggleInspect = async (seriesId: string) => {
+    if (inspectSeriesId === seriesId) {
+      setInspectSeriesId(null)
+      setInspectChapters([])
+      return
+    }
+
+    setInspectSeriesId(seriesId)
+    setLoadingChapters(true)
+    try {
+      const res = await chaptersAPI.getBySeries(seriesId)
+      setInspectChapters(res.data.chapters || [])
+    } catch (err) {
+      console.error('Failed to load chapters for inspect:', err)
+      setInspectChapters([])
+    } finally {
+      setLoadingChapters(false)
+    }
+  }
 
   // Dashboard state
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 })
@@ -372,7 +399,8 @@ export function EditorialBoardPortalPage() {
                                   </Button>
                                   <Button
                                     size="sm"
-                                    className="gap-1.5 rounded-lg border border-red-200 bg-red-50 text-xs text-red-600 hover:bg-red-100"
+                                    variant="outline"
+                                    className="gap-1.5 rounded-lg border border-red-200 !bg-red-50 text-xs !text-red-600 hover:!bg-red-100"
                                     onClick={() => setCancelSeriesId(series._id)}
                                   >
                                     <Ban className="size-3" />
@@ -511,6 +539,70 @@ export function EditorialBoardPortalPage() {
                           <span>{series.genre?.join(', ')}</span>
                           <span>{series.totalChapters} chapters</span>
                         </div>
+
+                        {/* Inspect details button */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full text-neutral-600 hover:text-neutral-900 text-xs font-semibold rounded-xl h-8 gap-1 border border-neutral-100 hover:bg-neutral-50 mt-2"
+                          onClick={() => handleToggleInspect(series._id)}
+                        >
+                          {inspectSeriesId === series._id ? (
+                            <>
+                              <ChevronUp className="size-3.5" />
+                              Hide Draft Details
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="size-3.5" />
+                              Inspect Chapters & Storyboard
+                            </>
+                          )}
+                        </Button>
+
+                        {inspectSeriesId === series._id && (
+                          <div className="border-t border-neutral-100 pt-3 mt-2 space-y-2 w-full text-left">
+                            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
+                              Submitted Chapters & Storyboard
+                            </span>
+                            
+                            {loadingChapters ? (
+                              <div className="flex items-center gap-2 text-xs text-neutral-500 py-2 justify-center">
+                                <Loader2 className="size-4 animate-spin text-neutral-800" />
+                                <span>Loading details...</span>
+                              </div>
+                            ) : inspectChapters.length === 0 ? (
+                              <p className="text-xs text-neutral-500 py-2 text-center">
+                                No chapters uploaded for this series draft yet.
+                              </p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                {inspectChapters.map((chapter) => (
+                                  <div key={chapter._id} className="flex items-center justify-between gap-3 p-2 rounded-xl bg-neutral-50 border border-neutral-100 text-xs">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-neutral-800 truncate">
+                                        Ch. {chapter.chapterNumber}: {chapter.title}
+                                      </p>
+                                      <p className="text-[10px] text-neutral-400">
+                                        {chapter.totalPages || 0} Pages · {chapter.progress || 0}% Done · Status: <span className="font-bold">{chapter.status}</span>
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <Button
+                                        size="sm"
+                                        className="h-7 px-2 bg-neutral-900 text-white hover:bg-neutral-800 text-[10px] font-semibold rounded-lg gap-1"
+                                        onClick={() => navigate(`/editor/review/${chapter._id}`)}
+                                      >
+                                        Audit
+                                        <ChevronRight className="size-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Vote actions */}
@@ -533,7 +625,8 @@ export function EditorialBoardPortalPage() {
                             </Button>
                             <Button
                               size="sm"
-                              className="gap-1.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                              variant="outline"
+                              className="gap-1.5 rounded-xl border border-red-200 !bg-red-50 !text-red-600 hover:!bg-red-100 hover:!text-red-700"
                               onClick={() => handleVote(series._id, 'rejected')}
                               disabled={submittingVote}
                             >
@@ -574,7 +667,7 @@ export function EditorialBoardPortalPage() {
                             }}
                           >
                             <Trophy className="size-3.5" />
-                            Final Decision
+                            Kết thúc vote
                           </Button>
                         </div>
                       )}
@@ -597,67 +690,104 @@ export function EditorialBoardPortalPage() {
                         </div>
                       </div>
 
-                      {/* Final Decision Form */}
-                      {decisionSeriesId === series._id && (
-                        <div className="mt-4 space-y-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-                          <div>
-                            <h4 className="mb-2 text-sm font-semibold text-indigo-900">Make Final Decision</h4>
-                            <p className="text-xs text-indigo-700/70 mb-3">
-                              This will conclude the voting process and officially publish or reject the series.
-                            </p>
-                          </div>
-                          
-                          <div>
-                            <label className="mb-1.5 block text-xs font-medium text-indigo-900">
-                              {t('editorialBoard.publicationSchedule')} (if approved)
-                            </label>
-                            <div className="flex gap-2">
-                              {(['weekly', 'monthly'] as const).map((s) => (
-                                <button
-                                  key={s}
-                                  onClick={() => setDecisionSchedule(s)}
-                                  className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                                    decisionSchedule === s
-                                      ? 'bg-indigo-600 text-white shadow-sm'
-                                      : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
-                                  }`}
-                                >
-                                  {t(`editorialBoard.${s}`)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
+                      {/* Final Decision Form (End Vote / Kết thúc vote) */}
+                      {decisionSeriesId === series._id && (() => {
+                        const votesFor = series.votesFor || 0
+                        const votesAgainst = series.votesAgainst || 0
+                        const isApprovedByVotes = votesFor >= votesAgainst
 
-                          <div className="flex gap-2 pt-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="rounded-xl"
-                              onClick={() => setDecisionSeriesId(null)}
-                            >
-                              {t('common.cancel')}
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1 gap-1.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-                              onClick={() => handleFinalDecision(series._id, 'rejected')}
-                              disabled={submittingDecision}
-                            >
-                              {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
-                              Reject Series
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1 gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-200"
-                              onClick={() => handleFinalDecision(series._id, 'approved')}
-                              disabled={submittingDecision}
-                            >
-                              {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                              Publish Series
-                            </Button>
+                        return (
+                          <div className="mt-4 space-y-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <div>
+                              <h4 className="mb-1 text-sm font-semibold text-indigo-900">Kết thúc vote & quyết định</h4>
+                              <p className="text-xs text-indigo-700/70">
+                                Kết quả biểu quyết hiện tại:{" "}
+                                <strong className={isApprovedByVotes ? "text-emerald-700" : "text-red-700"}>
+                                  {isApprovedByVotes ? "Đạt (Được duyệt)" : "Không đạt (Bị từ chối)"}
+                                </strong>
+                                {` (${votesFor} / ${votesAgainst} phiếu)`}
+                              </p>
+                            </div>
+
+                            {isApprovedByVotes ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="mb-1.5 block text-xs font-semibold text-indigo-900">
+                                    {t('editorialBoard.publicationSchedule')}
+                                  </label>
+                                  <div className="flex gap-2">
+                                    {(['weekly', 'monthly'] as const).map((s) => (
+                                      <button
+                                        key={s}
+                                        onClick={() => setDecisionSchedule(s)}
+                                        className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${decisionSchedule === s
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
+                                          }`}
+                                      >
+                                        {t(`editorialBoard.${s}`)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="rounded-xl"
+                                    onClick={() => setDecisionSeriesId(null)}
+                                  >
+                                    {t('common.cancel')}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-200"
+                                    onClick={() => handleFinalDecision(series._id, 'approved')}
+                                    disabled={submittingDecision}
+                                  >
+                                    {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                                    Duyệt & Xuất bản (Theo số phiếu cao nhất)
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="mb-1.5 block text-xs font-semibold text-indigo-900">
+                                    Ý kiến từ chối / phản hồi chỉnh sửa
+                                  </label>
+                                  <Textarea
+                                    value={voteComments}
+                                    onChange={(e) => setVoteComments(e.target.value)}
+                                    placeholder="Nêu lý do không đạt..."
+                                    className="min-h-[60px] rounded-xl text-sm"
+                                  />
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="rounded-xl"
+                                    onClick={() => setDecisionSeriesId(null)}
+                                  >
+                                    {t('common.cancel')}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 gap-1.5 rounded-xl border border-red-200 !bg-red-50 !text-red-600 hover:!bg-red-100 hover:!text-red-700"
+                                    onClick={() => handleFinalDecision(series._id, 'rejected')}
+                                    disabled={submittingDecision}
+                                  >
+                                    {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
+                                    Từ chối bản thảo (Theo số phiếu cao nhất)
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        )
+                      })()}
                     </div>
                   </div>
                 </CardContent>
@@ -792,11 +922,10 @@ export function EditorialBoardPortalPage() {
                                   <button
                                     key={s}
                                     onClick={() => setSelectedSchedule(s)}
-                                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                                      selectedSchedule === s
+                                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${selectedSchedule === s
                                         ? 'bg-indigo-600 text-white'
                                         : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                                    }`}
+                                      }`}
                                   >
                                     {t(`editorialBoard.${s}`)}
                                   </button>

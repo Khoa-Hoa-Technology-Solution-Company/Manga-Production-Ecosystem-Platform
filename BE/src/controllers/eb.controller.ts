@@ -151,12 +151,7 @@ export async function castVote(req: Request, res: Response): Promise<void> {
 export async function makeFinalDecision(req: Request, res: Response): Promise<void> {
   try {
     const { seriesId } = req.params;
-    const { decision, publicationSchedule, comments } = req.body;
-
-    if (!decision || !['approved', 'rejected'].includes(decision)) {
-      res.status(400).json({ error: 'Decision must be "approved" or "rejected".' });
-      return;
-    }
+    const { publicationSchedule, comments } = req.body;
 
     const series = await Series.findById(seriesId);
     if (!series) {
@@ -168,6 +163,14 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       res.status(400).json({ error: 'Series is not pending EB review.' });
       return;
     }
+
+    // Determine decision based on highest vote counts (majority vote)
+    const [votesFor, votesAgainst] = await Promise.all([
+      EBVote.countDocuments({ seriesId, decision: 'approved' }),
+      EBVote.countDocuments({ seriesId, decision: 'rejected' }),
+    ]);
+
+    const decision = votesFor >= votesAgainst ? 'approved' : 'rejected';
 
     const mangakaId = series.mangakaId.toString();
     const editorId = series.editorId?.toString();
@@ -200,7 +203,7 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       }
     }
 
-    res.json({ series, message: `Series ${decision}.` });
+    res.json({ series, message: `Series ${decision} based on majority vote (${votesFor} for vs ${votesAgainst} against).` });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

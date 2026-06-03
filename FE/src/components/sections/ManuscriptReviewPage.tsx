@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, type MouseEvent, } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { pagesAPI, annotationsAPI, chaptersAPI } from '../../lib/api'
+import { pagesAPI, annotationsAPI, chaptersAPI, seriesAPI } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 import { Badge } from '../ui'
 import {
   ArrowLeft,
@@ -15,7 +16,8 @@ import {
   Eye,
   EyeOff,
   PenTool,
-  Trash2
+  Trash2,
+  BookOpen
 } from 'lucide-react'
 import { DraftReviewCanvas, type AnnotationData as DraftAnnotationData } from './DraftReviewCanvas'
 
@@ -51,8 +53,11 @@ export function ManuscriptReviewPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { user } = useAuth()
 
   const [chapter, setChapter] = useState<ChapterReviewData | null>(null)
+  const [series, setSeries] = useState<any | null>(null)
+  const [showSeriesDetails, setShowSeriesDetails] = useState(false)
   const [pages, setPages] = useState<PageData[]>([])
   const [currentPageIdx, setCurrentPageIdx] = useState(0)
   const [annotations, setAnnotations] = useState<AnnotationData[]>([])
@@ -92,9 +97,20 @@ export function ManuscriptReviewPage() {
       chaptersAPI.getById(chapterId).catch(() => null),
       pagesAPI.getByChapter(chapterId),
       annotationsAPI.getByChapter(chapterId)
-    ]).then(([chapterRes, pagesRes, annRes]) => {
+    ]).then(async ([chapterRes, pagesRes, annRes]) => {
       if (chapterRes?.data?.chapter) {
-        setChapter(chapterRes.data.chapter)
+        const ch = chapterRes.data.chapter
+        setChapter(ch)
+
+        // Fetch series details
+        if (ch.seriesId) {
+          try {
+            const seriesRes = await seriesAPI.getById(ch.seriesId)
+            setSeries(seriesRes.data.series || null)
+          } catch (err) {
+            console.error('Failed to load series details in review page:', err)
+          }
+        }
       }
       setPages(pagesRes.data.pages || [])
       
@@ -260,7 +276,13 @@ export function ManuscriptReviewPage() {
       <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-950 px-6 py-3 shrink-0">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/editor')}
+            onClick={() => {
+              if (user?.role?.toLowerCase() === 'editorial_board') {
+                navigate('/editorial-board')
+              } else {
+                navigate('/editor')
+              }
+            }}
             className="size-9 p-0 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors border-none bg-transparent cursor-pointer"
           >
             <ArrowLeft className="size-4" />
@@ -282,6 +304,19 @@ export function ManuscriptReviewPage() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 mr-2">
+          {series && (
+            <button
+              onClick={() => setShowSeriesDetails(!showSeriesDetails)}
+              className={`h-8 px-3 text-xs font-semibold border rounded-xl flex items-center gap-2 transition-colors cursor-pointer bg-transparent ${
+                showSeriesDetails
+                  ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20'
+                  : 'border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800'
+              }`}
+            >
+              <BookOpen className="size-3.5" />
+              <span>{showSeriesDetails ? 'Hide Details' : 'Series Details'}</span>
+            </button>
+          )}
           <button
             onClick={() => setShowCanvas(true)}
             className="h-8 px-3 text-xs font-semibold border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-xl flex items-center gap-2 transition-colors bg-transparent cursor-pointer"
@@ -455,6 +490,73 @@ export function ManuscriptReviewPage() {
 
         {/* Right Feedback & Corrections Panel */}
         <div className="w-64 shrink-0 border-l border-neutral-850 bg-neutral-950 flex flex-col overflow-hidden">
+          {/* Series & Chapter Details Panel */}
+          {series && showSeriesDetails && (
+            <div className="border-b border-neutral-850 p-4 space-y-3 bg-neutral-950 text-xs shrink-0 select-text overflow-y-auto max-h-[45%]">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1">
+                  <BookOpen className="size-3" />
+                  Series Details
+                </span>
+                <button
+                  onClick={() => setShowSeriesDetails(false)}
+                  className="text-neutral-500 hover:text-white text-xs bg-transparent border-none cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {series.coverImage && (
+                <img
+                  src={mediaUrl(series.coverImage)}
+                  alt={series.title}
+                  className="w-full h-32 object-cover rounded-xl border border-neutral-800"
+                />
+              )}
+              
+              <div>
+                <h4 className="font-bold text-white text-sm">{series.title}</h4>
+                <p className="text-[10px] text-neutral-400 mt-0.5">by {series.mangakaId?.displayName || 'Unknown'}</p>
+              </div>
+              
+              {series.description && (
+                <p className="text-[10px] leading-relaxed text-neutral-400 max-h-24 overflow-y-auto pr-1">
+                  {series.description}
+                </p>
+              )}
+              
+              <div className="flex flex-wrap gap-1">
+                {series.genre && (Array.isArray(series.genre) ? series.genre : String(series.genre).split(',')).map((g: string) => {
+                  const cleaned = g.trim().replace(/[\[\]"]/g, '')
+                  if (!cleaned) return null
+                  return (
+                    <span key={cleaned} className="bg-white/10 text-white text-[9px] px-1.5 py-0.5 rounded-lg font-semibold">
+                      {cleaned}
+                    </span>
+                  )
+                })}
+              </div>
+              
+              <div className="border-t border-neutral-900 pt-2 space-y-1 text-[10px] text-neutral-400">
+                <div className="flex justify-between">
+                  <span>Status:</span>
+                  <span className="font-semibold text-white">{series.status}</span>
+                </div>
+                {series.publicationSchedule && (
+                  <div className="flex justify-between">
+                    <span>Schedule:</span>
+                    <span className="font-semibold text-white capitalize">{series.publicationSchedule}</span>
+                  </div>
+                )}
+                {series.rejectionNotes && (
+                  <div className="bg-red-950/30 border border-red-900/40 rounded-xl p-2 mt-1.5 text-[9px] text-red-400 leading-normal">
+                    <strong>Rejection Notes:</strong> {series.rejectionNotes}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="p-3 border-b border-neutral-850 flex items-center justify-between">
             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Active Corrections</span>
             <div className="flex items-center gap-1.5 shrink-0">

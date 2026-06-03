@@ -153,7 +153,14 @@ export async function update(req: Request, res: Response): Promise<void> {
     if (editorId !== undefined) {
       if (editorId && editorId !== 'none' && editorId !== 'null' && editorId !== 'undefined') {
         updateData.editorId = editorId;
-        if (!oldSeries.editorId || oldSeries.editorId.toString() !== editorId.toString()) {
+        const oldEditorIdStr = oldSeries.editorId?.toString();
+        const newEditorIdStr = editorId.toString();
+        if (
+          oldEditorIdStr !== newEditorIdStr ||
+          !oldSeries.editorStatus ||
+          oldSeries.editorStatus === 'none' ||
+          oldSeries.editorStatus === 'rejected'
+        ) {
           updateData.editorStatus = 'pending';
         }
       } else {
