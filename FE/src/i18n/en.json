@@ -295,7 +295,16 @@
     "noPending": "No series pending votes",
     "noPendingHint": "All submitted series have been voted on.",
     "maintain": "Maintain",
-    "noRankings": "No rankings available yet"
+    "noRankings": "No rankings available yet",
+    "dashboard": "Dashboard",
+    "activeSeries": "Active Series",
+    "myDecisions": "My Decisions",
+    "lowVotedAlert": "Low-Voted Series — Cancellation Review",
+    "lowVotedAlertHint": "Series with low weekly reader votes that may need to be discontinued",
+    "noAtRisk": "All series performing well",
+    "noAtRiskHint": "No active series are currently at cancellation risk.",
+    "atRisk": "At Risk",
+    "recentDecisions": "Recent Decisions"
   },
   "notifications": {
     "title": "Notifications",

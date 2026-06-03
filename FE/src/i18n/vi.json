@@ -295,7 +295,16 @@
     "noPending": "Không có truyện chờ bỏ phiếu",
     "noPendingHint": "Tất cả đã được bỏ phiếu.",
     "maintain": "Duy trì",
-    "noRankings": "Chưa có bảng xếp hạng"
+    "noRankings": "Chưa có bảng xếp hạng",
+    "dashboard": "Tổng quan",
+    "activeSeries": "Truyện đang chạy",
+    "myDecisions": "Phiếu của tôi",
+    "lowVotedAlert": "Truyện phiếu thấp — Xem xét huỷ",
+    "lowVotedAlertHint": "Các bộ truyện có lượt bình chọn tuần thấp, có thể cần ngừng xuất bản",
+    "noAtRisk": "Tất cả truyện đang hoạt động tốt",
+    "noAtRiskHint": "Không có truyện nào đang có nguy cơ bị huỷ.",
+    "atRisk": "Nguy cơ",
+    "recentDecisions": "Quyết định gần đây"
   },
   "notifications": {
     "title": "Thông báo",
