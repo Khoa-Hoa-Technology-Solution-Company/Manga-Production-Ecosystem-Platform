@@ -15,6 +15,7 @@ export default function AppTabs() {
     <NativeTabs
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
+      labelVisibilityMode="labeled"
       labelStyle={{ selected: { color: colors.text } }}>
       
       <NativeTabs.Trigger name="index">
@@ -35,22 +36,22 @@ export default function AppTabs() {
 
       {/* Mangaka Tabs */}
       {role === 'mangaka' && (
-        <>
-          <NativeTabs.Trigger name="studio">
-            <NativeTabs.Trigger.Label>Studio</NativeTabs.Trigger.Label>
-            <NativeTabs.Trigger.Icon
-              src={require('@/assets/images/tabIcons/explore.png')}
-              renderingMode="template"
-            />
-          </NativeTabs.Trigger>
-          <NativeTabs.Trigger name="manage">
-            <NativeTabs.Trigger.Label>Manage</NativeTabs.Trigger.Label>
-            <NativeTabs.Trigger.Icon
-              src={require('@/assets/images/tabIcons/explore.png')} // Replace with proper icon later if needed
-              renderingMode="template"
-            />
-          </NativeTabs.Trigger>
-        </>
+        <NativeTabs.Trigger name="studio">
+          <NativeTabs.Trigger.Label>Studio</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            src={require('@/assets/images/tabIcons/explore.png')}
+            renderingMode="template"
+          />
+        </NativeTabs.Trigger>
+      )}
+      {role === 'mangaka' && (
+        <NativeTabs.Trigger name="manage">
+          <NativeTabs.Trigger.Label>Manage</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            src={require('@/assets/images/tabIcons/explore.png')} // Replace with proper icon later if needed
+            renderingMode="template"
+          />
+        </NativeTabs.Trigger>
       )}
 
       {/* Assistant Tab */}
