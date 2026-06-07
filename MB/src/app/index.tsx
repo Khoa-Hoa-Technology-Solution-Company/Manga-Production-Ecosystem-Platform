@@ -61,7 +61,7 @@ export default function HomeScreen() {
     seriesAPI
       .getAll({ limit: '20' })
       .then((data) => {
-        setSeriesList(data.series || []);
+        setSeriesList(data?.series || []);
       })
       .catch((err) => {
         console.error('Index load series error:', err);
@@ -72,7 +72,7 @@ export default function HomeScreen() {
     dashboardAPI
       .getRankings()
       .then((data) => {
-        setRankings((data.rankings || []).slice(0, 6));
+        setRankings((data?.rankings || []).slice(0, 6));
       })
       .catch((err) => {
         console.error('Index load rankings error:', err);
@@ -88,7 +88,7 @@ export default function HomeScreen() {
   // ── Derived data ──────────────────────────────────
   const featuredSeries = useMemo(
     () =>
-      seriesList.slice(0, 3).map((s, idx) => ({
+      (seriesList || []).slice(0, 3).map((s, idx) => ({
         id: s._id,
         title: s.title,
         subtitle: s.description || '',
@@ -108,7 +108,7 @@ export default function HomeScreen() {
 
   const continueReading = useMemo(
     () =>
-      seriesList.slice(0, 3).map((s, idx) => ({
+      (seriesList || []).slice(0, 3).map((s, idx) => ({
         id: s._id,
         title: s.title,
         cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/400/600`,
@@ -120,7 +120,7 @@ export default function HomeScreen() {
 
   const hotSeries = useMemo(
     () =>
-      seriesList.map((s) => ({
+      (seriesList || []).map((s) => ({
         id: s._id,
         title: s.title,
         genre: s.genre?.[0] || 'Unknown',
@@ -134,13 +134,13 @@ export default function HomeScreen() {
     [seriesList]
   );
 
-  const sharedSeries = useMemo(() => hotSeries.filter((item) => item.shared), [hotSeries]);
-  const visibleHotSeries = activeShelfTab === 'shared' ? sharedSeries : filteredHotSeries;
-
   const filteredHotSeries = useMemo(
     () => hotSeries.filter((item) => activeMood === 'All' || item.genre === activeMood),
     [activeMood, hotSeries]
   );
+
+  const sharedSeries = useMemo(() => hotSeries.filter((item) => item.shared), [hotSeries]);
+  const visibleHotSeries = activeShelfTab === 'shared' ? sharedSeries : filteredHotSeries;
 
   const currentFeatured = featuredSeries[featuredIndex] || {
     id: '',
@@ -156,7 +156,7 @@ export default function HomeScreen() {
 
   const leaderboard = useMemo(
     () =>
-      rankings.map((s, idx) => ({
+      (rankings || []).map((s, idx) => ({
         rank: idx + 1,
         name: s.title,
         votes: s.weeklyVotes ? `${(s.weeklyVotes / 1000).toFixed(1)}K` : '0',
