@@ -241,7 +241,7 @@ export default function LoginScreen() {
                 ) : (
                   <>
                     <ThemedText style={styles.submitText}>
-                      {isLogin ? 'Đăng Nhập' : 'Đăng Ký'}
+                      {isLogin ? 'Đăng nhập' : 'Đăng ký'}
                     </ThemedText>
                     <ChevronRight size={16} color="#fff" />
                   </>
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginTop: 4,
   },
-  submitText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  submitText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'center',

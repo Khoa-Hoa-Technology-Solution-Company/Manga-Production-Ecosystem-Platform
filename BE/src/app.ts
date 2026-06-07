@@ -47,7 +47,8 @@ app.use(cors({
     const isAllowed = allowedOrigins.includes(origin) ||
       origin.includes('localhost') ||
       origin.includes('127.0.0.1') ||
-      origin.startsWith('http://192.168.');
+      origin.startsWith('http://192.168.') ||
+      origin.startsWith('http://10.');
 
     if (isAllowed) {
       callback(null, true);

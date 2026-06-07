@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ── Base URL ────────────────────────────────────────
 // On physical devices, set EXPO_PUBLIC_API_BASE_URL in .env to your machine's local IP
 // e.g. EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:3000
-const API_BASE_URL = 'http://10.0.2.2:3000';
+const API_BASE_URL = 'http://10.0.2.2:3000'; // Hardcoded to bypass environment variable cache
 
 const STORAGE_TOKEN_KEY = 'mangaflow-token';
 
@@ -115,6 +115,9 @@ export const authAPI = {
 
   updateProfile: (data: any) =>
     apiFetch<{ user: any }>('/auth/profile', { method: 'PUT', body: data }),
+
+  search: (q: string) => 
+    apiFetch<{ users: any[] }>(`/auth/search?q=${encodeURIComponent(q)}`),
 };
 
 // ── Series API ──────────────────────────────────────
@@ -134,6 +137,20 @@ export const seriesAPI = {
 
   delete: (id: string) =>
     apiFetch(`/series/${id}`, { method: 'DELETE' }),
+
+  getEditors: () => apiFetch<{ editors: any[] }>('/series/editors'),
+
+  getDedicatedAssistants: (seriesId: string) =>
+    apiFetch<{ dedicatedAssistants: any[] }>(`/series/${seriesId}/dedicated-assistants`),
+
+  addDedicatedAssistant: (seriesId: string, userId: string) =>
+    apiFetch<{ dedicatedAssistants: any[] }>(`/series/${seriesId}/dedicated-assistants`, {
+      method: 'POST',
+      body: { userId },
+    }),
+
+  removeDedicatedAssistant: (seriesId: string, userId: string) =>
+    apiFetch(`/series/${seriesId}/dedicated-assistants/${userId}`, { method: 'DELETE' }),
 };
 
 // ── Chapters API ────────────────────────────────────
@@ -155,6 +172,9 @@ export const chaptersAPI = {
       method: 'PATCH',
       body: { status },
     }),
+
+  delete: (id: string) =>
+    apiFetch(`/chapters/${id}`, { method: 'DELETE' }),
 };
 
 // ── Tasks API ───────────────────────────────────────
@@ -270,6 +290,52 @@ export const notificationsAPI = {
 
   markAllRead: () =>
     apiFetch('/notifications/read-all', { method: 'PATCH' }),
+};
+
+// ── Earnings API (Assistant) ────────────────────────
+export const earningsAPI = {
+  getMonthly: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return apiFetch<{ earnings: any[] }>(`/tasks/earnings/monthly${qs}`);
+  },
+  getSummary: () => apiFetch<{ totalEarnings: number }>('/tasks/earnings/summary'),
+};
+
+// ── Annotations API ─────────────────────────────────
+export const annotationsAPI = {
+  getByChapter: (chapterId: string, source?: 'review' | 'tracking') =>
+    apiFetch<{ annotations: any[] }>(`/annotations/chapter/${chapterId}${source ? `?source=${source}` : ''}`),
+  create: (data: { chapterId: string; pageId: string; x: number; y: number; note: string; source?: 'review' | 'tracking' }) =>
+    apiFetch<{ annotation: any }>('/annotations', { method: 'POST', body: data }),
+  resolve: (id: string) => apiFetch(`/annotations/${id}/resolve`, { method: 'PATCH' }),
+  delete: (id: string) => apiFetch(`/annotations/${id}`, { method: 'DELETE' }),
+};
+
+// ── Editor Analytics & Approval API ─────────────────
+export const approvalAPI = {
+  editorDecision: (seriesId: string, data: { decision: string; comments?: string; annotations?: any[] }) =>
+    apiFetch(`/series/${seriesId}/editor-decision`, { method: 'PATCH', body: data }),
+};
+
+export const editorAPI = {
+  getPortfolio: () => apiFetch<{ portfolio: any[] }>('/editor/portfolio'),
+  getMilestones: (seriesId: string) => apiFetch<{ milestones: any[] }>(`/editor/milestones/${seriesId}`),
+  getWarnings: () => apiFetch<{ warnings: any[] }>('/editor/warnings'),
+  getAnalytics: (mangakaId: string) => apiFetch<{ analytics: any }>(`/editor/analytics/${mangakaId}`),
+};
+
+// ── Editorial Board API ─────────────────────────────
+export const ebAPI = {
+  getPending: () => apiFetch<{ series: any[] }>('/eb/pending'),
+  getDashboard: () => apiFetch<{ dashboard: any }>('/eb/dashboard'),
+  castVote: (seriesId: string, data: { decision: string; comments?: string }) =>
+    apiFetch(`/eb/vote/${seriesId}`, { method: 'POST', body: data }),
+  makeFinalDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
+    apiFetch(`/eb/decision/${seriesId}`, { method: 'PATCH', body: data }),
+  inputReaderVotes: (seriesId: string, data: { weeklyVotes: number }) =>
+    apiFetch(`/eb/reader-votes/${seriesId}`, { method: 'POST', body: data }),
+  cancelSeries: (seriesId: string, data: { reason: string }) =>
+    apiFetch(`/eb/cancel/${seriesId}`, { method: 'PATCH', body: data }),
 };
 
 // ── Helpers ─────────────────────────────────────────

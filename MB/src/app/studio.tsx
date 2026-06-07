@@ -55,6 +55,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
+import { withProtectedReaderRoute } from '@/components/protected-route';
 import { seriesAPI, chaptersAPI, pagesAPI, zonesAPI, tasksAPI, dashboardAPI, getImageUrl } from '@/lib/api';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -86,7 +87,7 @@ interface Zone {
   visible: boolean;
 }
 
-export default function StudioScreen() {
+function StudioScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -414,20 +415,36 @@ export default function StudioScreen() {
       const y = Math.min(drawStart.y, drawCurrent.y);
 
       if (width > 20 && height > 20) {
-        const newId = 'z_' + Date.now();
-        const newZone: Zone = {
-          id: newId,
+        const newZoneData = {
           name: `Khung ${zones.length + 1}`,
           type: 'background',
-          color: '#3b82f6',
           x,
           y,
           width,
           height,
-          visible: true,
         };
-        setZones((prev) => [...prev, newZone]);
-        setSelectedZoneId(newId);
+
+        const activePage = mangaPages[activePageIdx];
+        if (activePage) {
+          zonesAPI.create(activePage.id, newZoneData).then((res) => {
+            const z = res.zone;
+            const newZone: Zone = {
+              id: z._id,
+              name: z.name || newZoneData.name,
+              type: z.type || newZoneData.type,
+              color: '#3b82f6',
+              x: z.x,
+              y: z.y,
+              width: z.width,
+              height: z.height,
+              visible: true,
+            };
+            setZones((prev) => [...prev, newZone]);
+            setSelectedZoneId(z._id);
+          }).catch(err => {
+            Alert.alert("Lỗi", "Không thể lưu vùng chọn: " + err.message);
+          });
+        }
       }
     }
     setDrawStart(null);
@@ -437,8 +454,8 @@ export default function StudioScreen() {
   // Drag-to-Resize & Move Logic using custom touch overlay on selected box
   const handleMoveZone = (dx: number, dy: number) => {
     if (!selectedZoneId) return;
-    setZones((prev) =>
-      prev.map((z) =>
+    setZones((prev) => {
+      const updated = prev.map((z) =>
         z.id === selectedZoneId
           ? {
               ...z,
@@ -446,14 +463,21 @@ export default function StudioScreen() {
               y: Math.max(0, Math.min(320, z.y + dy)),
             }
           : z
-      )
-    );
+      );
+      
+      const movedZone = updated.find(z => z.id === selectedZoneId);
+      if (movedZone) {
+        // debounce this in real app, but for now just send it
+        zonesAPI.update(movedZone.id, { x: movedZone.x, y: movedZone.y }).catch(console.error);
+      }
+      return updated;
+    });
   };
 
   const handleResizeZone = (dx: number, dy: number) => {
     if (!selectedZoneId) return;
-    setZones((prev) =>
-      prev.map((z) =>
+    setZones((prev) => {
+      const updated = prev.map((z) =>
         z.id === selectedZoneId
           ? {
               ...z,
@@ -461,8 +485,13 @@ export default function StudioScreen() {
               height: Math.max(30, z.height + dy),
             }
           : z
-      )
-    );
+      );
+      const resizedZone = updated.find(z => z.id === selectedZoneId);
+      if (resizedZone) {
+        zonesAPI.update(resizedZone.id, { width: resizedZone.width, height: resizedZone.height }).catch(console.error);
+      }
+      return updated;
+    });
   };
 
   // Add mock page
@@ -1589,3 +1618,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+export default withProtectedReaderRoute(StudioScreen);
