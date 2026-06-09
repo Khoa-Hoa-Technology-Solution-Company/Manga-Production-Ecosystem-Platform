@@ -10,6 +10,7 @@ import {
   notifySeriesPublished,
   notifySeriesEBRejected,
   createNotification,
+  notifyNewSeriesToSubscribers,
 } from '../services/notification.service';
 
 export async function getAll(req: Request, res: Response): Promise<void> {
@@ -287,6 +288,7 @@ export async function update(req: Request, res: Response): Promise<void> {
         // 4. Pending_EB -> Active (Publish)
         else if (oldSeries.status === 'Pending_EB' && status === 'Active') {
           await notifySeriesPublished(mangakaIdStr, editorIdStr, series?.title || oldSeries.title, oldSeries._id.toString());
+          await notifyNewSeriesToSubscribers(oldSeries._id.toString(), series?.title || oldSeries.title);
         }
 
         // 5. Pending_EB -> Draft (Reject)
@@ -406,6 +408,42 @@ export async function handleHandshake(req: Request, res: Response): Promise<void
     }
 
     res.json({ series, message: `Successfully responded with ${action}.` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function toggleSubscribe(req: Request, res: Response): Promise<void> {
+  try {
+    const series = await Series.findById(req.params.id);
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+
+    if (!Array.isArray(series.subscribers)) {
+      series.subscribers = [];
+    }
+
+    const userIdStr = req.user!._id.toString();
+    const index = series.subscribers.findIndex((subId) => subId.toString() === userIdStr);
+
+    let isSubscribed = false;
+    if (index === -1) {
+      series.subscribers.push(req.user!._id);
+      isSubscribed = true;
+    } else {
+      series.subscribers.splice(index, 1);
+      isSubscribed = false;
+    }
+
+    await series.save();
+    res.json({
+      message: isSubscribed ? 'Subscribed successfully.' : 'Unsubscribed successfully.',
+      subscribed: isSubscribed,
+      subscribersCount: series.subscribers.length,
+      series,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

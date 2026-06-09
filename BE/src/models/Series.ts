@@ -23,6 +23,7 @@ export interface ISeries extends Document {
   deadline?: Date;
   editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none';
   dedicatedAssistants: IDedicatedAssistant[];
+  subscribers?: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +52,7 @@ const seriesSchema = new Schema<ISeries>(
         addedAt: { type: Date, default: Date.now },
       },
     ],
+    subscribers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   },
   { timestamps: true }
 );

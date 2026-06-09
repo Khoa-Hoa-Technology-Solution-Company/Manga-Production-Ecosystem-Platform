@@ -7,6 +7,7 @@ import {
   notifySeriesPublished,
   notifySeriesEBRejected,
   createNotification,
+  notifyNewSeriesToSubscribers,
 } from '../services/notification.service';
 
 const CANCELLATION_RISK_THRESHOLD = 10;
@@ -188,6 +189,7 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
 
       try {
         await notifySeriesPublished(mangakaId, editorId, series.title, series._id.toString());
+        await notifyNewSeriesToSubscribers(series._id.toString(), series.title);
       } catch (err) {
         console.error('Failed to send publish notification:', err);
       }

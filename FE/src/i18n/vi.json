@@ -392,5 +392,22 @@
     "noRejectionHistory": "Không có lịch sử từ chối nào cho tác giả này.",
     "selectMangaka": "Chọn Tác giả",
     "sideBySideReview": "So sánh Bản thảo & Annotations"
+  },
+  "settingsPage": {
+    "title": "Cài đặt tài khoản",
+    "subtitle": "Quản lý thông tin cá nhân và cấu hình nhận thông báo của bạn",
+    "profileSection": "Thông tin cá nhân",
+    "displayName": "Tên hiển thị",
+    "displayNamePlaceholder": "Nhập tên hiển thị mới",
+    "bio": "Tiểu sử",
+    "bioPlaceholder": "Nhập giới thiệu ngắn về bản thân",
+    "avatarUrl": "Đường dẫn ảnh đại diện",
+    "avatarUrlPlaceholder": "https://example.com/avatar.png",
+    "notificationSection": "Cài đặt thông báo",
+    "subscribeNewSeries": "Nhận thông báo khi có series mới",
+    "subscribeNewSeriesDesc": "Gửi thông báo hệ thống cho tôi khi một bộ truyện mới được xuất bản trên MangaFlow.",
+    "saveSuccess": "Cập nhật cài đặt thành công!",
+    "saveError": "Không thể cập nhật cài đặt. Vui lòng thử lại.",
+    "saving": "Đang lưu..."
   }
 }

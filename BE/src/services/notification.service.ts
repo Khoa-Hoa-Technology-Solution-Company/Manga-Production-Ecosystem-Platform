@@ -1,5 +1,7 @@
 import { Notification, NotificationType } from '../models/Notification';
 import { emitToUser } from '../socket';
+import { User } from '../models/User';
+import { Series } from '../models/Series';
 
 interface CreateNotificationInput {
   userId: string;
@@ -193,4 +195,53 @@ export async function notifySeriesEBRejected(
     relatedId: seriesId,
     relatedType: 'Series',
   });
+}
+
+export async function notifyNewSeriesToSubscribers(
+  seriesId: string,
+  seriesTitle: string
+): Promise<void> {
+  try {
+    const subscribers = await User.find({ subscribedToNewSeries: true, isActive: true });
+    for (const sub of subscribers) {
+      await createNotification({
+        userId: sub._id.toString(),
+        type: 'system',
+        title: 'New Series Released!',
+        message: `A brand new series "${seriesTitle}" has just been published! Check it out now.`,
+        relatedId: seriesId,
+        relatedType: 'Series',
+      });
+    }
+  } catch (err) {
+    console.error('Failed to notify subscribers of new series:', err);
+  }
+}
+
+export async function notifyNewChapterToSubscribers(
+  seriesId: string,
+  chapterId: string,
+  chapterTitle: string,
+  chapterNumber: number
+): Promise<void> {
+  try {
+    const series = await Series.findById(seriesId);
+    if (!series) return;
+
+    const subscriberIds = series.subscribers || [];
+    if (subscriberIds.length === 0) return;
+
+    for (const subId of subscriberIds) {
+      await createNotification({
+        userId: subId.toString(),
+        type: 'chapter_status',
+        title: 'New Chapter Released!',
+        message: `Chapter ${chapterNumber} - "${chapterTitle}" of series "${series.title}" has just been published!`,
+        relatedId: chapterId,
+        relatedType: 'Chapter',
+      });
+    }
+  } catch (err) {
+    console.error('Failed to notify subscribers of new chapter:', err);
+  }
 }

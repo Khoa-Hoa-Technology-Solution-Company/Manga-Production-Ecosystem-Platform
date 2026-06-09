@@ -16,6 +16,7 @@ import { ReadingViewPage } from './components/sections/ReadingViewPage'
 import { LoginPage } from './components/sections/LoginPage'
 import { EditorPortalPage } from './components/sections/EditorPortalPage'
 import { ManuscriptReviewPage } from './components/sections/ManuscriptReviewPage'
+import { SettingsPage } from './components/sections/SettingsPage'
 import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute, ProtectedEditorialBoardRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
@@ -109,7 +110,7 @@ function App() {
               <Route path="/" element={<StudioPage />} />
               <Route path="/discover" element={<ReaderHubPage />} />
               <Route path="/read/:chapterId" element={<ReadingViewPage />} />
-              <Route path="/settings" element={<div className="p-8">Settings Page (WIP)</div>} />
+              <Route path="/settings" element={<SettingsPage />} />
 
               <Route element={<ProtectedReaderRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />

@@ -7,6 +7,7 @@ type User = {
   displayName: string;
   role: string;
   avatar?: string;
+  subscribedToNewSeries?: boolean;
 };
 
 type AuthContextType = {
@@ -16,6 +17,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   register: (data: { email: string; password: string; displayName: string; role?: string }) => Promise<void>;
   logout: () => void;
+  updateUser: (updatedFields: Partial<User>) => void;
   isAuthenticated: boolean;
 };
 
@@ -59,9 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('mangaflow-user', JSON.stringify(data.user));
   };
 
+  const updateUser = (updatedFields: Partial<User>) => {
+    if (!user) return;
+    const newUser = { ...user, ...updatedFields };
+    setUser(newUser);
+    localStorage.setItem('mangaflow-user', JSON.stringify(newUser));
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, register, logout, isAuthenticated: !!token }}
+      value={{ user, token, loading, login, register, logout, updateUser, isAuthenticated: !!token }}
     >
       {children}
     </AuthContext.Provider>

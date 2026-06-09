@@ -72,6 +72,8 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
           navigate('/editor')
         } else if (user?.role === 'editorial_board') {
           navigate('/editorial-board')
+        } else if (user?.role === 'reader') {
+          navigate('/discover')
         } else {
           navigate('/studio/manage')
         }

@@ -65,6 +65,7 @@ export const seriesAPI = {
     return api.put(`/series/${id}`, data);
   },
   delete: (id: string) => api.delete(`/series/${id}`),
+  subscribe: (id: string) => api.post(`/series/${id}/subscribe`),
   // Approval workflow
   submitToEditor: (id: string) => api.patch(`/series/${id}/submit-to-editor`),
   getPendingReview: (params?: Record<string, unknown>) => api.get('/series/pending-review', { params }),

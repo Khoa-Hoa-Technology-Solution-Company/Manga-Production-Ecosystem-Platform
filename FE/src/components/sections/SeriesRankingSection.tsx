@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ArrowDown, Search, BookOpen } from 'lucide-react'
-import { Badge, Card, CardContent, CardHeader, CardTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui'
+import { Card, CardContent, CardHeader, CardTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui'
 import { dashboardAPI } from '../../lib/api'
 
 type RankingItem = {
@@ -99,9 +99,15 @@ export function SeriesRankingSection() {
                     <TableCell className="font-semibold text-neutral-900">{row.weeklyVotes.toLocaleString()}</TableCell>
                     <TableCell className="text-neutral-500">{row.totalVotes.toLocaleString()}</TableCell>
                     <TableCell>
-                      <Badge variant="default" className="text-emerald-600 border-emerald-100 bg-emerald-50">
-                        {row.status}
-                      </Badge>
+                      <span 
+                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                          row.status === 'Active' || row.status === 'Completed'
+                            ? 'text-emerald-700 border-emerald-200 bg-emerald-50'
+                            : 'text-amber-700 border-amber-200 bg-amber-50'
+                        }`}
+                      >
+                        {row.status === 'Active' || row.status === 'Completed' ? 'Published' : 'Coming Soon'}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))
