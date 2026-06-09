@@ -76,7 +76,7 @@ function App() {
             return true
           }
         }
-      } catch (err) {
+      } catch {
         // failed
       }
       if (active) setIsServerUp(false)
