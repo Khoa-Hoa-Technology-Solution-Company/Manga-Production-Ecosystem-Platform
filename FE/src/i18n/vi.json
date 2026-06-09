@@ -304,12 +304,27 @@
     "noAtRisk": "Tất cả truyện đang hoạt động tốt",
     "noAtRiskHint": "Không có truyện nào đang có nguy cơ bị huỷ.",
     "atRisk": "Nguy cơ",
+    "endVote": "Kết thúc vote",
+    "endVoteAndDecision": "Kết thúc vote & quyết định",
+    "currentVoteResult": "Kết quả biểu quyết hiện tại:",
+    "passedApproved": "Đạt (Được duyệt)",
+    "failedRejected": "Không đạt (Bị từ chối)",
+    "votesLabel": "phiếu",
+    "approveAndPublishMajority": "Duyệt & Xuất bản (Theo số phiếu cao nhất)",
+    "rejectionReasonFeedback": "Ý kiến từ chối / phản hồi chỉnh sửa",
+    "stateRejectionReasonPlaceholder": "Nêu lý do không đạt...",
+    "rejectManuscriptMajority": "Từ chối bản thảo (Theo số phiếu cao nhất)",
     "recentDecisions": "Quyết định gần đây"
   },
   "notifications": {
     "title": "Thông báo",
     "noNotifications": "Không có thông báo mới",
-    "subtitle": "Các thông báo công việc, chương mới sẽ hiển thị tại đây."
+    "subtitle": "Các thông báo công việc, chương mới sẽ hiển thị tại đây.",
+    "tab_tasks": "Công việc",
+    "tab_system": "Hệ thống",
+    "tab_social": "Tương tác",
+    "noCategoryNotifications": "Không tìm thấy thông báo",
+    "categorySubtitle": "Không có thông báo nào thuộc danh mục này."
   },
   "editor": {
     "ebDashboard": "Tổng khu Ban biên tập",

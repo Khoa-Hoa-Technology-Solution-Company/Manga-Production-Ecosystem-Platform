@@ -304,12 +304,27 @@
     "noAtRisk": "All series performing well",
     "noAtRiskHint": "No active series are currently at cancellation risk.",
     "atRisk": "At Risk",
+    "endVote": "End Vote",
+    "endVoteAndDecision": "End Vote & Decision",
+    "currentVoteResult": "Current vote result:",
+    "passedApproved": "Pass (Approved)",
+    "failedRejected": "Fail (Rejected)",
+    "votesLabel": "votes",
+    "approveAndPublishMajority": "Approve & Publish (Based on majority votes)",
+    "rejectionReasonFeedback": "Rejection reason / revision feedback",
+    "stateRejectionReasonPlaceholder": "State rejection reasons...",
+    "rejectManuscriptMajority": "Reject Manuscript (Based on majority votes)",
     "recentDecisions": "Recent Decisions"
   },
   "notifications": {
     "title": "Notifications",
     "noNotifications": "No new notifications",
-    "subtitle": "Job updates and new chapter alerts will appear here."
+    "subtitle": "Job updates and new chapter alerts will appear here.",
+    "tab_tasks": "Tasks",
+    "tab_system": "System",
+    "tab_social": "Social",
+    "noCategoryNotifications": "No notifications found",
+    "categorySubtitle": "There are no notifications under this category."
   },
   "editor": {
     "ebDashboard": "Editorial Board Hub",

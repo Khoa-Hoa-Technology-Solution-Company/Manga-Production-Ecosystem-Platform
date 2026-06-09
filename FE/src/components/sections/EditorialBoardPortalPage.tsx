@@ -676,7 +676,7 @@ export function EditorialBoardPortalPage() {
                             }}
                           >
                             <Trophy className="size-3.5" />
-                            Kết thúc vote
+                            {t('editorialBoard.endVote')}
                           </Button>
                         </div>
                       )}
@@ -708,13 +708,13 @@ export function EditorialBoardPortalPage() {
                         return (
                           <div className="mt-4 space-y-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 animate-in fade-in slide-in-from-top-1 duration-200">
                             <div>
-                              <h4 className="mb-1 text-sm font-semibold text-indigo-900">Kết thúc vote & quyết định</h4>
+                              <h4 className="mb-1 text-sm font-semibold text-indigo-900">{t('editorialBoard.endVoteAndDecision')}</h4>
                               <p className="text-xs text-indigo-700/70">
-                                Kết quả biểu quyết hiện tại:{" "}
+                                {t('editorialBoard.currentVoteResult')}{" "}
                                 <strong className={isApprovedByVotes ? "text-emerald-700" : "text-red-700"}>
-                                  {isApprovedByVotes ? "Đạt (Được duyệt)" : "Không đạt (Bị từ chối)"}
+                                  {isApprovedByVotes ? t('editorialBoard.passedApproved') : t('editorialBoard.failedRejected')}
                                 </strong>
-                                {` (${votesFor} / ${votesAgainst} phiếu)`}
+                                {` (${votesFor} / ${votesAgainst} ${t('editorialBoard.votesLabel')})`}
                               </p>
                             </div>
 
@@ -755,7 +755,7 @@ export function EditorialBoardPortalPage() {
                                     disabled={submittingDecision}
                                   >
                                     {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                                    Duyệt & Xuất bản (Theo số phiếu cao nhất)
+                                    {t('editorialBoard.approveAndPublishMajority')}
                                   </Button>
                                 </div>
                               </div>
@@ -763,12 +763,12 @@ export function EditorialBoardPortalPage() {
                               <div className="space-y-3">
                                 <div>
                                   <label className="mb-1.5 block text-xs font-semibold text-indigo-900">
-                                    Ý kiến từ chối / phản hồi chỉnh sửa
+                                    {t('editorialBoard.rejectionReasonFeedback')}
                                   </label>
                                   <Textarea
                                     value={voteComments}
                                     onChange={(e) => setVoteComments(e.target.value)}
-                                    placeholder="Nêu lý do không đạt..."
+                                    placeholder={t('editorialBoard.stateRejectionReasonPlaceholder')}
                                     className="min-h-[60px] rounded-xl text-sm"
                                   />
                                 </div>
@@ -789,7 +789,7 @@ export function EditorialBoardPortalPage() {
                                     disabled={submittingDecision}
                                   >
                                     {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
-                                    Từ chối bản thảo (Theo số phiếu cao nhất)
+                                    {t('editorialBoard.rejectManuscriptMajority')}
                                   </Button>
                                 </div>
                               </div>
