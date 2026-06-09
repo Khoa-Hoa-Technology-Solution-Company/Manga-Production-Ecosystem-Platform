@@ -237,19 +237,17 @@ function StudioScreen() {
     seriesAPI.getAll({ limit: '1' })
       .then((sData) => {
         const firstSeries = sData.series?.[0];
-        if (firstSeries) {
-          return chaptersAPI.getBySeries(firstSeries._id);
-        }
-        throw new Error('No series');
+        if (!firstSeries) return null;
+        return chaptersAPI.getBySeries(firstSeries._id);
       })
       .then((cData) => {
+        if (!cData) return null;
         const firstChapter = cData.chapters?.[0];
-        if (firstChapter) {
-          return pagesAPI.getByChapter(firstChapter._id);
-        }
-        throw new Error('No chapter');
+        if (!firstChapter) return null;
+        return pagesAPI.getByChapter(firstChapter._id);
       })
       .then((pData) => {
+        if (!pData) return;
         const fetchedPages = (pData.pages || []).map((p: any, idx: number) => ({
           id: p._id,
           num: idx + 1,
@@ -261,7 +259,7 @@ function StudioScreen() {
         }
       })
       .catch((err) => {
-        console.error('Studio fetch editor cascade error:', err);
+        console.log('Studio fetch editor cascade info:', err.message);
       });
 
     // 4. Fetch Stats for total earnings

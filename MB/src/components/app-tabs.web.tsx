@@ -32,14 +32,14 @@ export default function AppTabs() {
           </TabTrigger>
 
           {role === 'mangaka' && (
-            <>
-              <TabTrigger name="studio" href="/studio" asChild>
-                <TabButton>Studio</TabButton>
-              </TabTrigger>
-              <TabTrigger name="manage" href="/manage" asChild>
-                <TabButton>Manage</TabButton>
-              </TabTrigger>
-            </>
+            <TabTrigger name="studio" href="/studio" asChild>
+              <TabButton>Studio</TabButton>
+            </TabTrigger>
+          )}
+          {role === 'mangaka' && (
+            <TabTrigger name="manage" href="/manage" asChild>
+              <TabButton>Manage</TabButton>
+            </TabTrigger>
           )}
 
           {role === 'assistant' && (
