@@ -1,4 +1,5 @@
 import { Chapter, ChapterStatus } from '../models/Chapter';
+import { notifyNewChapterToSubscribers } from './notification.service';
 
 /**
  * Valid workflow transitions for chapters.
@@ -52,6 +53,19 @@ export async function transitionChapterStatus(
 
   chapter.status = newStatus;
   await chapter.save();
+
+  if (newStatus === 'Published') {
+    try {
+      await notifyNewChapterToSubscribers(
+        chapter.seriesId.toString(),
+        chapter._id.toString(),
+        chapter.title,
+        chapter.chapterNumber
+      );
+    } catch (err) {
+      console.error('Failed to dispatch chapter publication notification:', err);
+    }
+  }
 
   return chapter;
 }

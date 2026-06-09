@@ -14,6 +14,7 @@ router.get('/:id', ctrl.getById);
 router.post('/', authorize('mangaka'), upload.single('coverImageFile'), ctrl.create);
 router.put('/:id', authorize('mangaka', 'editor', 'editorial_board'), upload.single('coverImageFile'), ctrl.update);
 router.put('/:id/handshake', authorize('editor'), ctrl.handleHandshake);
+router.post('/:id/subscribe', ctrl.toggleSubscribe);
 router.delete('/:id', authorize('mangaka'), ctrl.remove);
 
 export default router;

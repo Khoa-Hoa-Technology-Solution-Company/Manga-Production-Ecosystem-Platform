@@ -24,6 +24,7 @@ export async function register(req: Request, res: Response): Promise<void> {
         displayName: user.displayName,
         role: user.role,
         avatar: user.avatar,
+        subscribedToNewSeries: user.subscribedToNewSeries,
       },
     });
   } catch (error: any) {
@@ -62,6 +63,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         displayName: user.displayName,
         role: user.role,
         avatar: user.avatar,
+        subscribedToNewSeries: user.subscribedToNewSeries,
       },
     });
   } catch (error: any) {
@@ -84,10 +86,14 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 
 export async function updateProfile(req: Request, res: Response): Promise<void> {
   try {
-    const { displayName, bio, avatar, skills } = req.body;
+    const { displayName, bio, avatar, skills, subscribedToNewSeries } = req.body;
+    const updateData: any = { displayName, bio, avatar, skills };
+    if (subscribedToNewSeries !== undefined) {
+      updateData.subscribedToNewSeries = subscribedToNewSeries;
+    }
     const user = await User.findByIdAndUpdate(
       req.user?._id,
-      { displayName, bio, avatar, skills },
+      updateData,
       { new: true, runValidators: true }
     );
     if (!user) {

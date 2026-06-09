@@ -26,8 +26,8 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
     const [newTotalVotes, avgRatingData, reactions] = await Promise.all([
       Vote.countDocuments({ chapterId }),
       Vote.aggregate([
-        { $match: { chapterId: chapterId as any } },
-        { $group: { _id: null, avg: { $avg: '$rating' } } },
+        { $match: { chapterId: chapterId as any, rating: { $exists: true, $ne: null } } },
+        { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
       ]),
       Vote.aggregate([
         { $match: { chapterId: chapterId as any, reaction: { $ne: null } } },
@@ -39,6 +39,7 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
     emitToRoom(`chapter:${chapterId}`, 'vote:new', {
       totalVotes: newTotalVotes,
       avgRating: avgRatingData[0]?.avg || 0,
+      ratingCount: avgRatingData[0]?.count || 0,
       reactions,
     });
 
@@ -51,11 +52,11 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
 export async function getVotes(req: Request, res: Response): Promise<void> {
   try {
     const chapterId = req.params.id;
-    const [totalVotes, avgRating, reactions] = await Promise.all([
+    const [totalVotes, avgRatingData, reactions] = await Promise.all([
       Vote.countDocuments({ chapterId }),
       Vote.aggregate([
-        { $match: { chapterId: chapterId as any } },
-        { $group: { _id: null, avg: { $avg: '$rating' } } },
+        { $match: { chapterId: chapterId as any, rating: { $exists: true, $ne: null } } },
+        { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
       ]),
       Vote.aggregate([
         { $match: { chapterId: chapterId as any, reaction: { $ne: null } } },
@@ -64,10 +65,14 @@ export async function getVotes(req: Request, res: Response): Promise<void> {
       ]),
     ]);
 
+    const userVote = await Vote.findOne({ userId: req.user!._id, chapterId });
+
     res.json({
       totalVotes,
-      avgRating: avgRating[0]?.avg || 0,
+      avgRating: avgRatingData[0]?.avg || 0,
+      ratingCount: avgRatingData[0]?.count || 0,
       reactions,
+      userVote: userVote ? { rating: userVote.rating, reaction: userVote.reaction, voted: true } : null
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

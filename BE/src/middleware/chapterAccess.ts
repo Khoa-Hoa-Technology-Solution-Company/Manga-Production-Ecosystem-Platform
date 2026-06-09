@@ -26,7 +26,7 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
         return;
       }
 
-      const chapter = await Chapter.findById(chapterId).select('seriesId mangakaId collaborators');
+      const chapter = await Chapter.findById(chapterId).select('seriesId mangakaId collaborators status');
       if (!chapter) {
         res.status(404).json({ error: 'Chapter not found.' });
         return;
@@ -36,6 +36,11 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
       const userRole = req.user?.role || 'reader';
       
       let can = hasAccess(chapter, userId, userRole, mode);
+
+      // Grant read/comment access to anyone if the chapter is published
+      if (!can && chapter.status === 'Published' && (mode === 'read' || mode === 'comment')) {
+        can = true;
+      }
       
       // Grant automatic access to accepted Tantou Editor or Editorial Board
       if (!can && userId) {

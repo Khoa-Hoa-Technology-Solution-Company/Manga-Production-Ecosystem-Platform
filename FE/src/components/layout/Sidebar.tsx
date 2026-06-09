@@ -218,11 +218,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="size-7 p-0 rounded-lg text-neutral-400 hover:text-red-500"
+              className="size-8 p-0 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50/50"
               onClick={logout}
               aria-label="Log out"
             >
-              <LogOut className="size-3.5" />
+              <LogOut className="size-[18px]" />
             </Button>
           </div>
         </div>

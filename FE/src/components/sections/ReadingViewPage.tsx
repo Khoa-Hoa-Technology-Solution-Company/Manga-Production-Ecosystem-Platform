@@ -1,8 +1,11 @@
 /* eslint-disable */
 import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowLeft,
+  Bell,
   BookOpen,
   Bookmark,
   ChevronLeft,
@@ -11,17 +14,18 @@ import {
   Maximize,
   Minimize,
   MessageCircle,
+  Play,
   Share2,
   Star,
   ThumbsUp,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
-import { commentsAPI, seriesAPI, chaptersAPI } from '../../lib/api'
+import { commentsAPI, seriesAPI, chaptersAPI, votesAPI, pagesAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
-import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../lib/auth'
 
-/* ── Chapter data ────────────────────────────────────── */
-const chapterInfo = {
+/* ── Chapter data (Mock fallbacks) ──────────────────── */
+const MOCK_CHAPTER_INFO = {
   series: 'Shadow Blade Saga',
   chapter: 42,
   title: 'The Blade Awakens',
@@ -33,8 +37,8 @@ const chapterInfo = {
   ratingCount: 2847,
 }
 
-/* ── Page images ─────────────────────────────────────── */
-const pages = [
+/* ── Page images (Mock fallbacks) ───────────────────── */
+const MOCK_PAGES = [
   '/manga/page-panels.png',
   '/manga/cover-action.png',
   '/manga/cover-scifi.png',
@@ -107,6 +111,26 @@ const reactions = [
 
 export function ReadingViewPage() {
   const navigate = useNavigate()
+  const { chapterId } = useParams<{ chapterId: string }>()
+  const { t, i18n } = useTranslation()
+  const { user } = useAuth()
+  const [subscribingSeries, setSubscribingSeries] = useState(false)
+
+  const handleToggleSeriesSubscribe = async () => {
+    if (!user || !series?._id) return
+    setSubscribingSeries(true)
+    try {
+      const res = await seriesAPI.subscribe(series._id)
+      const updatedSeries = res.data.series
+      if (updatedSeries) {
+        setSeries(updatedSeries)
+      }
+    } catch (err) {
+      console.error('Failed to toggle series subscription:', err)
+    } finally {
+      setSubscribingSeries(false)
+    }
+  }
   
   const [currentPage, setCurrentPage] = useState(0)
   const [userRating, setUserRating] = useState(0)
@@ -143,31 +167,118 @@ export function ReadingViewPage() {
   // Dynamic state for real-time updates
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
   const [commentsList, setCommentsList] = useState<any[]>([]) // Initial empty, will load static + API
-  const [voteCount, setVoteCount] = useState(chapterInfo.voteCount)
+  const [voteCount, setVoteCount] = useState(MOCK_CHAPTER_INFO.voteCount)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [avgRating, setAvgRating] = useState<number>(0)
+  const [ratingCount, setRatingCount] = useState<number>(0)
 
-  // Resolve a real chapter ID from the backend to ensure Mongoose ObjectId validity
+  // Real database entities
+  const [chapter, setChapter] = useState<any>(null)
+  const [series, setSeries] = useState<any>(null)
+  const [pagesList, setPagesList] = useState<string[]>(MOCK_PAGES)
+  const [loading, setLoading] = useState(true)
+  const [chaptersList, setChaptersList] = useState<any[]>([])
+
+  // Shadow variables for original JSX compatibility
+  const pages = pagesList
+  const chapterInfo = {
+    series: series?.title || MOCK_CHAPTER_INFO.series,
+    chapter: chapter?.chapterNumber || MOCK_CHAPTER_INFO.chapter,
+    title: chapter?.title || MOCK_CHAPTER_INFO.title,
+    author: series?.mangakaId?.displayName || MOCK_CHAPTER_INFO.author,
+    publishedDate: chapter?.createdAt ? new Date(chapter.createdAt).toLocaleDateString() : MOCK_CHAPTER_INFO.publishedDate,
+    totalPages: pagesList.length,
+    voteCount: voteCount,
+    rating: avgRating,
+    ratingCount: ratingCount,
+  }
+
+  const currentChapterIndex = chaptersList.findIndex((c) => c._id === chapterId)
+  const prevChapter = currentChapterIndex > 0 ? chaptersList[currentChapterIndex - 1] : null
+  const nextChapter = currentChapterIndex >= 0 && currentChapterIndex < chaptersList.length - 1 ? chaptersList[currentChapterIndex + 1] : null
+
+  // Resolve real chapter details, series details, pages, and votes
   useEffect(() => {
-    const initRealChapter = async () => {
-      try {
-        const seriesRes = await seriesAPI.getAll()
-        const series = seriesRes.data.series
-        if (series && series.length > 0) {
-          const chaptersRes = await chaptersAPI.getBySeries(series[0]._id)
-          const chapters = chaptersRes.data.chapters
-          if (chapters && chapters.length > 0) {
-            setActiveChapterId(chapters[0]._id)
-            return
+    if (!chapterId) return
+    setActiveChapterId(chapterId)
+    setLoading(true)
+
+    // Reset viewer states for new chapter
+    setCurrentPage(0)
+    setVoted(false)
+    setActiveReactions(new Set())
+
+    // Load chapter details
+    chaptersAPI.getById(chapterId)
+      .then(async (res) => {
+        const ch = res.data.chapter
+        setChapter(ch)
+        
+        // Load series details
+        if (ch?.seriesId) {
+          try {
+            const sRes = await seriesAPI.getById(ch.seriesId)
+            setSeries(sRes.data.series)
+          } catch (err) {
+            console.error('Failed to load series details:', err)
+          }
+
+          // Load series chapters for navigation
+          try {
+            const cRes = await chaptersAPI.getBySeries(ch.seriesId)
+            const published = (cRes.data.chapters || [])
+              .filter((c: any) => c.status === 'Published')
+              .sort((a: any, b: any) => a.chapterNumber - b.chapterNumber)
+            setChaptersList(published)
+          } catch (err) {
+            console.error('Failed to load series chapters:', err)
           }
         }
-      } catch (e) {
-        console.error('Failed to resolve real chapter ID', e)
-      }
-      // Fallback
-      setActiveChapterId('fallback')
-    }
-    initRealChapter()
-  }, [])
+      })
+      .catch((err) => {
+        console.error('Failed to load chapter details:', err)
+      })
+
+    // Load chapter pages
+    pagesAPI.getByChapter(chapterId)
+      .then((res) => {
+        const p = (res.data.pages || []).map((page: any) => page.originalImage)
+        if (p.length > 0) {
+          setPagesList(p)
+        } else {
+          setPagesList(MOCK_PAGES)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load pages:', err)
+        setPagesList(MOCK_PAGES)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+
+    // Load votes
+    votesAPI.getByChapter(chapterId)
+      .then((res) => {
+        if (res.data.totalVotes !== undefined) {
+          setVoteCount(res.data.totalVotes.toLocaleString())
+        }
+        if (res.data.avgRating !== undefined) {
+          setAvgRating(Math.round(res.data.avgRating * 10) / 10)
+        }
+        if (res.data.ratingCount !== undefined) {
+          setRatingCount(res.data.ratingCount)
+        }
+        if (res.data.userVote) {
+          setVoted(Boolean(res.data.userVote.voted))
+          setUserRating(res.data.userVote.rating || 0)
+        } else {
+          setVoted(false)
+          setUserRating(0)
+        }
+      })
+      .catch(console.error)
+  }, [chapterId])
 
   // Setup Socket.io and fetch initial comments
   useEffect(() => {
@@ -231,6 +342,12 @@ export function ReadingViewPage() {
       if (data.totalVotes !== undefined) {
         setVoteCount(data.totalVotes.toLocaleString())
       }
+      if (data.avgRating !== undefined) {
+        setAvgRating(Math.round(data.avgRating * 10) / 10)
+      }
+      if (data.ratingCount !== undefined) {
+        setRatingCount(data.ratingCount)
+      }
     }
 
     socketService.on('comment:new', handleNewComment)
@@ -263,7 +380,7 @@ export function ReadingViewPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [readingMode])
+  }, [readingMode, chapterInfo.totalPages])
 
   const handlePostComment = async () => {
     if (!commentText.trim()) return
@@ -323,7 +440,50 @@ export function ReadingViewPage() {
     }
   }
 
+  const handleVote = async () => {
+    if (voted) return
+    try {
+      if (activeChapterId && activeChapterId !== 'fallback') {
+        await votesAPI.vote(activeChapterId, { rating: userRating || 5, seriesId: chapter?.seriesId })
+        setVoted(true)
+        const votesRes = await votesAPI.getByChapter(activeChapterId)
+        if (votesRes.data.totalVotes !== undefined) {
+          setVoteCount(votesRes.data.totalVotes.toLocaleString())
+        }
+        if (votesRes.data.avgRating !== undefined) {
+          setAvgRating(Math.round(votesRes.data.avgRating * 10) / 10)
+        }
+        if (votesRes.data.ratingCount !== undefined) {
+          setRatingCount(votesRes.data.ratingCount)
+        }
+      } else {
+        setVoted(true)
+      }
+    } catch (err) {
+      console.error('Failed to vote:', err)
+    }
+  }
 
+  const handleRate = async (ratingVal: number) => {
+    setUserRating(ratingVal)
+    try {
+      if (activeChapterId && activeChapterId !== 'fallback') {
+        await votesAPI.vote(activeChapterId, { rating: ratingVal, seriesId: chapter?.seriesId })
+        const votesRes = await votesAPI.getByChapter(activeChapterId)
+        if (votesRes.data.totalVotes !== undefined) {
+          setVoteCount(votesRes.data.totalVotes.toLocaleString())
+        }
+        if (votesRes.data.avgRating !== undefined) {
+          setAvgRating(Math.round(votesRes.data.avgRating * 10) / 10)
+        }
+        if (votesRes.data.ratingCount !== undefined) {
+          setRatingCount(votesRes.data.ratingCount)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to rate chapter:', err)
+    }
+  }
 
   const toggleReaction = (emoji: string) => {
     setActiveReactions((prev) => {
@@ -337,14 +497,69 @@ export function ReadingViewPage() {
   return (
     <div className="flex flex-col h-screen max-h-screen overflow-hidden">
       {/* ── Top bar ──────────────────────────────────── */}
-      <header className="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 sm:px-6">
+      <header className="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 sm:px-6 bg-white z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="size-8 p-0 rounded-lg" onClick={() => navigate(-1)}>
-            <ArrowLeft className="size-4" />
+          <Button variant="ghost" size="sm" className="size-9 p-0 rounded-lg" onClick={() => navigate(-1)}>
+            <ArrowLeft className="size-5" />
           </Button>
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold truncate">{chapterInfo.series}</h1>
-            <p className="text-[10px] text-neutral-500">Ch. {chapterInfo.chapter} — {chapterInfo.title}</p>
+          <div className="min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <h1 className="text-sm font-semibold truncate max-w-[120px] sm:max-w-none">{chapterInfo.series}</h1>
+              {series && user && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 w-7 p-0 rounded-full hover:bg-neutral-100 shrink-0 transition-all ${
+                    series.subscribers?.includes(user._id) ? 'text-indigo-600 hover:text-indigo-700' : 'text-neutral-400 hover:text-neutral-600'
+                  }`}
+                  disabled={subscribingSeries}
+                  onClick={handleToggleSeriesSubscribe}
+                  title={series.subscribers?.includes(user._id)
+                    ? t('settingsPage.unsubscribeSeries', i18n.language === 'vi' ? 'Huỷ theo dõi series này' : 'Unsubscribe from this series')
+                    : t('settingsPage.subscribeSeries', i18n.language === 'vi' ? 'Theo dõi series này' : 'Subscribe to this series')
+                  }
+                >
+                  <Bell className={`size-4 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
+                </Button>
+              )}
+            </div>
+            {chaptersList.length > 0 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-md hover:bg-neutral-100 flex items-center justify-center"
+                  disabled={!prevChapter}
+                  onClick={() => prevChapter && navigate(`/read/${prevChapter._id}`)}
+                  title="Previous Chapter"
+                >
+                  <ChevronLeft className="size-[18px]" />
+                </Button>
+                
+                <select
+                  value={chapterId}
+                  onChange={(e) => navigate(`/read/${e.target.value}`)}
+                  className="text-[11px] font-medium bg-neutral-100 border border-neutral-200 rounded px-2 py-1 max-w-[160px] focus:outline-none focus:ring-1 focus:ring-neutral-400 cursor-pointer"
+                >
+                  {chaptersList.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      Ch. {c.chapterNumber} — {c.title}
+                    </option>
+                  ))}
+                </select>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-md hover:bg-neutral-100 flex items-center justify-center"
+                  disabled={!nextChapter}
+                  onClick={() => nextChapter && navigate(`/read/${nextChapter._id}`)}
+                  title="Next Chapter"
+                >
+                  <ChevronRight className="size-[18px]" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -352,31 +567,31 @@ export function ReadingViewPage() {
           <Button 
             variant="ghost" 
             size="sm" 
-            className="text-[10px] gap-1 px-2 h-8 rounded-lg bg-neutral-100/50 hover:bg-neutral-200"
+            className="text-[10px] gap-1.5 px-2.5 h-8.5 rounded-lg bg-neutral-100/50 hover:bg-neutral-200"
             onClick={toggleFullscreen}
           >
-            <Maximize className="size-3.5"/>
+            <Maximize className="size-4"/>
             Fullscreen
           </Button>
           <Button 
             variant="ghost" 
             size="sm" 
-            className="text-[10px] gap-1 px-2 h-8 rounded-lg bg-neutral-100/50 hover:bg-neutral-200"
+            className="text-[10px] gap-1.5 px-2.5 h-8.5 rounded-lg bg-neutral-100/50 hover:bg-neutral-200"
             onClick={() => setReadingMode(readingMode === 'scroll' ? 'paged' : 'scroll')}
           >
-            {readingMode === 'scroll' ? <BookOpen className="size-3.5"/> : <ArrowDown className="size-3.5"/>}
+            {readingMode === 'scroll' ? <BookOpen className="size-4"/> : <ArrowDown className="size-4"/>}
             {readingMode === 'scroll' ? 'Paged View' : 'Scroll View'}
           </Button>
           <Button
             variant={bookmarked ? 'secondary' : 'ghost'}
             size="sm"
-            className="size-8 p-0 rounded-lg"
+            className="size-9 p-0 rounded-lg"
             onClick={() => setBookmarked(!bookmarked)}
           >
-            <Bookmark className={`size-4 ${bookmarked ? 'fill-current' : ''}`} />
+            <Bookmark className={`size-[18px] ${bookmarked ? 'fill-current' : ''}`} />
           </Button>
-          <Button variant="ghost" size="sm" className="size-8 p-0 rounded-lg">
-            <Share2 className="size-4" />
+          <Button variant="ghost" size="sm" className="size-9 p-0 rounded-lg">
+            <Share2 className="size-[18px]" />
           </Button>
         </div>
       </header>
@@ -399,7 +614,11 @@ export function ReadingViewPage() {
 
           {/* Page display */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center relative">
-            {readingMode === 'paged' ? (
+            {loading ? (
+              <div className="flex size-full items-center justify-center text-sm text-neutral-500">
+                Loading pages...
+              </div>
+            ) : readingMode === 'paged' ? (
               <div className="relative w-full max-w-lg flex flex-col items-center justify-center min-h-full">
                 <img
                   src={pages[currentPage % pages.length]}
@@ -441,51 +660,74 @@ export function ReadingViewPage() {
                     className="w-full rounded-lg shadow-xl"
                   />
                 ))}
+
+                {/* Next Chapter CTA at the bottom of scroll view */}
+                {nextChapter && (
+                  <div className="mt-8 p-6 rounded-2xl border border-neutral-200 bg-white shadow-sm flex flex-col items-center text-center gap-3">
+                    <p className="text-xs text-neutral-500">You've finished reading Chapter {chapterInfo.chapter}!</p>
+                    <h4 className="text-sm font-semibold text-neutral-900">Next: Chapter {nextChapter.chapterNumber} — {nextChapter.title}</h4>
+                    <Button 
+                      onClick={() => navigate(`/read/${nextChapter._id}`)}
+                      className="mt-1 h-9 px-4 text-xs font-semibold gap-1.5 bg-neutral-950 text-white hover:bg-neutral-800 rounded-xl"
+                    >
+                      <Play className="size-3.5 fill-current" /> Read Next Chapter
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* Page navigation bar */}
-          {readingMode === 'paged' && (
+          {!loading && readingMode === 'paged' && (
             <div className="flex items-center justify-between border-t border-neutral-200 bg-white px-4 py-2.5 shrink-0 z-10">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1 text-xs"
-              onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-              disabled={currentPage === 0}
-            >
-              <ChevronLeft className="size-3.5" /> Prev
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                disabled={currentPage === 0}
+              >
+                <ChevronLeft className="size-3.5" /> Prev
+              </Button>
 
-            <div className="flex items-center gap-1.5">
-              {pages.map((p, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className={`size-8 rounded-md overflow-hidden border-2 transition-all ${
-                    idx === currentPage ? 'border-neutral-900 shadow-md scale-110' : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
-                  onClick={() => setCurrentPage(idx)}
-                >
-                  <img src={p} alt={`Page ${idx + 1}`} className="h-full w-full object-cover" />
-                </button>
-              ))}
-              {chapterInfo.totalPages > pages.length && (
-                <span className="text-[10px] text-neutral-400 ml-1">+{chapterInfo.totalPages - pages.length} more</span>
-              )}
+              <div className="flex items-center gap-1.5 overflow-x-auto px-2">
+                {pages.slice(0, 8).map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className={`size-8 rounded-md overflow-hidden border-2 transition-all ${
+                      idx === currentPage ? 'border-neutral-900 shadow-md scale-110' : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                    onClick={() => setCurrentPage(idx)}
+                  >
+                    <img src={p} alt={`Page ${idx + 1}`} className="h-full w-full object-cover" />
+                  </button>
+                ))}
+                {chapterInfo.totalPages > 8 && (
+                  <span className="text-[10px] text-neutral-400 ml-1">+{chapterInfo.totalPages - 8} more</span>
+                )}
+              </div>
+
+              <Button
+                variant={currentPage === chapterInfo.totalPages - 1 && nextChapter ? 'default' : 'ghost'}
+                size="sm"
+                className="gap-1 text-xs font-semibold"
+                onClick={() => {
+                  if (currentPage === chapterInfo.totalPages - 1 && nextChapter) {
+                    navigate(`/read/${nextChapter._id}`)
+                  } else {
+                    setCurrentPage(Math.min(chapterInfo.totalPages - 1, currentPage + 1))
+                  }
+                }}
+              >
+                {currentPage === chapterInfo.totalPages - 1 && nextChapter ? (
+                  <>Next Chapter <ChevronRight className="size-3.5" /></>
+                ) : (
+                  <>Next <ChevronRight className="size-3.5" /></>
+                )}
+              </Button>
             </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1 text-xs"
-              onClick={() => setCurrentPage(Math.min(chapterInfo.totalPages - 1, currentPage + 1))}
-              disabled={currentPage === chapterInfo.totalPages - 1}
-            >
-              Next <ChevronRight className="size-3.5" />
-            </Button>
-          </div>
           )}
         </div>
 
@@ -502,7 +744,7 @@ export function ReadingViewPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Avatar className="size-7 bg-neutral-200">
-                  <AvatarFallback className="text-[8px]">YM</AvatarFallback>
+                  <AvatarFallback className="text-[8px]">{chapterInfo.author.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="text-xs font-medium">{chapterInfo.author}</p>
@@ -512,9 +754,9 @@ export function ReadingViewPage() {
             </div>
 
             {/* Rating */}
-            <Card className="rounded-xl p-4">
+            <Card className="rounded-xl p-4 border border-neutral-100">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold">Rate this chapter</span>
+                <span className="text-xs font-semibold text-neutral-800">Rate this chapter</span>
                 <span className="text-xs text-neutral-500">
                   {chapterInfo.rating} ({chapterInfo.ratingCount.toLocaleString()})
                 </span>
@@ -527,7 +769,7 @@ export function ReadingViewPage() {
                     className="transition-transform hover:scale-125"
                     onMouseEnter={() => setHoverRating(star)}
                     onMouseLeave={() => setHoverRating(0)}
-                    onClick={() => setUserRating(star)}
+                    onClick={() => handleRate(star)}
                   >
                     <Star
                       className={`size-7 ${
@@ -545,16 +787,17 @@ export function ReadingViewPage() {
             </Card>
 
             {/* Voting */}
-            <Card className="rounded-xl p-4">
+            <Card className="rounded-xl p-4 border border-neutral-100 bg-neutral-50/50">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold">Reader Votes</span>
-                  <p className="text-lg font-bold mt-0.5">{voteCount}</p>
+                  <span className="text-xs font-semibold text-neutral-800">Reader Votes</span>
+                  <p className="text-lg font-bold mt-0.5 text-neutral-900">{voteCount}</p>
                 </div>
                 <Button
                   variant={voted ? 'secondary' : 'default'}
-                  className="gap-1.5"
-                  onClick={() => setVoted(!voted)}
+                  className="gap-1.5 font-semibold"
+                  onClick={handleVote}
+                  disabled={voted}
                 >
                   <Heart className={`size-4 ${voted ? 'fill-rose-500 text-rose-500' : ''}`} />
                   {voted ? 'Voted!' : 'Vote'}
@@ -621,7 +864,7 @@ export function ReadingViewPage() {
               {/* Comments list */}
               <div className="space-y-4">
                 {commentsList.map((comment) => (
-                  <div key={comment.id} className="flex flex-col gap-3">
+                  <div key={comment.id} className="flex flex-col gap-3 text-left">
                     {/* Parent Comment */}
                     <div className="flex gap-2.5">
                       <Avatar className={`size-7 shrink-0 text-white ${comment.color}`}>

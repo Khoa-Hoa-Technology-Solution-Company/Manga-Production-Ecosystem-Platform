@@ -392,5 +392,22 @@
     "noRejectionHistory": "No rejection records for this mangaka.",
     "selectMangaka": "Select Mangaka",
     "sideBySideReview": "Side-by-side Annotation Review"
+  },
+  "settingsPage": {
+    "title": "Account Settings",
+    "subtitle": "Manage your profile details and notification preferences",
+    "profileSection": "Personal Profile",
+    "displayName": "Display Name",
+    "displayNamePlaceholder": "Enter display name",
+    "bio": "Bio",
+    "bioPlaceholder": "Write a short bio about yourself",
+    "avatarUrl": "Avatar URL",
+    "avatarUrlPlaceholder": "https://example.com/avatar.png",
+    "notificationSection": "Notification Settings",
+    "subscribeNewSeries": "Notify on New Series Release",
+    "subscribeNewSeriesDesc": "Receive a system notification when a brand new series is published on MangaFlow.",
+    "saveSuccess": "Settings updated successfully!",
+    "saveError": "Failed to update settings. Please try again.",
+    "saving": "Saving..."
   }
 }

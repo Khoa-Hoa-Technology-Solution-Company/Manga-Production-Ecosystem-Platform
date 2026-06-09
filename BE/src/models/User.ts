@@ -13,6 +13,7 @@ export interface IUser extends Document {
   skills?: string[];
   rating?: number;
   totalEarnings?: number;
+  subscribedToNewSeries?: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +36,7 @@ const userSchema = new Schema<IUser>(
     skills: [{ type: String }],
     rating: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 },
+    subscribedToNewSeries: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

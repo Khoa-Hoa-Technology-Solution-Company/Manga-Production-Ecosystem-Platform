@@ -16,13 +16,28 @@ export async function getBySeriesId(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Check boundaries for Editors
-    if (req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
-      res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
-      return;
+    // Determine if user has privileged access to all chapters
+    const isMangaka = series.mangakaId.toString() === req.user?._id.toString();
+    const isEditor = series.editorId?.toString() === req.user?._id.toString() && series.editorStatus === 'accepted';
+    const isEditorialBoard = req.user?.role === 'editorial_board';
+
+    let filter: any = { seriesId: req.params.seriesId };
+
+    if (!isMangaka && !isEditor && !isEditorialBoard) {
+      // User is a reader, assistant, or other editor
+      // They can only see:
+      // 1. Published chapters
+      // 2. Chapters where they are a collaborator
+      filter = {
+        seriesId: req.params.seriesId,
+        $or: [
+          { status: 'Published' },
+          { 'collaborators.userId': req.user?._id }
+        ]
+      };
     }
 
-    const chapters = await Chapter.find({ seriesId: req.params.seriesId })
+    const chapters = await Chapter.find(filter)
       .populate('mangakaId', 'displayName avatar')
       .populate('editorId', 'displayName avatar')
       .populate('collaborators.userId', 'displayName avatar role')
@@ -207,11 +222,13 @@ export async function getById(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Check boundaries for Editors
-    const series = await Series.findById(chapter.seriesId);
-    if (series && req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
-      res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
-      return;
+    // Check boundaries for Editors (only if the chapter is NOT published)
+    if (chapter.status !== 'Published') {
+      const series = await Series.findById(chapter.seriesId);
+      if (series && req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
+        res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
+        return;
+      }
     }
 
     res.json({ chapter });

@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { Series } from '../models/Series';
 import { Chapter } from '../models/Chapter';
 import { Task } from '../models/Task';
+import { Vote } from '../models/Vote';
+import { User } from '../models/User';
 
 export async function getStats(req: Request, res: Response): Promise<void> {
   try {
@@ -84,7 +86,43 @@ export async function getRankings(_req: Request, res: Response): Promise<void> {
       .limit(20)
       .lean();
 
-    res.json({ rankings });
+    // Aggregate votes to get reader leaderboard
+    const readerLeaderboard = await Vote.aggregate([
+      {
+        $group: {
+          _id: '$userId',
+          votesCount: { $sum: 1 },
+          // Count unique series read (by looking at unique seriesId)
+          uniqueSeries: { $addToSet: '$seriesId' }
+        }
+      },
+      {
+        $project: {
+          userId: '$_id',
+          votesCount: 1,
+          seriesReadCount: { $size: '$uniqueSeries' }
+        }
+      },
+      { $sort: { votesCount: -1 } },
+      { $limit: 10 }
+    ]);
+
+    // Populate user details manually since aggregate populate is complex or not native
+    const populatedLeaderboard = await Promise.all(
+      readerLeaderboard.map(async (item) => {
+        const user = await User.findById(item.userId).select('displayName avatar role').lean();
+        return {
+          userId: item.userId,
+          username: user?.displayName || 'Reader',
+          avatar: user?.avatar,
+          votes: item.votesCount,
+          seriesRead: item.seriesReadCount,
+          role: user?.role
+        };
+      })
+    );
+
+    res.json({ rankings, readerLeaderboard: populatedLeaderboard });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
