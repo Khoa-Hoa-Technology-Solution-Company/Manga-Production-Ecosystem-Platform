@@ -1,6 +1,7 @@
 /* eslint-disable */
 import { useCallback, useEffect, useRef, useState, Component } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { Canvas as FabricCanvas, Rect, Circle, Path, FabricImage, IText, PencilBrush, Point, util } from 'fabric'
 import {
   ChevronLeft,
@@ -122,6 +123,7 @@ const tools = [
 function StudioWorkspacePageContent() {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
 
   const [activeTool, setActiveTool] = useState('select')
   const [rightTab, setRightTab] = useState('zones')
@@ -412,53 +414,82 @@ function StudioWorkspacePageContent() {
     }
   }, [chapterRoom, currentPage?._id, activeTool, (user as any)?.avatarColor, user?.displayName, user?.email])
 
+  const refreshSeriesAndChapters = async (targetSeriesId?: string) => {
+    try {
+      const seriesRes = await seriesAPI.getAll()
+      const list = seriesRes.data.series || []
+      setSeriesList(list)
+      
+      const activeSeriesId = targetSeriesId || selectedSeriesId
+      if (activeSeriesId) {
+        setSelectedSeriesId(activeSeriesId)
+        const chaptersRes = await chaptersAPI.getBySeries(activeSeriesId)
+        const nextChapters = chaptersRes.data.chapters || []
+        setChapters(nextChapters)
+      }
+    } catch (err) {
+      console.error('Failed to refresh series and chapters:', err)
+    }
+  }
+
   // ═══════════════════════════════════════════════════
   // DATA LOADING
   // ═══════════════════════════════════════════════════
 
-  const refreshSeriesAndChapters = useCallback(async (preferredSeriesId?: string) => {
-    const res = await seriesAPI.getAll()
-    const list = res.data.series || []
-    setSeriesList(list)
+  const paramSeriesId = searchParams.get('seriesId')
+  const paramChapterId = searchParams.get('chapterId')
+  const paramPageId = searchParams.get('pageId')
 
-    if (list.length === 0) {
-      setSelectedSeriesId('')
-      setChapters([])
-      setSelectedChapterId('')
-      setPages([])
-      return
-    }
-
-    const nextSeriesId = preferredSeriesId && list.some((s: any) => s._id === preferredSeriesId)
-      ? preferredSeriesId
-      : (selectedSeriesId && list.some((s: any) => s._id === selectedSeriesId) ? selectedSeriesId : list[0]._id)
-
-    setSelectedSeriesId(nextSeriesId)
-    const chapterRes = await chaptersAPI.getBySeries(nextSeriesId)
-    const nextChapters = chapterRes.data.chapters || []
-    setChapters(nextChapters)
-    setSelectedChapterId(nextChapters[0]?._id || '')
-  }, [selectedSeriesId])
-
+  // Load series list, select appropriate series based on paramSeriesId or fallback
   useEffect(() => {
-    refreshSeriesAndChapters().catch(() => { })
-  }, [refreshSeriesAndChapters])
+    seriesAPI.getAll().then(res => {
+      const list = res.data.series || []
+      setSeriesList(list)
+      
+      if (list.length > 0) {
+        const nextSeriesId = paramSeriesId && list.some((s: any) => s._id === paramSeriesId)
+          ? paramSeriesId
+          : list[0]._id
+        setSelectedSeriesId(nextSeriesId)
+      }
+    }).catch(() => {})
+  }, [paramSeriesId])
 
+  // Load chapters when selectedSeriesId changes, respecting paramChapterId
   useEffect(() => {
     if (!selectedSeriesId) return
     chaptersAPI.getBySeries(selectedSeriesId).then(res => {
-      setChapters(res.data.chapters || [])
-      if (res.data.chapters?.length > 0) setSelectedChapterId(res.data.chapters[0]._id)
-    }).catch(() => { })
-  }, [selectedSeriesId])
+      const nextChapters = res.data.chapters || []
+      setChapters(nextChapters)
+      
+      if (nextChapters.length > 0) {
+        const nextChapterId = paramChapterId && nextChapters.some((c: any) => c._id === paramChapterId)
+          ? paramChapterId
+          : nextChapters[0]._id
+        setSelectedChapterId(nextChapterId)
+      } else {
+        setSelectedChapterId('')
+      }
+    }).catch(() => {})
+  }, [selectedSeriesId, paramChapterId])
 
+  // Load pages when selectedChapterId changes, respecting paramPageId
   useEffect(() => {
     if (!selectedChapterId) return
     pagesAPI.getByChapter(selectedChapterId).then(res => {
-      setPages(res.data.pages || [])
-      setCurrentPageIdx(0)
-    }).catch(() => { })
-  }, [selectedChapterId])
+      const nextPages = res.data.pages || []
+      setPages(nextPages)
+      
+      if (nextPages.length > 0) {
+        const nextPageIdx = paramPageId
+          ? nextPages.findIndex((p: any) => p._id === paramPageId)
+          : 0
+        setCurrentPageIdx(nextPageIdx !== -1 ? nextPageIdx : 0)
+      } else {
+        setCurrentPageIdx(0)
+      }
+    }).catch(() => {})
+  }, [selectedChapterId, paramPageId])
 
   const emitCanvasSync = useCallback((kind: 'object:added' | 'object:removed' | 'object:modified' | 'canvas:snapshot', payload: any) => {
     if (!chapterRoom) return

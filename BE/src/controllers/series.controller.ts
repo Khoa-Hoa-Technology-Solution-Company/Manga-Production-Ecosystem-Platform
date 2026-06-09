@@ -261,6 +261,21 @@ export async function update(req: Request, res: Response): Promise<void> {
         // 2. Pending_Editor -> Pending_EB
         else if (oldSeries.status === 'Pending_Editor' && status === 'Pending_EB') {
           await notifySeriesApproved(mangakaIdStr, series?.title || oldSeries.title, oldSeries._id.toString());
+          try {
+            const ebMembers = await User.find({ role: 'editorial_board', isActive: true });
+            for (const member of ebMembers) {
+              await createNotification({
+                userId: member._id.toString(),
+                type: 'system',
+                title: 'New Series Pending Vote',
+                message: `Tantou Editor approved and submitted "${series?.title || oldSeries.title}" for Editorial Board vote.`,
+                relatedId: oldSeries._id.toString(),
+                relatedType: 'Series'
+              });
+            }
+          } catch (ebErr) {
+            console.error('Failed to notify EB members:', ebErr);
+          }
         }
 
         // 3. Pending_Editor -> Draft (Reject)
