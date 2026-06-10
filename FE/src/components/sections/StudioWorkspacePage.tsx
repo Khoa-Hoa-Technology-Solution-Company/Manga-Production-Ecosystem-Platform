@@ -473,6 +473,14 @@ function StudioWorkspacePageContent() {
     }).catch(() => {})
   }, [selectedSeriesId, paramChapterId])
 
+  useEffect(() => {
+    const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c: any) => c.chapterNumber || 0)) + 1 : 1
+    Promise.resolve().then(() => {
+      setNewChapterNumber(String(nextNum))
+      setNewChapterTitle(`Chapter ${nextNum}`)
+    })
+  }, [chapters])
+
   // Load pages when selectedChapterId changes, respecting paramPageId
   useEffect(() => {
     if (!selectedChapterId) return
@@ -1628,10 +1636,9 @@ function StudioWorkspacePageContent() {
         title: newChapterTitle.trim(),
       })
       setShowCreateChapterDialog(false)
-      setNewChapterNumber(String(chapters.length + 1))
-      setNewChapterTitle(`Chapter ${chapters.length + 1}`)
       await refreshSeriesAndChapters(selectedSeriesId)
-    } catch (error) {
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to create chapter')
       console.error(error)
     }
   }
@@ -2662,7 +2669,7 @@ function StudioWorkspacePageContent() {
             <h3 className="text-sm font-semibold">Create Chapter</h3>
             <div>
               <label className="text-xs font-medium text-neutral-700 mb-1 block">Chapter number</label>
-              <Input value={newChapterNumber} onChange={(e) => setNewChapterNumber(e.target.value)} placeholder="1" />
+              <Input value={newChapterNumber} disabled placeholder="1" className="bg-neutral-100 cursor-not-allowed" />
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>

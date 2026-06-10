@@ -1,5 +1,7 @@
 import { Chapter, ChapterStatus } from '../models/Chapter';
-import { notifyNewChapterToSubscribers } from './notification.service';
+import { Series } from '../models/Series';
+import { User } from '../models/User';
+import { notifyNewChapterToSubscribers, notifyChapterSubmittedToEditor } from './notification.service';
 
 /**
  * Valid workflow transitions for chapters.
@@ -51,10 +53,20 @@ export async function transitionChapterStatus(
     chapter.publishedAt = new Date();
   }
 
-  chapter.status = newStatus;
+  // Auto-publishing logic if series is already approved (Active/Completed)
+  let targetStatus = newStatus;
+  if (newStatus === 'Approved') {
+    const series = await Series.findById(chapter.seriesId);
+    if (series && (series.status === 'Active' || series.status === 'Completed')) {
+      targetStatus = 'Published';
+      chapter.publishedAt = new Date();
+    }
+  }
+
+  chapter.status = targetStatus;
   await chapter.save();
 
-  if (newStatus === 'Published') {
+  if (targetStatus === 'Published') {
     try {
       await notifyNewChapterToSubscribers(
         chapter.seriesId.toString(),
@@ -67,5 +79,26 @@ export async function transitionChapterStatus(
     }
   }
 
+  // Notify editor when Mangaka submits a chapter for review
+  if (targetStatus === 'Reviewing') {
+    try {
+      const series = await Series.findById(chapter.seriesId);
+      if (series?.editorId && series.editorStatus === 'accepted') {
+        const mangaka = await User.findById(chapter.mangakaId).select('displayName');
+        await notifyChapterSubmittedToEditor(
+          series.editorId.toString(),
+          mangaka?.displayName || 'Mangaka',
+          chapter.title,
+          chapter.chapterNumber,
+          series.title,
+          chapter._id.toString()
+        );
+      }
+    } catch (err) {
+      console.error('Failed to send chapter-submitted notification to editor:', err);
+    }
+  }
+
   return chapter;
 }
+

@@ -245,3 +245,21 @@ export async function notifyNewChapterToSubscribers(
     console.error('Failed to notify subscribers of new chapter:', err);
   }
 }
+
+export async function notifyChapterSubmittedToEditor(
+  editorId: string,
+  mangakaName: string,
+  chapterTitle: string,
+  chapterNumber: number,
+  seriesTitle: string,
+  chapterId: string
+): Promise<void> {
+  await createNotification({
+    userId: editorId,
+    type: 'chapter_status',
+    title: 'Chapter Submitted for Review',
+    message: `Mangaka ${mangakaName} submitted Chapter ${chapterNumber} – "${chapterTitle}" of "${seriesTitle}" for your review.`,
+    relatedId: chapterId,
+    relatedType: 'Chapter',
+  });
+}

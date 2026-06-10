@@ -42,6 +42,7 @@ import {
   ZoomOut,
   ChevronDown,
   Pause,
+  Bell,
 } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -49,6 +50,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, votesAPI, getImageUrl } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -165,6 +167,31 @@ export default function ReaderScreen() {
   const { seriesId } = useLocalSearchParams<{ seriesId: string }>();
   const { width: screenWidth } = Dimensions.get('window');
 
+  const { user } = useAuth();
+  const [subscribingSeries, setSubscribingSeries] = useState(false);
+
+  const handleToggleSeriesSubscribe = async () => {
+    if (!user || !seriesId) return;
+    setSubscribingSeries(true);
+    try {
+      const data = await seriesAPI.subscribe(seriesId);
+      if (data?.series) {
+        setSeriesData(data.series);
+        Alert.alert(
+          'Thông báo',
+          data.subscribed
+            ? 'Đã đăng ký nhận thông báo chương mới!'
+            : 'Đã hủy đăng ký nhận thông báo.'
+        );
+      }
+    } catch (err: any) {
+      console.error('Failed to toggle series subscription:', err);
+      Alert.alert('Lỗi', err.message || 'Không thể thực hiện đăng ký.');
+    } finally {
+      setSubscribingSeries(false);
+    }
+  };
+
   // Reading settings & customization states
   const [immersiveMode, setImmersiveMode] = useState(false);
   const [bgTheme, setBgTheme] = useState<'light' | 'dark' | 'sepia' | 'cinema'>('dark');
@@ -203,7 +230,7 @@ export default function ReaderScreen() {
     if (!seriesId) return;
     setError(null);
     setLoading(true);
-    
+
     Promise.all([
       seriesAPI.getById(seriesId),
       chaptersAPI.getBySeries(seriesId)
@@ -231,10 +258,10 @@ export default function ReaderScreen() {
   useEffect(() => {
     const currentChapter = chapters[activeChapterIndex];
     if (!currentChapter) return;
-    
+
     setLoadingPages(true);
     setError(null);
-    
+
     Promise.all([
       pagesAPI.getByChapter(currentChapter._id),
       commentsAPI.getByChapter(currentChapter._id)
@@ -248,7 +275,7 @@ export default function ReaderScreen() {
           'https://picsum.photos/seed/p2/900/1200',
           'https://picsum.photos/seed/p3/900/1200'
         ]);
-        
+
         const fetchedComments = (cData.comments || []).map((c: any) => ({
           id: c._id,
           user: c.userId?.displayName || 'Cộng đồng',
@@ -538,6 +565,28 @@ export default function ReaderScreen() {
                 <Settings size={16} color={currentTheme.primary} />
               </Pressable>
 
+              {user && (
+                <Pressable
+                  onPress={handleToggleSeriesSubscribe}
+                  disabled={subscribingSeries}
+                  style={[styles.iconCircle, { width: 52, height: 52, borderRadius: 26 }]}
+                >
+                  <Bell
+                    size={32}
+                    color={
+                      seriesData?.subscribers?.includes(user._id)
+                        ? '#6366f1'
+                        : currentTheme.text
+                    }
+                    fill={
+                      seriesData?.subscribers?.includes(user._id)
+                        ? '#6366f1'
+                        : 'none'
+                    }
+                  />
+                </Pressable>
+              )}
+
               <Pressable onPress={() => setBookmarked(!bookmarked)} style={styles.iconCircle}>
                 <Heart size={16} color={bookmarked ? '#f43f5e' : currentTheme.text} fill={bookmarked ? '#f43f5e' : 'none'} />
               </Pressable>
@@ -570,7 +619,7 @@ export default function ReaderScreen() {
             >
               <ZoomIn size={16} color={currentTheme.text} />
             </Pressable>
-            
+
             <View style={styles.zoomValueBadge}>
               <ThemedText style={[styles.zoomValueText, { color: currentTheme.text }]}>{zoomScale}x</ThemedText>
             </View>

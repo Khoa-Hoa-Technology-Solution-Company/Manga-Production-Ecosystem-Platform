@@ -48,6 +48,7 @@ interface ChapterReviewData {
   chapterNumber: number
   title: string
   seriesId?: string
+  status: 'Draft' | 'Reviewing' | 'Approved' | 'Published'
 }
 
 interface SeriesReviewData {
@@ -87,6 +88,38 @@ export function ManuscriptReviewPage() {
   const [noteInput, setNoteInput] = useState('')
   const [activeClickCoords, setActiveClickCoords] = useState<{ x: number; y: number } | null>(null)
   const [submittingPin, setSubmittingPin] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState(false)
+
+  const handleApproveChapter = async () => {
+    if (!chapter?._id) return
+    setSubmittingAction(true)
+    try {
+      await chaptersAPI.updateStatus(chapter._id, 'Approved')
+      alert('Chapter approved successfully!')
+      navigate('/editor')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to approve chapter')
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
+
+  const handleRejectChapter = async () => {
+    if (!chapter?._id) return
+    if (!window.confirm('Are you sure you want to request revisions for this chapter? It will be sent back to the Mangaka as a Draft.')) return
+    setSubmittingAction(true)
+    try {
+      await chaptersAPI.updateStatus(chapter._id, 'Draft')
+      alert('Chapter revision requested successfully!')
+      navigate('/editor')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to request revisions')
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
 
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
@@ -329,6 +362,26 @@ export function ManuscriptReviewPage() {
               <BookOpen className="size-3.5" />
               <span>{showSeriesDetails ? 'Hide Details' : 'Series Details'}</span>
             </button>
+          )}
+          {chapter && chapter.status === 'Reviewing' && (
+            <>
+              <button
+                onClick={handleApproveChapter}
+                disabled={submittingAction}
+                className="h-8 px-3.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle className="size-3.5" />
+                <span>{t('editor.approve', 'Approve')}</span>
+              </button>
+              <button
+                onClick={handleRejectChapter}
+                disabled={submittingAction}
+                className="h-8 px-3.5 text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+                <span>{t('editor.reject', 'Reject')}</span>
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowCanvas(true)}

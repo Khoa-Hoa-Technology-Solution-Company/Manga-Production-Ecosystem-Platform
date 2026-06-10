@@ -171,6 +171,7 @@ export function ReadingViewPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [avgRating, setAvgRating] = useState<number>(0)
   const [ratingCount, setRatingCount] = useState<number>(0)
+  const [serverReactions, setServerReactions] = useState<Array<{ _id: string; count: number }>>([])
 
   // Real database entities
   const [chapter, setChapter] = useState<any>(null)
@@ -272,9 +273,14 @@ export function ReadingViewPage() {
         if (res.data.userVote) {
           setVoted(Boolean(res.data.userVote.voted))
           setUserRating(res.data.userVote.rating || 0)
+          const savedReaction = res.data.userVote.reaction
+          if (savedReaction) setActiveReactions(new Set([savedReaction]))
         } else {
           setVoted(false)
           setUserRating(0)
+        }
+        if (res.data.reactions) {
+          setServerReactions(res.data.reactions)
         }
       })
       .catch(console.error)
@@ -485,14 +491,55 @@ export function ReadingViewPage() {
     }
   }
 
-  const toggleReaction = (emoji: string) => {
+  const toggleReaction = async (emoji: string) => {
+    if (!activeChapterId || activeChapterId === 'fallback') {
+      // Offline mode: just toggle local state
+      setActiveReactions((prev) => {
+        const next = new Set(prev)
+        if (next.has(emoji)) next.delete(emoji)
+        else next.add(emoji)
+        return next
+      })
+      return
+    }
+
+    // Determine new reaction: clicking active reaction deselects it (send null)
+    const newReaction = activeReactions.has(emoji) ? null : emoji
+
+    // Optimistic update
     setActiveReactions((prev) => {
       const next = new Set(prev)
-      if (next.has(emoji)) next.delete(emoji)
-      else next.add(emoji)
+      if (newReaction) next.add(emoji)
+      else next.delete(emoji)
       return next
     })
+
+    try {
+      await votesAPI.vote(activeChapterId, {
+        reaction: newReaction,
+        seriesId: chapter?.seriesId,
+      })
+      // Refresh reactions count from server
+      const votesRes = await votesAPI.getByChapter(activeChapterId)
+      if (votesRes.data.reactions) {
+        setServerReactions(votesRes.data.reactions)
+      }
+      if (votesRes.data.userVote) {
+        const savedReaction = votesRes.data.userVote.reaction
+        setActiveReactions(savedReaction ? new Set([savedReaction]) : new Set())
+      }
+    } catch (err) {
+      console.error('Failed to save reaction:', err)
+      // Revert on error
+      setActiveReactions((prev) => {
+        const next = new Set(prev)
+        if (newReaction) next.delete(emoji)
+        else next.add(emoji)
+        return next
+      })
+    }
   }
+
 
   return (
     <div className="flex flex-col h-screen max-h-screen overflow-hidden">
@@ -509,7 +556,7 @@ export function ReadingViewPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`h-7 w-7 p-0 rounded-full hover:bg-neutral-100 shrink-0 transition-all ${
+                  className={`h-9 w-9 p-0 rounded-full hover:bg-neutral-100 shrink-0 transition-all ${
                     series.subscribers?.includes(user._id) ? 'text-indigo-600 hover:text-indigo-700' : 'text-neutral-400 hover:text-neutral-600'
                   }`}
                   disabled={subscribingSeries}
@@ -519,7 +566,7 @@ export function ReadingViewPage() {
                     : t('settingsPage.subscribeSeries', i18n.language === 'vi' ? 'Theo dõi series này' : 'Subscribe to this series')
                   }
                 >
-                  <Bell className={`size-4 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
+                  <Bell className={`size-6 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
                 </Button>
               )}
             </div>
@@ -808,24 +855,28 @@ export function ReadingViewPage() {
             {/* Reactions */}
             <div>
               <span className="text-xs font-semibold text-neutral-700">Quick Reactions</span>
-              <div className="flex gap-2 mt-2">
-                {reactions.map((r) => (
-                  <button
-                    key={r.emoji}
-                    type="button"
-                    className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-2 transition-all ${
-                      activeReactions.has(r.emoji)
-                        ? 'bg-neutral-900 text-white scale-105'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                    }`}
-                    onClick={() => toggleReaction(r.emoji)}
-                  >
-                    <span className="text-base">{r.emoji}</span>
-                    <span className="text-[9px] font-medium">
-                      {activeReactions.has(r.emoji) ? r.count + 1 : r.count}
-                    </span>
-                  </button>
-                ))}
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {reactions.map((r) => {
+                  const serverCount = serverReactions.find(s => s._id === r.emoji)?.count ?? r.count
+                  const isActive = activeReactions.has(r.emoji)
+                  return (
+                    <button
+                      key={r.emoji}
+                      type="button"
+                      className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-2 transition-all ${
+                        isActive
+                          ? 'bg-neutral-900 text-white scale-105'
+                          : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                      }`}
+                      onClick={() => toggleReaction(r.emoji)}
+                    >
+                      <span className="text-base">{r.emoji}</span>
+                      <span className="text-[9px] font-medium">
+                        {serverCount}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 

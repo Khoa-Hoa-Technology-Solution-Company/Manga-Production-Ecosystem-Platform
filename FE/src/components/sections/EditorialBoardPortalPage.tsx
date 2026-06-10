@@ -93,6 +93,14 @@ export function EditorialBoardPortalPage() {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 })
   const [atRiskSeries, setAtRiskSeries] = useState<SeriesItem[]>([])
   const [recentDecisions, setRecentDecisions] = useState<SeriesItem[]>([])
+  const [lowRatingChapters, setLowRatingChapters] = useState<Array<{
+    chapterId: string
+    chapterNumber: number
+    chapterTitle: string
+    avgRating: number
+    ratingCount: number
+    series: { _id: string; title: string; coverImage?: string; mangakaId?: { displayName: string } }
+  }>>([])
 
   // Voting state
   const [votingSeriesId, setVotingSeriesId] = useState<string | null>(null)
@@ -146,6 +154,7 @@ export function EditorialBoardPortalPage() {
       setDashboardStats(dashboardRes.data.stats || { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 })
       setAtRiskSeries(dashboardRes.data.atRiskSeries || [])
       setRecentDecisions(dashboardRes.data.recentDecisions || [])
+      setLowRatingChapters(dashboardRes.data.lowRatingChapters || [])
     } catch (err) {
       console.error('Failed to fetch EB data:', err)
     } finally {
@@ -491,6 +500,48 @@ export function EditorialBoardPortalPage() {
                             {new Date(series.updatedAt).toLocaleDateString()}
                           </span>
                         )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Low Rating Alerts */}
+          {lowRatingChapters.length > 0 && (
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="border-b border-neutral-100 bg-gradient-to-r from-amber-50/60 to-orange-50/30 px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-amber-500" />
+                    <h3 className="text-sm font-semibold text-neutral-950">Low Reader Rating Alerts</h3>
+                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
+                      {lowRatingChapters.length} chapters
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-neutral-500">Published chapters with average reader rating below 3 stars. Consider reviewing with the responsible Tantou editor.</p>
+                </div>
+                <div className="divide-y divide-neutral-50">
+                  {lowRatingChapters.map((item) => (
+                    <div key={item.chapterId} className="flex items-center gap-4 px-5 py-3 hover:bg-amber-50/30 transition-colors">
+                      <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-100">
+                        <BookOpen className="size-4 text-amber-500" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-neutral-900 truncate">
+                          Ch.{item.chapterNumber}: {item.chapterTitle}
+                        </p>
+                        <p className="text-xs text-neutral-500 truncate">{item.series?.title || 'Unknown series'}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <div className="flex items-center gap-0.5">
+                          {[1,2,3,4,5].map(s => (
+                            <span key={s} className={`text-sm ${s <= Math.round(item.avgRating) ? 'text-amber-400' : 'text-neutral-200'}`}>★</span>
+                          ))}
+                          <span className="ml-1 text-xs font-bold text-amber-600">{item.avgRating}/5</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-400">{item.ratingCount} ratings</span>
                       </div>
                     </div>
                   ))}

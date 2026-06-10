@@ -138,6 +138,9 @@ export const seriesAPI = {
   delete: (id: string) =>
     apiFetch(`/series/${id}`, { method: 'DELETE' }),
 
+  subscribe: (id: string) =>
+    apiFetch<{ series: any; subscribed: boolean }>(`/series/${id}/subscribe`, { method: 'POST' }),
+
   getEditors: () => apiFetch<{ editors: any[] }>('/series/editors'),
 
   getDedicatedAssistants: (seriesId: string) =>

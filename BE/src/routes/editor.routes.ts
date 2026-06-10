@@ -9,6 +9,7 @@ router.use(authenticate);
 router.use(authorize('editor'));
 
 router.get('/portfolio', ctrl.getPortfolio);
+router.get('/pending-chapters', ctrl.getPendingChapters);
 router.get('/milestones/:seriesId', ctrl.getMilestones);
 router.get('/warnings', ctrl.getWarnings);
 router.get('/analytics/:mangakaId', ctrl.getAnalytics);
