@@ -396,7 +396,7 @@ export function ReaderHubPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className={`h-7 w-7 p-0 rounded-full transition-all duration-300 ${
+                          className={`h-8 w-8 p-0 rounded-full transition-all duration-300 ${
                             series.subscribers?.includes(user._id)
                               ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700'
                               : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100'
@@ -405,7 +405,7 @@ export function ReaderHubPage() {
                           disabled={subscribingSeriesId === series._id}
                           title={series.subscribers?.includes(user._id) ? 'Unsubscribe from new chapters' : 'Subscribe to new chapters'}
                         >
-                          <Bell className={`size-3.5 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
+                          <Bell className={`size-5 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
                         </Button>
                       )}
                     </div>

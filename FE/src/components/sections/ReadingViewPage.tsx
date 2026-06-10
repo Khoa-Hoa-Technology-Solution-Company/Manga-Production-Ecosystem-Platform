@@ -509,7 +509,7 @@ export function ReadingViewPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`h-7 w-7 p-0 rounded-full hover:bg-neutral-100 shrink-0 transition-all ${
+                  className={`h-9 w-9 p-0 rounded-full hover:bg-neutral-100 shrink-0 transition-all ${
                     series.subscribers?.includes(user._id) ? 'text-indigo-600 hover:text-indigo-700' : 'text-neutral-400 hover:text-neutral-600'
                   }`}
                   disabled={subscribingSeries}
@@ -519,7 +519,7 @@ export function ReadingViewPage() {
                     : t('settingsPage.subscribeSeries', i18n.language === 'vi' ? 'Theo dõi series này' : 'Subscribe to this series')
                   }
                 >
-                  <Bell className={`size-4 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
+                  <Bell className={`size-6 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
                 </Button>
               )}
             </div>

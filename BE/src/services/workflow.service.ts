@@ -1,4 +1,5 @@
 import { Chapter, ChapterStatus } from '../models/Chapter';
+import { Series } from '../models/Series';
 import { notifyNewChapterToSubscribers } from './notification.service';
 
 /**
@@ -51,10 +52,20 @@ export async function transitionChapterStatus(
     chapter.publishedAt = new Date();
   }
 
-  chapter.status = newStatus;
+  // Auto-publishing logic if series is already approved (Active/Completed)
+  let targetStatus = newStatus;
+  if (newStatus === 'Approved') {
+    const series = await Series.findById(chapter.seriesId);
+    if (series && (series.status === 'Active' || series.status === 'Completed')) {
+      targetStatus = 'Published';
+      chapter.publishedAt = new Date();
+    }
+  }
+
+  chapter.status = targetStatus;
   await chapter.save();
 
-  if (newStatus === 'Published') {
+  if (targetStatus === 'Published') {
     try {
       await notifyNewChapterToSubscribers(
         chapter.seriesId.toString(),
@@ -69,3 +80,4 @@ export async function transitionChapterStatus(
 
   return chapter;
 }
+

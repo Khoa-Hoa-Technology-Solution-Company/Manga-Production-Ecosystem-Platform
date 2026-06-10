@@ -409,5 +409,8 @@
     "saveSuccess": "Settings updated successfully!",
     "saveError": "Failed to update settings. Please try again.",
     "saving": "Saving..."
+  },
+  "seriesManager": {
+    "submitReview": "Submit for Review"
   }
 }

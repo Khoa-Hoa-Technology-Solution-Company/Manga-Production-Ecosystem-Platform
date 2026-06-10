@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { ImageBackground, Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -19,6 +19,7 @@ import {
   Medal,
   User,
   LogOut,
+  Bell,
 } from 'lucide-react-native';
 
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -44,6 +45,33 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const [activeMood, setActiveMood] = useState('All');
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [subscribingSeriesId, setSubscribingSeriesId] = useState<string | null>(null);
+
+  const handleToggleSeriesSubscribe = async (seriesId: string) => {
+    if (!user) return;
+    setSubscribingSeriesId(seriesId);
+    try {
+      const data = await seriesAPI.subscribe(seriesId);
+      if (data?.series) {
+        setSeriesList((prev) =>
+          prev.map((s) =>
+            s._id === seriesId ? { ...s, subscribers: data.series.subscribers } : s
+          )
+        );
+        Alert.alert(
+          'Thông báo',
+          data.subscribed
+            ? 'Đã đăng ký nhận thông báo chương mới!'
+            : 'Đã hủy đăng ký nhận thông báo.'
+        );
+      }
+    } catch (err: any) {
+      console.error('Failed to toggle series subscription:', err);
+      Alert.alert('Lỗi', err.message || 'Không thể thực hiện đăng ký.');
+    } finally {
+      setSubscribingSeriesId(null);
+    }
+  };
 
   // ── API data state ────────────────────────────────
   const [seriesList, setSeriesList] = useState<any[]>([]);
@@ -130,6 +158,7 @@ export default function HomeScreen() {
         cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/600/400`,
         hot: (s.weeklyVotes || 0) > 100,
         shared: Boolean(s.sharedWithMe),
+        subscribers: s.subscribers || [],
       })),
     [seriesList]
   );
@@ -346,6 +375,43 @@ export default function HomeScreen() {
                     <Flame size={10} color="#fff" />
                     <ThemedText style={styles.hotBadgeText}>HOT</ThemedText>
                   </View>
+                )}
+                {user && (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleToggleSeriesSubscribe(item.id);
+                    }}
+                    disabled={subscribingSeriesId === item.id}
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: 'rgba(10,5,22,0.85)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.12)',
+                      zIndex: 30,
+                    }}
+                  >
+                    <Bell
+                      size={12}
+                      color={
+                        item.subscribers?.includes(user._id)
+                          ? '#fb7185'
+                          : '#cbd5e1'
+                      }
+                      fill={
+                        item.subscribers?.includes(user._id)
+                          ? '#fb7185'
+                          : 'none'
+                      }
+                    />
+                  </Pressable>
                 )}
                 <View style={styles.gridTextWrap}>
                   <ThemedText style={styles.gridCardGenre}>{item.genre}</ThemedText>

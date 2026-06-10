@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpen, Layers3, Pencil, Plus, RefreshCw, Trash2, Upload, Users, UserPlus, X, Search, CheckCircle2, Clock, ArrowRight } from 'lucide-react'
+import { BookOpen, Layers3, Pencil, Plus, RefreshCw, Trash2, Upload, Users, UserPlus, X, Search, CheckCircle2, Clock, ArrowRight, Send } from 'lucide-react'
 import { Badge, Button, Card, Input, Tabs, Avatar, AvatarFallback } from '../ui'
 import { seriesAPI, chaptersAPI, authAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
@@ -284,6 +284,14 @@ export function MangakaSeriesManagerPage() {
       .catch(() => setChapters([]))
   }, [selectedSeriesId])
 
+  useEffect(() => {
+    const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c) => c.chapterNumber || 0)) + 1 : 1
+    Promise.resolve().then(() => {
+      setChapterNumber(String(nextNum))
+      setChapterTitle(`Chapter ${nextNum}`)
+    })
+  }, [chapters])
+
   // Load dedicated assistants when series changes and is Active
   useEffect(() => {
     if (!selectedSeriesId || selectedSeries?.status !== 'Active') {
@@ -446,10 +454,11 @@ export function MangakaSeriesManagerPage() {
         chapterNumber: Number(chapterNumber),
         title: chapterTitle.trim(),
       })
-      setChapterNumber(String((chapters.length || 0) + 1))
-      setChapterTitle(`Chapter ${(chapters.length || 0) + 1}`)
       setShowChapterForm(false)
       await loadData(selectedSeriesId)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to create chapter')
     } finally {
       setSaving(false)
     }
@@ -474,6 +483,9 @@ export function MangakaSeriesManagerPage() {
       setShowEditChapterForm(false)
       setEditingChapterId('')
       await loadData(selectedSeriesId)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to update chapter')
     } finally {
       setSaving(false)
     }
@@ -485,6 +497,20 @@ export function MangakaSeriesManagerPage() {
     try {
       await chaptersAPI.delete(chapterId)
       await loadData(selectedSeriesId)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSubmitChapterForReview = async (chapterId: string) => {
+    setSaving(true)
+    try {
+      await chaptersAPI.updateStatus(chapterId, 'Reviewing')
+      alert('Chapter submitted for review successfully!')
+      await loadData(selectedSeriesId)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to submit chapter for review')
     } finally {
       setSaving(false)
     }
@@ -847,7 +873,15 @@ export function MangakaSeriesManagerPage() {
                       <h3 className="text-sm font-semibold text-neutral-950">{ui.chapterListTitle}</h3>
                       <p className="text-xs text-neutral-500">{ui.chapterListHint}</p>
                     </div>
-                    <Button disabled={!selectedSeriesId || selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => setShowChapterForm(true)}>
+                    <Button
+                      disabled={!selectedSeriesId || selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'}
+                      onClick={() => {
+                        const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c) => c.chapterNumber || 0)) + 1 : 1
+                        setChapterNumber(String(nextNum))
+                        setChapterTitle(`Chapter ${nextNum}`)
+                        setShowChapterForm(true)
+                      }}
+                    >
                       <Plus className="mr-2 size-4" /> {ui.newChapter}
                     </Button>
                   </div>
@@ -860,7 +894,7 @@ export function MangakaSeriesManagerPage() {
 
                   {showChapterForm && (
                     <div className="mt-4 grid gap-3 rounded-2xl border border-neutral-200 p-4 sm:grid-cols-2">
-                      <Input value={chapterNumber} onChange={(e) => setChapterNumber(e.target.value)} placeholder={ui.chapterNumber} />
+                      <Input value={chapterNumber} disabled placeholder={ui.chapterNumber} className="bg-neutral-100 cursor-not-allowed" />
                       <Input value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} placeholder={ui.chapterTitle} />
                       <div className="sm:col-span-2 flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setShowChapterForm(false)}>{ui.cancel}</Button>
@@ -912,7 +946,7 @@ export function MangakaSeriesManagerPage() {
                     <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="text-sm font-semibold text-neutral-950">{ui.edit} {ui.chapterListTitle}</div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <Input value={chapterNumber} onChange={(e) => setChapterNumber(e.target.value)} placeholder={ui.chapterNumber} />
+                        <Input value={chapterNumber} disabled placeholder={ui.chapterNumber} className="bg-neutral-100 cursor-not-allowed" />
                         <Input value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} placeholder={ui.chapterTitle} />
                       </div>
                       <div className="flex justify-end gap-2">
@@ -943,6 +977,17 @@ export function MangakaSeriesManagerPage() {
                             <div>{ui.collaborators}: {chapter.collaborators?.length || 0}</div>
                           </div>
                           <div className="mt-4 flex items-center justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            {chapter.status === 'Draft' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                                disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB' || saving}
+                                onClick={() => handleSubmitChapterForReview(chapter._id)}
+                              >
+                                <Send className="mr-2 size-4" /> {t('seriesManager.submitReview', 'Submit for Review')}
+                              </Button>
+                            )}
                             <Button variant="outline" size="sm" disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => openEditChapter(chapter)}>
                               <Pencil className="mr-2 size-4" /> {ui.edit}
                             </Button>

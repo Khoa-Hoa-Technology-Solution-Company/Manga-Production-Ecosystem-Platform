@@ -890,7 +890,73 @@ export function EditorPortalPage() {
                           No Chapters Available
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-neutral-500 hover:bg-neutral-100 text-xs font-bold rounded-xl h-9 px-3 gap-1.5 shrink-0 border border-neutral-200"
+                        onClick={() => handleToggleExpand(series._id)}
+                      >
+                        {expandedSeriesId === series._id ? 'Hide Chapters' : 'Inspect Chapters'}
+                      </Button>
                     </div>
+
+                    {/* Expanded Chapters List */}
+                    {expandedSeriesId === series._id && (
+                      <div className="border-t border-neutral-100 pt-3 mt-4 space-y-2 w-full text-left">
+                        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
+                          {t('editor.submittedChapters', 'Submitted Chapters & Pages')}
+                        </span>
+                        
+                        {loadingChaptersForSeries ? (
+                          <div className="flex items-center gap-2 text-xs text-neutral-500 py-2 justify-center">
+                            <div className="size-4 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />
+                            <span>{t('common.loading', 'Loading details...')}</span>
+                          </div>
+                        ) : expandedChapters.length === 0 ? (
+                          <p className="text-xs text-neutral-500 py-2 text-center">
+                            {t('editor.noChapters', 'No chapters created for this series yet.')}
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {expandedChapters.map((chapter) => (
+                              <div key={chapter._id} className="flex items-center justify-between gap-3 p-2 rounded-xl bg-neutral-50 border border-neutral-100 text-xs">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold text-neutral-800 truncate">
+                                    Ch. {chapter.chapterNumber}: {chapter.title}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-neutral-400">
+                                      {chapter.totalPages || 0} Pages · {chapter.progress || 0}% Done
+                                    </span>
+                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                                      chapter.status === 'Reviewing'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : chapter.status === 'Published'
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : chapter.status === 'Approved'
+                                            ? 'bg-sky-100 text-sky-800'
+                                            : 'bg-neutral-100 text-neutral-600'
+                                    }`}>
+                                      {chapter.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 px-2 bg-neutral-900 text-white hover:bg-neutral-800 text-[10px] font-semibold rounded-lg gap-1"
+                                    onClick={() => navigate(`/editor/review/${chapter._id}`)}
+                                  >
+                                    {t('editor.auditManuscript', 'Audit')}
+                                    <ChevronRight className="size-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 ))}
               </div>
@@ -1405,9 +1471,22 @@ export function EditorPortalPage() {
                                   <p className="font-semibold text-neutral-800 truncate">
                                     Ch. {chapter.chapterNumber}: {chapter.title}
                                   </p>
-                                  <p className="text-[10px] text-neutral-400">
-                                    {chapter.totalPages || 0} Pages · {chapter.progress || 0}% Done
-                                  </p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-neutral-400">
+                                      {chapter.totalPages || 0} Pages · {chapter.progress || 0}% Done
+                                    </span>
+                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                                      chapter.status === 'Reviewing'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : chapter.status === 'Published'
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : chapter.status === 'Approved'
+                                            ? 'bg-sky-100 text-sky-800'
+                                            : 'bg-neutral-100 text-neutral-600'
+                                    }`}>
+                                      {chapter.status}
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <Button

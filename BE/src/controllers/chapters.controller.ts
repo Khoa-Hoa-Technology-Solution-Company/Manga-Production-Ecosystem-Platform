@@ -51,9 +51,21 @@ export async function getBySeriesId(req: Request, res: Response): Promise<void> 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { chapterNumber, title } = req.body;
+
+    const lastChapter = await Chapter.findOne({ seriesId: req.params.seriesId })
+      .sort({ chapterNumber: -1 });
+    const expectedNumber = lastChapter ? lastChapter.chapterNumber + 1 : 1;
+
+    if (chapterNumber !== undefined && Number(chapterNumber) !== expectedNumber) {
+      res.status(400).json({ error: `Chapters must be created sequentially. Next chapter number must be ${expectedNumber}.` });
+      return;
+    }
+
+    const finalChapterNumber = chapterNumber !== undefined ? Number(chapterNumber) : expectedNumber;
+
     const chapter = await Chapter.create({
       seriesId: req.params.seriesId,
-      chapterNumber,
+      chapterNumber: finalChapterNumber,
       title,
       mangakaId: req.user?._id,
       collaborators: [
@@ -77,7 +89,15 @@ export async function update(req: Request, res: Response): Promise<void> {
   try {
     const { chapterNumber, title, totalPages, progress, editorId } = req.body;
     const updateData: any = { title, totalPages, progress, editorId };
-    if (chapterNumber !== undefined) updateData.chapterNumber = chapterNumber;
+
+    if (chapterNumber !== undefined) {
+      const existing = await Chapter.findById(req.params.id);
+      if (existing && existing.chapterNumber !== Number(chapterNumber)) {
+        res.status(400).json({ error: 'Chapter number cannot be modified once created.' });
+        return;
+      }
+      updateData.chapterNumber = chapterNumber;
+    }
 
     const chapter = await Chapter.findByIdAndUpdate(
       req.params.id,
