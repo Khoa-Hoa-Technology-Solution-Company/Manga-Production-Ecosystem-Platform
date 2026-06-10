@@ -127,8 +127,8 @@ export function ReaderHubPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Fetch active series
-    seriesAPI.getAll({ status: 'Active' })
+    // Fetch active/completed series
+    seriesAPI.getAll()
       .then((res) => {
         setSeriesList(res.data.series || [])
       })
@@ -207,6 +207,8 @@ export function ReaderHubPage() {
   }
 
   const filteredSeries = seriesList.filter((s) => {
+    const isPublic = s.status === 'Active' || s.status === 'Completed'
+    if (!isPublic) return false
     const matchCategory = activeCategory === 'All' || (s.genre && s.genre.some((g: string) => g.toLowerCase() === activeCategory.toLowerCase()))
     const matchSearch = searchQuery === '' || s.title.toLowerCase().includes(searchQuery.toLowerCase())
     return matchCategory && matchSearch
@@ -382,12 +384,30 @@ export function ReaderHubPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-[10px] text-neutral-500">
-                      <span className="flex items-center gap-1">
-                        <Heart className="size-3 text-rose-400" /> {(series.totalVotes || 0).toLocaleString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="size-3" /> {(series.readerCount || 0).toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1">
+                          <Heart className="size-3 text-rose-400" /> {(series.totalVotes || 0).toLocaleString()}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Eye className="size-3" /> {(series.readerCount || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      {user && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-7 w-7 p-0 rounded-full transition-all duration-300 ${
+                            series.subscribers?.includes(user._id)
+                              ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700'
+                              : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100'
+                          }`}
+                          onClick={(e) => handleToggleSeriesSubscribe(e, series._id)}
+                          disabled={subscribingSeriesId === series._id}
+                          title={series.subscribers?.includes(user._id) ? 'Unsubscribe from new chapters' : 'Subscribe to new chapters'}
+                        >
+                          <Bell className={`size-3.5 ${series.subscribers?.includes(user._id) ? 'fill-current animate-pulse' : ''}`} />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </Card>

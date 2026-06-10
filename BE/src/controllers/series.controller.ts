@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { Series } from '../models/Series';
 import { Chapter } from '../models/Chapter';
 import { User } from '../models/User';
@@ -36,6 +37,17 @@ export async function getAll(req: Request, res: Response): Promise<void> {
     } else if (req.user?.role === 'editor') {
       filter.editorId = req.user._id;
       filter.editorStatus = 'accepted';
+    } else if (req.user?.role === 'editorial_board') {
+      // EB can view all series
+    } else {
+      // Readers and guests can only view Active and Completed series
+      if (filter.status) {
+        if (!['Active', 'Completed'].includes(filter.status)) {
+          filter.status = { $in: [] }; // Yield empty result
+        }
+      } else {
+        filter.status = { $in: ['Active', 'Completed'] };
+      }
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -430,7 +442,7 @@ export async function toggleSubscribe(req: Request, res: Response): Promise<void
 
     let isSubscribed = false;
     if (index === -1) {
-      series.subscribers.push(req.user!._id);
+      series.subscribers.push(new Types.ObjectId(req.user!._id));
       isSubscribed = true;
     } else {
       series.subscribers.splice(index, 1);
