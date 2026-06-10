@@ -3,6 +3,7 @@ import { Series } from '../models/Series';
 import { EBVote } from '../models/EBVote';
 import { User } from '../models/User';
 import { Chapter } from '../models/Chapter';
+import { Vote } from '../models/Vote';
 import {
   notifySeriesPublished,
   notifySeriesEBRejected,
@@ -54,7 +55,7 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
 
 /**
  * GET /api/eb/dashboard
- * Returns EB dashboard data: stats + low-voted series for cancellation review.
+ * Returns EB dashboard data: stats + low-voted series + low-rating chapter alerts.
  */
 export async function getDashboard(req: Request, res: Response): Promise<void> {
   try {
@@ -84,6 +85,46 @@ export async function getDashboard(req: Request, res: Response): Promise<void> {
       .limit(10)
       .lean();
 
+    // Low-rating chapter alerts (published chapters with avgRating < 3 and >= 3 votes)
+    const LOW_RATING_THRESHOLD = 3;
+    const MIN_VOTES_FOR_ALERT = 3;
+
+    const lowRatingAgg = await Vote.aggregate([
+      { $match: { rating: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$chapterId',
+          avgRating: { $avg: '$rating' },
+          ratingCount: { $sum: 1 },
+        },
+      },
+      {
+        $match: {
+          avgRating: { $lt: LOW_RATING_THRESHOLD },
+          ratingCount: { $gte: MIN_VOTES_FOR_ALERT },
+        },
+      },
+      { $sort: { avgRating: 1 } },
+      { $limit: 20 },
+    ]);
+
+    const lowRatingChapters = await Promise.all(
+      lowRatingAgg.map(async (item) => {
+        const chapter = await Chapter.findById(item._id)
+          .populate('seriesId', 'title coverImage status mangakaId')
+          .lean();
+        if (!chapter || chapter.status !== 'Published') return null;
+        return {
+          chapterId: item._id,
+          chapterNumber: chapter.chapterNumber,
+          chapterTitle: chapter.title,
+          avgRating: Math.round(item.avgRating * 10) / 10,
+          ratingCount: item.ratingCount,
+          series: chapter.seriesId,
+        };
+      })
+    ).then((results) => results.filter(Boolean));
+
     res.json({
       stats: {
         pendingCount,
@@ -93,6 +134,7 @@ export async function getDashboard(req: Request, res: Response): Promise<void> {
       },
       atRiskSeries,
       recentDecisions,
+      lowRatingChapters,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
