@@ -330,3 +330,25 @@ export async function getAnalytics(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: error.message });
   }
 }
+
+export async function getPendingChapters(req: Request, res: Response): Promise<void> {
+  try {
+    const editorId = req.user?._id;
+    if (!editorId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const seriesList = await Series.find({ editorId, editorStatus: 'accepted' });
+    const seriesIds = seriesList.map(s => s._id);
+
+    const pendingChapters = await Chapter.find({
+      seriesId: { $in: seriesIds },
+      status: 'Reviewing',
+    }).populate('seriesId', 'title coverImage');
+
+    res.json({ pendingChapters });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}

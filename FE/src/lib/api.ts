@@ -194,8 +194,10 @@ export const annotationsAPI = {
 // ── Editor Analytics API ────────────────────────────
 export const editorAPI = {
   getPortfolio: () => api.get('/editor/portfolio'),
+  getPendingChapters: () => api.get('/editor/pending-chapters'),
   getMilestones: (seriesId: string) => api.get(`/editor/milestones/${seriesId}`),
   getWarnings: () => api.get('/editor/warnings'),
   getAnalytics: (mangakaId: string) => api.get(`/editor/analytics/${mangakaId}`),
 };
+
 
