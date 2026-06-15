@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { BookOpen, Layers3, Pencil, Plus, RefreshCw, Trash2, Upload, Users, UserPlus, X, Search, CheckCircle2, Clock, ArrowRight, Send } from 'lucide-react'
 import { Badge, Button, Card, Input, Tabs, Avatar, AvatarFallback } from '../ui'
 import { seriesAPI, chaptersAPI, authAPI } from '../../lib/api'
@@ -109,11 +110,37 @@ export function MangakaSeriesManagerPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
   const [seriesList, setSeriesList] = useState<SeriesData[]>([])
-  const [selectedSeriesId, setSelectedSeriesId] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedSeriesId, setSelectedSeriesId] = useState(searchParams.get('seriesId') || '')
   const [chapters, setChapters] = useState<ChapterData[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState('series')
+  const [tab, setTab] = useState(searchParams.get('tab') || 'series')
+
+  useEffect(() => {
+    const sId = searchParams.get('seriesId')
+    const tVal = searchParams.get('tab')
+    if (sId && sId !== selectedSeriesId) {
+      Promise.resolve().then(() => {
+        setSelectedSeriesId(sId)
+      })
+    }
+    if (tVal && tVal !== tab) {
+      Promise.resolve().then(() => {
+        setTab(tVal)
+      })
+    }
+  }, [searchParams, selectedSeriesId, tab])
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      if (selectedSeriesId) prev.set('seriesId', selectedSeriesId)
+      else prev.delete('seriesId')
+      if (tab) prev.set('tab', tab)
+      else prev.delete('tab')
+      return prev
+    }, { replace: true })
+  }, [selectedSeriesId, tab, setSearchParams])
   
   const [editorsList, setEditorsList] = useState<EditorUserData[]>([])
   const [showSubmitModal, setShowSubmitModal] = useState(false)

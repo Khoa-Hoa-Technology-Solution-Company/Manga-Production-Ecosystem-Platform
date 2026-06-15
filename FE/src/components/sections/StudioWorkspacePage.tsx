@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { useCallback, useEffect, useRef, useState, Component } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { Canvas as FabricCanvas, Rect, Circle, Path, FabricImage, IText, PencilBrush, Point, util } from 'fabric'
 import {
   ChevronLeft,
@@ -29,6 +29,9 @@ import {
   AlertCircle,
   CheckSquare,
   Check,
+  Globe,
+  BookOpen,
+  FileText,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -65,6 +68,8 @@ type TaskData = {
   zoneId?: string
   wage?: number
   reviewNotes?: string
+  assignmentLevel?: 'chapter' | 'page'
+  pageId?: any
 }
 
 /* ── Canvas annotation parser ────────────────────────── */
@@ -124,6 +129,7 @@ function StudioWorkspacePageContent() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [activeTool, setActiveTool] = useState('select')
   const [rightTab, setRightTab] = useState('zones')
@@ -182,6 +188,8 @@ function StudioWorkspacePageContent() {
   const [recommendations, setRecommendations] = useState<any[]>([])
   const [recommendationLoading, setRecommendationLoading] = useState(false)
   const [reviewNotes, setReviewNotes] = useState('')
+  const [showCancelTaskDialog, setShowCancelTaskDialog] = useState(false)
+  const [taskToCancel, setTaskToCancel] = useState<any | null>(null)
   const [createTaskForm, setCreateTaskForm] = useState({
     title: '',
     description: '',
@@ -190,6 +198,7 @@ function StudioWorkspacePageContent() {
     type: 'background',
     assignedTo: '',
     assistantType: 'freelance',
+    assignmentLevel: 'page' as 'chapter' | 'page',
   })
 
   // ── Fabric.js refs ────────────────────────────────
@@ -262,6 +271,10 @@ function StudioWorkspacePageContent() {
   const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
   const currentChapter = chapters.find(c => c._id === selectedChapterId)
   const chapterCollaborators = (currentChapter as any)?.collaborators || []
+
+  // Active tasks for chapter and page
+  const activeChapterTask = pageTasks.find(t => t.assignmentLevel === 'chapter' && t.status !== 'done')
+  const activePageTask = pageTasks.find(t => t.assignmentLevel === 'page' && (t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id) && t.status !== 'done')
 
   // ── Review Lock Logic ──────────────────────────────
   // Series is locked when submitted for review (Pending_Editor or Pending_EB)
@@ -529,11 +542,11 @@ function StudioWorkspacePageContent() {
   useEffect(() => { loadZones() }, [loadZones])
 
   useEffect(() => {
-    if (!currentPage?._id) { setPageTasks([]); return }
-    tasksAPI.getAll({ pageId: currentPage._id }).then(res => {
+    if (!selectedChapterId) { setPageTasks([]); return }
+    tasksAPI.getAll({ chapterId: selectedChapterId }).then(res => {
       setPageTasks(res.data.tasks || [])
     }).catch(() => { })
-  }, [currentPage?._id])
+  }, [selectedChapterId, currentPage?._id])
 
   const loadAnnotations = useCallback(() => {
     if (!selectedChapterId) return
@@ -1364,8 +1377,8 @@ function StudioWorkspacePageContent() {
       if (manualDeleted) saveManualHistory()
       fc.discardActiveObject()
       loadZones()
-      if (zoneDeleted && currentPage?._id) {
-        tasksAPI.getAll({ pageId: currentPage._id }).then(res => {
+      if (zoneDeleted && selectedChapterId) {
+        tasksAPI.getAll({ chapterId: selectedChapterId }).then(res => {
           setPageTasks(res.data.tasks || [])
         }).catch(console.error)
       }
@@ -1397,61 +1410,84 @@ function StudioWorkspacePageContent() {
   }
 
   // ── Task Creation & Assignment Helpers ─────────────
-  const loadAssistantRecommendations = async (skills: string) => {
-    setRecommendationLoading(true)
+  const loadAssistantRecommendations = async (_skills: string, astType?: 'freelance' | 'dedicated') => {
+    const currentAstType = astType !== undefined ? astType : createTaskForm.assistantType;
+    if (currentAstType === 'freelance') {
+      setRecommendations([]);
+      return;
+    }
+
+    if (!selectedSeriesId) return;
+    setRecommendationLoading(true);
     try {
-      const res = await authAPI.recommendAssistants({ skills, limit: 5 })
-      setRecommendations(res.data.assistants || [])
+      const res = await seriesAPI.getDedicatedAssistants(selectedSeriesId);
+      const mapped = (res.data.dedicatedAssistants || [])
+        .map((item: any) => {
+          if (item.userId && typeof item.userId === 'object') {
+            return {
+              ...item.userId,
+              activeTasksCount: item.userId.activeTasksCount || 0,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+      setRecommendations(mapped);
     } catch (err) {
-      console.error('Failed to load recommendations', err)
+      console.error('Failed to load dedicated assistants', err);
+      setRecommendations([]);
     } finally {
-      setRecommendationLoading(false)
+      setRecommendationLoading(false);
     }
   }
 
-  const handleOpenCreateTask = (zone: any) => {
-    // Map zone type to task type
-    let mappedType = zone.type
-    if (zone.type === 'characters') mappedType = 'inking'
-    else if (zone.type === 'dialog' || zone.type === 'sfx') mappedType = 'lettering'
+  const handleOpenCreateTaskForLevel = (level: 'chapter' | 'page') => {
+    const defaultTitle = level === 'chapter'
+      ? `Gia công Chapter ${currentChapter?.chapterNumber || 1}`
+      : `Gia công Trang ${currentPage?.pageNumber || 1}`
 
     setCreateTaskForm({
-      title: `Gia công [${zone.name}] trang ${currentPage?.pageNumber || 1}`,
-      description: `Thực hiện gia công phân khu ${zone.name} (${mappedType}) cho trang ${currentPage?.pageNumber || 1}.`,
-      wage: 35000,
+      title: defaultTitle,
+      description: level === 'chapter'
+        ? `Thực hiện gia công toàn bộ Chapter ${currentChapter?.chapterNumber || 1}.`
+        : `Thực hiện gia công Trang ${currentPage?.pageNumber || 1}.`,
+      wage: level === 'chapter' ? 150000 : 35000,
       deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-      type: mappedType,
+      type: 'background',
       assignedTo: '',
       assistantType: 'freelance',
+      assignmentLevel: level,
     })
-    loadAssistantRecommendations(mappedType)
+    loadAssistantRecommendations('background', 'freelance')
     setShowCreateTaskDialog(true)
   }
 
   const handleOpenAssignExistingTask = (task: any) => {
     setActiveTaskToAssign(task)
+    const astType = task.assistantType || 'freelance'
     setCreateTaskForm({
       title: task.title,
       description: task.description || '',
       wage: task.wage || 35000,
       deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
       type: task.type,
-      assignedTo: '',
-      assistantType: task.assistantType || 'freelance',
+      assignedTo: task.assignedTo?._id || task.assignedTo || '',
+      assistantType: astType,
+      assignmentLevel: task.assignmentLevel || 'page',
     })
-    loadAssistantRecommendations(task.type)
+    loadAssistantRecommendations(task.type, astType)
     setShowCreateTaskDialog(true)
   }
 
   const handleCreateTaskSubmit = async () => {
-    if (!currentPage?._id || !selectedZoneId || !selectedSeriesId || !selectedChapterId) return
+    if (!selectedSeriesId || !selectedChapterId) return
+    if (createTaskForm.assignmentLevel === 'page' && !currentPage?._id) return
     try {
       if (activeTaskToAssign) {
         // Update existing task (assign assistant)
         await tasksAPI.update(activeTaskToAssign._id, {
           assignedTo: createTaskForm.assignedTo || null,
           status: createTaskForm.assignedTo ? 'assigned' : 'open',
-          // Keep other fields updated if needed
           title: createTaskForm.title,
           description: createTaskForm.description,
           wage: Number(createTaskForm.wage),
@@ -1460,11 +1496,9 @@ function StudioWorkspacePageContent() {
         })
       } else {
         // Create new task
-        await tasksAPI.create({
+        const payload: any = {
           seriesId: selectedSeriesId,
           chapterId: selectedChapterId,
-          pageId: currentPage._id,
-          zoneId: selectedZoneId,
           title: createTaskForm.title,
           description: createTaskForm.description,
           wage: Number(createTaskForm.wage),
@@ -1473,16 +1507,24 @@ function StudioWorkspacePageContent() {
           assignedTo: createTaskForm.assignedTo || undefined,
           status: createTaskForm.assignedTo ? 'assigned' : 'open',
           assistantType: createTaskForm.assistantType,
-        })
+          assignmentLevel: createTaskForm.assignmentLevel,
+        }
+        if (createTaskForm.assignmentLevel === 'page') {
+          payload.pageId = currentPage._id
+        }
+        await tasksAPI.create(payload)
       }
 
-      // Refresh page tasks and zones
-      const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
-      setPageTasks(tasksRes.data.tasks || [])
+      // Refresh tasks
+      if (selectedChapterId) {
+        const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
+        setPageTasks(tasksRes.data.tasks || [])
+      }
       loadZones()
       setShowCreateTaskDialog(false)
       setActiveTaskToAssign(null)
-    } catch (err) {
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to save task')
       console.error('Failed to save task', err)
     }
   }
@@ -1494,7 +1536,7 @@ function StudioWorkspacePageContent() {
   }
 
   const handleReviewSubmit = async (status: 'done' | 'in_progress') => {
-    if (!selectedReviewTask?._id || !currentPage?._id) return
+    if (!selectedReviewTask?._id || !selectedChapterId) return
     try {
       if (status === 'done') {
         await tasksAPI.updateStatus(selectedReviewTask._id, 'done')
@@ -1503,13 +1545,33 @@ function StudioWorkspacePageContent() {
       }
 
       // Refresh page tasks and zones
-      const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
+      const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
       setPageTasks(tasksRes.data.tasks || [])
       loadZones()
       setShowReviewDialog(false)
       setSelectedReviewTask(null)
     } catch (err) {
       console.error('Failed to submit review', err)
+    }
+  }
+
+  const handleOpenCancelTask = (task: any) => {
+    setTaskToCancel(task)
+    setShowCancelTaskDialog(true)
+  }
+
+  const handleCancelTaskSubmit = async () => {
+    if (!taskToCancel?._id || !selectedChapterId) return
+    try {
+      await tasksAPI.cancel(taskToCancel._id)
+      const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
+      setPageTasks(tasksRes.data.tasks || [])
+      loadZones()
+      setShowCancelTaskDialog(false)
+      setTaskToCancel(null)
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to cancel task')
+      console.error('Failed to cancel task', err)
     }
   }
 
@@ -1548,8 +1610,8 @@ function StudioWorkspacePageContent() {
       await zonesAPI.delete(id)
       loadZones()
       if (selectedZoneId === id) setSelectedZoneId(null)
-      if (currentPage?._id) {
-        const tasksRes = await tasksAPI.getAll({ pageId: currentPage._id })
+      if (selectedChapterId) {
+        const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
         setPageTasks(tasksRes.data.tasks || [])
       }
     } catch { }
@@ -1581,6 +1643,10 @@ function StudioWorkspacePageContent() {
       setPages(newPages)
       if (currentPageIdx >= newPages.length) {
         setCurrentPageIdx(Math.max(0, newPages.length - 1))
+      }
+      if (selectedChapterId) {
+        const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
+        setPageTasks(tasksRes.data.tasks || [])
       }
     } catch (e) { console.error(e) }
   }
@@ -2027,7 +2093,7 @@ function StudioWorkspacePageContent() {
                 {selectedZoneId && zones.some(z => z._id === selectedZoneId) ? (
                   (() => {
                     const zone = zones.find(z => z._id === selectedZoneId)!
-                    const zoneTask = pageTasks.find(t => t.zoneId === zone._id || (t as any).zoneId?._id === zone._id)
+                    const associatedTask = activePageTask || activeChapterTask
                     return (
                       <div className="space-y-4">
                         {/* Header with back arrow */}
@@ -2089,7 +2155,15 @@ function StudioWorkspacePageContent() {
                               </Avatar>
                               <div>
                                 <p className="text-xs font-semibold text-neutral-800">{zone.assignedTo.displayName}</p>
-                                <p className="text-[10px] text-neutral-400">{t('roles.assistant', 'Assistant')}</p>
+                                <p className="text-[10px] text-neutral-400 flex items-center gap-1">
+                                  {associatedTask?.assignmentLevel === 'chapter' ? (
+                                    <span className="text-amber-600 bg-amber-50 px-1 rounded text-[8px] font-medium">Inherited from Chapter Task</span>
+                                  ) : associatedTask?.assignmentLevel === 'page' ? (
+                                    <span className="text-blue-600 bg-blue-50 px-1 rounded text-[8px] font-medium">Inherited from Page Task</span>
+                                  ) : (
+                                    t('roles.assistant', 'Assistant')
+                                  )}
+                                </p>
                               </div>
                             </div>
                           ) : (
@@ -2102,122 +2176,43 @@ function StudioWorkspacePageContent() {
                         {/* Associated Task section */}
                         <div className="space-y-2 pt-2 border-t border-neutral-100">
                           <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{t('studio.associatedTask', 'Associated Task')}</h5>
-                          {zoneTask ? (
+                          {associatedTask ? (
                             <Card className="p-3 bg-white space-y-2.5 rounded-xl border border-neutral-200 shadow-xs">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="text-xs font-semibold text-neutral-800 truncate">{zoneTask.title}</p>
-                                  <p className="text-[10px] text-neutral-400 mt-0.5">{t('studio.wageLabel', 'Wage:')} {Number(zoneTask.wage).toLocaleString()} đ</p>
+                                  <p className="text-xs font-semibold text-neutral-800 truncate">{associatedTask.title}</p>
+                                  <p className="text-[10px] text-neutral-400 mt-0.5">{t('studio.wageLabel', 'Wage:')} {Number(associatedTask.wage).toLocaleString()} đ</p>
                                 </div>
                                 <Badge
                                   variant="secondary"
-                                  className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${zoneTask.status === 'done' ? 'text-emerald-600 bg-emerald-50' : zoneTask.status === 'review' ? 'text-amber-600 bg-amber-50' : 'text-neutral-500 bg-neutral-50'
+                                  className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${associatedTask.status === 'done' ? 'text-emerald-600 bg-emerald-50' : associatedTask.status === 'review' ? 'text-amber-600 bg-amber-50' : 'text-neutral-500 bg-neutral-50'
                                     }`}
                                 >
-                                  {zoneTask.status.replace('_', ' ')}
+                                  {associatedTask.status.replace('_', ' ')}
                                 </Badge>
                               </div>
 
-                              {zoneTask.deadline && (
+                              {associatedTask.deadline && (
                                 <div className="text-[10px] text-neutral-400">
-                                  {t('studio.deadlineLabel', 'Deadline:')} {new Date(zoneTask.deadline).toLocaleDateString()}
+                                  {t('studio.deadlineLabel', 'Deadline:')} {new Date(associatedTask.deadline).toLocaleDateString()}
                                 </div>
                               )}
 
-                              {zoneTask.status === 'in_progress' && zoneTask.reviewNotes && (
+                              {associatedTask.status === 'in_progress' && associatedTask.reviewNotes && (
                                 <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
                                   <div className="font-semibold flex items-center gap-1">
                                     <AlertCircle className="size-3 text-rose-500 shrink-0" />
                                     <span>{t('studio.revisionRequired', 'Revision Required:')}</span>
                                   </div>
                                   <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
-                                    {zoneTask.reviewNotes}
+                                    {associatedTask.reviewNotes}
                                   </p>
-                                </div>
-                              )}
-
-                              {zoneTask.status === 'review' && isMangaka && !isReviewLocked && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleOpenReview(zoneTask)}
-                                  className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1 hover:bg-neutral-800 transition-colors mt-2"
-                                >
-                                  <CheckSquare className="size-3.5" />
-                                  {t('studio.reviewSubmission', 'Review Submission')}
-                                </Button>
-                              )}
-
-                              {zoneTask.status === 'open' && isMangaka && !isReviewLocked && (
-                                <div key="designate-section">
-                                  {seriesStatus !== 'Active' ? (
-                                    <div key="designate-not-active" className="space-y-2">
-                                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-left space-y-1 mt-2">
-                                        <div className="flex items-center gap-1.5 text-amber-800 font-medium text-xs">
-                                          <AlertCircle className="size-3.5 text-amber-600 shrink-0" />
-                                          <span>{t('studio.seriesNotActiveTitle', 'Series Not Active')}</span>
-                                        </div>
-                                        <p className="text-[10px] text-amber-700">
-                                          {t('studio.seriesNotActiveDesc', 'This series must be Active (published) before you can assign tasks to assistants.')}
-                                        </p>
-                                      </div>
-                                      <Button
-                                        disabled
-                                        className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-200 text-neutral-400 rounded-lg py-1.5 cursor-not-allowed mt-2"
-                                      >
-                                        <Sparkles className="size-3.5" />
-                                        {t('studio.designateNewAssistant', 'Designate New Assistant')}
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      key="designate-active"
-                                      size="sm"
-                                      onClick={() => handleOpenAssignExistingTask(zoneTask)}
-                                      className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors mt-2"
-                                    >
-                                      <Sparkles className="size-3.5 text-amber-400" />
-                                      {t('studio.designateNewAssistant', 'Designate New Assistant')}
-                                    </Button>
-                                  )}
                                 </div>
                               )}
                             </Card>
                           ) : (
-                            <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 text-center space-y-2">
-                              <p className="text-xs text-neutral-500">{t('studio.noTaskForZone', 'No task created for this zone yet.')}</p>
-                              {isMangaka && !isReviewLocked && (
-                                <div key="assign-section">
-                                  {seriesStatus !== 'Active' ? (
-                                    <div key="assign-not-active" className="space-y-2">
-                                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-left space-y-1">
-                                        <div className="flex items-center gap-1.5 text-amber-800 font-medium text-xs">
-                                          <AlertCircle className="size-3.5 text-amber-600 shrink-0" />
-                                          <span>{t('studio.seriesNotActiveTitle', 'Series Not Active')}</span>
-                                        </div>
-                                        <p className="text-[10px] text-amber-700">
-                                          {t('studio.seriesNotActiveDesc', 'This series must be Active (published) before you can assign tasks to assistants.')}
-                                        </p>
-                                      </div>
-                                      <Button
-                                        disabled
-                                        className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-200 text-neutral-400 rounded-lg py-1.5 cursor-not-allowed"
-                                      >
-                                        <Sparkles className="size-3.5" />
-                                        {t('studio.assignToAssistant', 'Assign to Assistant')}
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      key="assign-active"
-                                      onClick={() => handleOpenCreateTask(zone)}
-                                      className="w-full text-xs font-medium flex items-center justify-center gap-1.5 bg-neutral-900 text-white rounded-lg py-1.5 hover:bg-neutral-800 transition-colors"
-                                    >
-                                      <Sparkles className="size-3.5 text-amber-400" />
-                                      {t('studio.assignToAssistant', 'Assign to Assistant')}
-                                    </Button>
-                                  )}
-                                </div>
-                              )}
+                            <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3 text-center text-xs text-neutral-500">
+                              No active task for this page/chapter.
                             </div>
                           )}
                         </div>
@@ -2308,45 +2303,201 @@ function StudioWorkspacePageContent() {
 
             {/* ── Tasks tab ───────────────────────────── */}
             {rightTab === 'tasks' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-3">
+              <div className="space-y-3">
+                {isMangaka && !isReviewLocked && (
+                  <div className="space-y-2">
+                    {seriesStatus !== 'Active' ? (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-left space-y-1">
+                        <div className="flex items-center gap-1 text-amber-800 font-medium text-[10px]">
+                          <AlertCircle className="size-3 text-amber-600 shrink-0" />
+                          <span>Series Not Active</span>
+                        </div>
+                        <p className="text-[9px] text-amber-700 leading-normal">
+                          This series must be Active (published) to assign tasks.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {/* Assign Chapter row */}
+                        {activeChapterTask ? (
+                          <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                            <div className="flex items-center justify-center size-7 rounded-lg bg-amber-100 shrink-0 text-amber-600">
+                              <BookOpen className="size-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-semibold text-amber-800 leading-tight">Chapter đang được giao</p>
+                              <p className="text-[9px] text-amber-700 mt-0.5">
+                                Đã giao cho <strong>{activeChapterTask.assignedTo?.displayName || 'Assistant'}</strong>
+                                <span className="ml-1 capitalize px-1 rounded bg-amber-200 text-amber-900">{activeChapterTask.status?.replace('_',' ')}</span>
+                              </p>
+                            </div>
+                            <AlertCircle className="size-3.5 shrink-0 text-amber-500" />
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full text-[10px] h-8 font-semibold flex items-center justify-center gap-1.5 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
+                            onClick={() => handleOpenCreateTaskForLevel('chapter')}
+                            title="Assign entire chapter to one assistant"
+                          >
+                            <BookOpen className="size-3.5 text-neutral-500" />
+                            {t('studio.assignChapter', 'Assign Chapter')}
+                          </Button>
+                        )}
+
+                        {/* Assign Page row */}
+                        {activeChapterTask ? (
+                          <div className="flex items-center gap-2 rounded-xl bg-neutral-50 border border-neutral-200 border-dashed p-2.5 opacity-60">
+                            <div className="flex items-center justify-center size-7 rounded-lg bg-neutral-100 shrink-0 text-neutral-400">
+                              <FileText className="size-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-medium text-neutral-500 leading-tight">Giao theo trang</p>
+                              <p className="text-[9px] text-neutral-400 mt-0.5">Không khả dụng khi chapter đã được giao</p>
+                            </div>
+                          </div>
+                        ) : activePageTask ? (
+                          <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-2.5">
+                            <div className="flex items-center justify-center size-7 rounded-lg bg-blue-100 shrink-0 text-blue-600">
+                              <FileText className="size-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-semibold text-blue-800 leading-tight">Trang {currentPage?.pageNumber} đang được giao</p>
+                              <p className="text-[9px] text-blue-700 mt-0.5">
+                                Đã giao cho <strong>{activePageTask.assignedTo?.displayName || 'Assistant'}</strong>
+                                <span className="ml-1 capitalize px-1 rounded bg-blue-200 text-blue-900">{activePageTask.status?.replace('_',' ')}</span>
+                              </p>
+                            </div>
+                            <AlertCircle className="size-3.5 shrink-0 text-blue-500" />
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full text-[10px] h-8 font-semibold flex items-center justify-center gap-1.5 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
+                            onClick={() => handleOpenCreateTaskForLevel('page')}
+                            title="Assign this page to one assistant"
+                          >
+                            <FileText className="size-3.5 text-neutral-500" />
+                            {t('studio.assignPage', 'Assign Page')}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mb-1 mt-2">
                   <span className="text-xs font-semibold text-neutral-700">{t('studio.activeTasks', 'Active Tasks')}</span>
                 </div>
 
                 {pageTasks.length === 0 ? (
                   <div className="rounded-xl bg-neutral-50 p-4 text-center">
-                    <p className="text-xs text-neutral-500">{t('studio.noTasks', 'No tasks for this page.')}</p>
+                    <p className="text-xs text-neutral-500">{t('studio.noTasks', 'No tasks for this chapter.')}</p>
                   </div>
                 ) : (
-                  pageTasks.map((task) => (
-                    <Card key={task._id} className="rounded-xl p-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium truncate">{task.title}</p>
-                          <p className="text-[10px] text-neutral-500 mt-0.5 capitalize">{task.type}</p>
-                        </div>
-                        {task.assignedTo && (
-                          <Avatar className="size-5 bg-neutral-200 shrink-0">
-                            <AvatarFallback className="text-[7px]">{task.assignedTo.displayName?.[0]}</AvatarFallback>
-                          </Avatar>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <Badge
-                          variant="secondary"
-                          className={`text-[9px] px-1.5 py-0 h-4 ${task.status === 'done' ? 'text-emerald-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-neutral-500'
-                            }`}
-                        >
-                          {task.status.replace('_', ' ')}
-                        </Badge>
-                        {task.deadline && (
-                          <span className="text-[10px] text-neutral-400">
-                            {new Date(task.deadline).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </Card>
-                  ))
+                  [...pageTasks]
+                    .sort((a, b) => {
+                      if (a.assignmentLevel === 'chapter' && b.assignmentLevel !== 'chapter') return -1;
+                      if (a.assignmentLevel !== 'chapter' && b.assignmentLevel === 'chapter') return 1;
+                      return 0;
+                    })
+                    .map((task) => {
+                      const isTaskForCurrentPage = task.assignmentLevel === 'chapter' || (task.pageId?._id === currentPage?._id || task.pageId === currentPage?._id);
+                      return (
+                        <Card key={task._id} className={`rounded-xl p-2.5 border transition-all ${isTaskForCurrentPage ? 'border-neutral-300' : 'border-neutral-100 opacity-60'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-neutral-800 truncate">{task.title}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-medium flex items-center gap-0.5">
+                                  {task.assignmentLevel === 'chapter' ? (
+                                    <>
+                                      <BookOpen className="size-2.5" />
+                                      Chapter
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileText className="size-2.5" />
+                                      Page {task.pageId?.pageNumber || ''}
+                                    </>
+                                  )}
+                                </Badge>
+                                <span className="text-[10px] text-neutral-500 capitalize">{task.type}</span>
+                              </div>
+                            </div>
+                            {task.assignedTo && (
+                              <Avatar className="size-6 bg-neutral-200 shrink-0">
+                                <AvatarFallback className="text-[8px] font-semibold">{task.assignedTo.displayName?.[0]}</AvatarFallback>
+                              </Avatar>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-neutral-50">
+                            <Badge
+                              variant="secondary"
+                              className={`text-[9px] px-1.5 py-0 h-4 font-semibold capitalize ${
+                                task.status === 'done' ? 'text-emerald-600 bg-emerald-50' : 
+                                task.status === 'review' ? 'text-amber-600 bg-amber-50' :
+                                task.status === 'in_progress' ? 'text-blue-600 bg-blue-50' : 'text-neutral-500 bg-neutral-50'
+                              }`}
+                            >
+                              {task.status.replace('_', ' ')}
+                            </Badge>
+                            {task.deadline && (
+                              <span className="text-[9px] text-neutral-400">
+                                {new Date(task.deadline).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {task.status === 'review' && isMangaka && !isReviewLocked && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenReview(task)}
+                              className="w-full text-[10px] font-semibold flex items-center justify-center gap-1 bg-neutral-900 text-white rounded-lg h-7 hover:bg-neutral-800 transition-colors mt-2"
+                            >
+                              <CheckSquare className="size-3" />
+                              {t('studio.reviewSubmission', 'Review Submission')}
+                            </Button>
+                          )}
+                          
+                          {task.status === 'open' && isMangaka && !isReviewLocked && (
+                            <div className="flex gap-1.5 mt-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleOpenAssignExistingTask(task)}
+                                className="flex-1 text-[10px] font-semibold flex items-center justify-center gap-1 bg-neutral-900 text-white rounded-lg h-7 hover:bg-neutral-800 transition-colors"
+                              >
+                                <Sparkles className="size-3 text-amber-400" />
+                                {t('studio.designateNewAssistant', 'Designate Assistant')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenCancelTask(task)}
+                                className="text-[10px] font-semibold flex items-center justify-center gap-1 border-neutral-200 text-neutral-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg h-7 shrink-0 px-2.5 transition-colors"
+                                title={t('studio.cancelTask', 'Cancel Task')}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          )}
+
+                          {task.status === 'assigned' && isMangaka && !isReviewLocked && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenCancelTask(task)}
+                              className="w-full text-[10px] font-semibold flex items-center justify-center gap-1 border-neutral-200 text-neutral-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg h-7 mt-2 transition-colors"
+                            >
+                              <Trash2 className="size-3" />
+                              {t('studio.cancelTask', 'Cancel Task')}
+                            </Button>
+                          )}
+                        </Card>
+                      );
+                    })
                 )}
               </div>
             )}
@@ -2751,6 +2902,97 @@ function StudioWorkspacePageContent() {
 
             <div className="space-y-3">
               <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
+                  {t('studio.assignmentLevel', 'Assignment Level')}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Chapter level button */}
+                  {activeChapterTask && !activeTaskToAssign ? (
+                    <div className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl border border-amber-200 bg-amber-50 text-xs opacity-80 cursor-not-allowed">
+                      <span className="text-amber-700 font-medium flex items-center gap-1"><BookOpen className="size-3" /> Chapter</span>
+                      <span className="text-[8px] text-amber-600 text-center leading-tight">Đã có task</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!!activeTaskToAssign}
+                      onClick={() => {
+                        setCreateTaskForm(prev => ({
+                          ...prev,
+                          assignmentLevel: 'chapter',
+                          title: `Gia công Chapter ${currentChapter?.chapterNumber || 1}`,
+                          description: `Thực hiện gia công toàn bộ Chapter ${currentChapter?.chapterNumber || 1}.`,
+                          wage: 150000
+                        }));
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assignmentLevel === 'chapter'
+                        ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                        } ${activeTaskToAssign ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <BookOpen className="size-3.5" />
+                      <span>{t('studio.chapterLevel', 'Chapter')}</span>
+                    </button>
+                  )}
+
+                  {/* Page level button */}
+                  {(activeChapterTask || activePageTask) && !activeTaskToAssign ? (
+                    <div
+                      className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl border border-blue-200 bg-blue-50 text-xs opacity-80 cursor-not-allowed"
+                      title={activeChapterTask ? 'Chapter đã được giao, không thể giao theo trang' : 'Trang này đã được giao'}
+                    >
+                      <span className="text-blue-700 font-medium flex items-center gap-1"><FileText className="size-3" /> Page</span>
+                      <span className="text-[8px] text-blue-600 text-center leading-tight">
+                        {activeChapterTask ? 'Chapter đã giao' : 'Trang đã giao'}
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!!activeTaskToAssign}
+                      onClick={() => {
+                        setCreateTaskForm(prev => ({
+                          ...prev,
+                          assignmentLevel: 'page',
+                          title: `Gia công Trang ${currentPage?.pageNumber || 1}`,
+                          description: `Thực hiện gia công Trang ${currentPage?.pageNumber || 1}.`,
+                          wage: 35000
+                        }));
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assignmentLevel === 'page'
+                        ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                        } ${activeTaskToAssign ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <FileText className="size-3.5" />
+                      <span>{t('studio.pageLevel', 'Page')}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
+                  {t('studio.taskType', 'Task Type')}
+                </label>
+                <select
+                  className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
+                  value={createTaskForm.type}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    setCreateTaskForm(prev => ({ ...prev, type: newType }));
+                    loadAssistantRecommendations(newType);
+                  }}
+                >
+                  <option value="inking">Inking</option>
+                  <option value="background">Background</option>
+                  <option value="tone">Tone</option>
+                  <option value="lettering">Lettering</option>
+                  <option value="effects">Effects</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.taskTitle', 'Task Title')}</label>
                 <Input
                   value={createTaskForm.title}
@@ -2786,7 +3028,10 @@ function StudioWorkspacePageContent() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setCreateTaskForm(prev => ({ ...prev, assistantType: 'freelance' }))}
+                    onClick={() => {
+                      setCreateTaskForm(prev => ({ ...prev, assistantType: 'freelance', assignedTo: '' }))
+                      setRecommendations([])
+                    }}
                     className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assistantType === 'freelance'
                       ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
                       : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
@@ -2796,7 +3041,10 @@ function StudioWorkspacePageContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCreateTaskForm(prev => ({ ...prev, assistantType: 'dedicated' }))}
+                    onClick={() => {
+                      setCreateTaskForm(prev => ({ ...prev, assistantType: 'dedicated', assignedTo: '' }))
+                      loadAssistantRecommendations(createTaskForm.type, 'dedicated')
+                    }}
                     className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assistantType === 'dedicated'
                       ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
                       : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
@@ -2822,100 +3070,137 @@ function StudioWorkspacePageContent() {
                 />
               </div>
 
-              {/* Recommended Assistants section */}
-              <div className="space-y-2 border-t border-neutral-100 pt-3">
-                <label className="text-xs font-bold text-neutral-700 block flex items-center justify-between">
-                  <span>{t('studio.recommendedTitle', 'Recommended Assistants ({{type}})', { type: createTaskForm.type })}</span>
-                  <span className="text-[10px] text-neutral-400 font-normal">{t('studio.recommendedSubtitle', 'Auto-recommended based on skills')}</span>
-                </label>
+              {/* Recommended / Dedicated Assistants section */}
+              {createTaskForm.assistantType === 'freelance' ? (
+                <div className="space-y-2 border-t border-neutral-100 pt-3">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-xs text-blue-800 space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <Globe className="size-3.5 text-blue-600 animate-pulse" />
+                      <span>{t('studio.freelanceOpenMarket', 'Public Freelance Task')}</span>
+                    </div>
+                    <p className="text-neutral-600 leading-relaxed">
+                      {t(
+                        'studio.freelanceInfoText',
+                        'This task will be posted to the open assistant marketplace. Any assistant with matching skills can view and accept it.'
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 border-t border-neutral-100 pt-3">
+                  <label className="text-xs font-bold text-neutral-700 block flex items-center justify-between">
+                    <span>{t('studio.dedicatedTitle', 'Dedicated Assistants')}</span>
+                    <span className="text-[10px] text-neutral-400 font-normal">
+                      {t('studio.dedicatedSubtitle', 'Assistants registered to this series')}
+                    </span>
+                  </label>
 
-                {recommendationLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <div className="size-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />
-                  </div>
-                ) : recommendations.length === 0 ? (
-                  <div className="text-center py-4 bg-neutral-50 rounded-xl border border-dashed text-xs text-neutral-500">
-                    {t('studio.noRecommendedAssistants', 'No assistants found with this skill. You can post publicly.')}
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {recommendations.map((ass) => {
-                      const isSelected = createTaskForm.assignedTo === ass._id
-                      const hasHighWorkload = ass.activeTasksCount >= 3
-                      return (
-                        <div
-                          key={ass._id}
-                          onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: isSelected ? '' : ass._id }))}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${isSelected
-                            ? 'border-neutral-900 bg-neutral-50/50 shadow-xs'
-                            : 'border-neutral-200 bg-white hover:border-neutral-400 hover:shadow-xs'
-                            }`}
+                  {recommendationLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="size-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />
+                    </div>
+                  ) : recommendations.length === 0 ? (
+                    <div className="text-center py-4 bg-amber-50/50 rounded-xl border border-dashed border-amber-200 text-xs text-amber-800 space-y-2">
+                      <div>
+                        <p className="font-semibold">{t('studio.noDedicatedAssistants', 'No Dedicated Assistants')}</p>
+                        <p className="text-neutral-500 text-[10px]">
+                          {t('studio.noDedicatedAssistantsHint', 'Add dedicated assistants to this series in Series Settings first.')}
+                        </p>
+                      </div>
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCreateTaskDialog(false)
+                            setActiveTaskToAssign(null)
+                            navigate(`/studio/manage?seriesId=${selectedSeriesId}&tab=assistants`)
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-semibold transition-colors"
                         >
-                          <div className="flex items-center gap-2.5">
-                            <Avatar className="size-8 bg-neutral-200 border">
-                              <AvatarFallback className="text-xs font-semibold">{ass.displayName?.[0]}</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-semibold text-neutral-800">{ass.displayName}</span>
-                                <span className="text-[10px] font-medium text-amber-500 flex items-center gap-0.5 bg-amber-50 px-1 rounded">
-                                  <Star className="size-2.5 fill-amber-500" />
-                                  {ass.rating || 5}
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {ass.skills?.map((sk: string) => {
-                                  const isMatching = sk.toLowerCase() === createTaskForm.type.toLowerCase()
-                                  return (
-                                    <span
-                                      key={sk}
-                                      className={`text-[8px] px-1 py-0.5 rounded font-medium ${isMatching
-                                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                                        : 'bg-neutral-100 text-neutral-500'
-                                        }`}
-                                    >
-                                      {sk}
-                                    </span>
-                                  )
-                                })}
+                          {t('studio.goToAddDedicatedAssistants', 'Go to Series Manager to add Assistants')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {recommendations.map((ass) => {
+                        const isSelected = createTaskForm.assignedTo === ass._id
+                        const hasHighWorkload = ass.activeTasksCount >= 3
+                        return (
+                          <div
+                            key={ass._id}
+                            onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: isSelected ? '' : ass._id }))}
+                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${isSelected
+                              ? 'border-neutral-900 bg-neutral-50/50 shadow-xs'
+                              : 'border-neutral-200 bg-white hover:border-neutral-400 hover:shadow-xs'
+                              }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Avatar className="size-8 bg-neutral-200 border">
+                                <AvatarFallback className="text-xs font-semibold">{ass.displayName?.[0]}</AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold text-neutral-800">{ass.displayName}</span>
+                                  <span className="text-[10px] font-medium text-amber-500 flex items-center gap-0.5 bg-amber-50 px-1 rounded">
+                                    <Star className="size-2.5 fill-amber-500" />
+                                    {ass.rating || 5}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {ass.skills?.map((sk: string) => {
+                                    const isMatching = sk.toLowerCase() === createTaskForm.type.toLowerCase()
+                                    return (
+                                      <span
+                                        key={sk}
+                                        className={`text-[8px] px-1 py-0.5 rounded font-medium ${isMatching
+                                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                          : 'bg-neutral-100 text-neutral-500'
+                                          }`}
+                                      >
+                                        {sk}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${hasHighWorkload
-                                ? 'bg-rose-50 text-rose-600 flex items-center gap-0.5'
-                                : 'bg-neutral-100 text-neutral-600'
-                                }`}
-                              title={hasHighWorkload ? 'High workload' : ''}
-                            >
-                              {hasHighWorkload && <AlertCircle className="size-2.5" />}
-                              {t('studio.activeTasksLabel', 'Active:')} {ass.activeTasksCount}
-                            </span>
-                            <span className="text-[10px] text-neutral-400">
-                              {t('studio.selectToAssign', 'Select to assign')}
-                            </span>
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <span
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${hasHighWorkload
+                                  ? 'bg-rose-50 text-rose-600 flex items-center gap-0.5'
+                                  : 'bg-neutral-100 text-neutral-600'
+                                  }`}
+                                title={hasHighWorkload ? 'High workload' : ''}
+                              >
+                                {hasHighWorkload && <AlertCircle className="size-2.5" />}
+                                {t('studio.activeTasksLabel', 'Active:')} {ass.activeTasksCount}
+                              </span>
+                              <span className="text-[10px] text-neutral-400">
+                                {t('studio.selectToAssign', 'Select to assign')}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: '' }))}
+                      className={`text-[10px] font-medium px-2.5 py-1.5 rounded-xl border transition-colors ${!createTaskForm.assignedTo
+                        ? 'bg-neutral-900 border-neutral-900 text-white font-semibold shadow-sm'
+                        : 'text-neutral-600 border-neutral-200 bg-white hover:bg-neutral-50'
+                        }`}
+                    >
+                      {t('studio.postToDedicatedPool', 'Post to Dedicated Pool (Any dedicated assistant in this series can accept)')}
+                    </button>
                   </div>
-                )}
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: '' }))}
-                    className={`text-[10px] font-medium px-2 py-1 rounded transition-colors ${!createTaskForm.assignedTo
-                      ? 'bg-neutral-900 text-white font-semibold'
-                      : 'text-neutral-500 hover:text-neutral-900 bg-neutral-50'
-                      }`}
-                  >
-                    {t('studio.postPublicly', 'Post Publicly (Any Assistant can accept)')}
-                  </button>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
@@ -3011,6 +3296,72 @@ function StudioWorkspacePageContent() {
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
               >
                 {t('studio.approveComplete', 'Approve & Complete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cancel Task Dialog ─────────────────────────── */}
+      {showCancelTaskDialog && taskToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
+                <Trash2 className="size-4 text-rose-500" />
+                {t('studio.cancelTaskTitle', 'Cancel Task')}
+              </h3>
+              <button
+                onClick={() => { setShowCancelTaskDialog(false); setTaskToCancel(null) }}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-neutral-600 leading-relaxed">
+                {taskToCancel.status === 'assigned'
+                  ? t('studio.cancelAssignedWarning', 'This task is currently assigned to an assistant. Cancelling will delete the task, free up the assigned pages/chapter, and send a notification to the assistant. Do you want to proceed?')
+                  : t('studio.cancelOpenWarning', 'Are you sure you want to cancel and permanently delete this task?')}
+              </p>
+
+              <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">{t('studio.taskTitle', 'Task')}:</span>
+                  <span className="font-semibold text-neutral-800">{taskToCancel.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">{t('studio.levelLabel', 'Assignment Level')}:</span>
+                  <span className="font-semibold text-neutral-800 capitalize">
+                    {taskToCancel.assignmentLevel === 'chapter' ? 'Chapter' : `Page ${taskToCancel.pageId?.pageNumber || ''}`}
+                  </span>
+                </div>
+                {taskToCancel.status === 'assigned' && (
+                  <div className="flex justify-between">
+                    <span className="text-neutral-500">{t('studio.assigneeLabel', 'Assignee')}:</span>
+                    <span className="font-semibold text-neutral-800">
+                      {taskToCancel.assignedTo?.displayName || 'Assistant'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setShowCancelTaskDialog(false); setTaskToCancel(null) }}
+              >
+                {t('common.cancel', 'Cancel')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCancelTaskSubmit}
+                className="bg-rose-600 text-white hover:bg-rose-700"
+              >
+                {t('studio.confirmCancelTask', 'Confirm Cancel')}
               </Button>
             </div>
           </div>

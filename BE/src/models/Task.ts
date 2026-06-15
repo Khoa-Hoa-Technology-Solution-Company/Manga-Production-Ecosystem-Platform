@@ -3,12 +3,13 @@ import mongoose, { Schema, Document } from 'mongoose';
 export type TaskType = 'inking' | 'background' | 'tone' | 'lettering' | 'effects';
 export type TaskStatus = 'open' | 'assigned' | 'in_progress' | 'review' | 'done';
 export type AssistantType = 'dedicated' | 'freelance';
+export type AssignmentLevel = 'chapter' | 'page';
 
 export interface ITask extends Document {
-  zoneId?: mongoose.Types.ObjectId;
   pageId?: mongoose.Types.ObjectId;
   chapterId: mongoose.Types.ObjectId;
   seriesId: mongoose.Types.ObjectId;
+  assignmentLevel: AssignmentLevel;
   type: TaskType;
   title: string;
   description?: string;
@@ -26,10 +27,10 @@ export interface ITask extends Document {
 
 const taskSchema = new Schema<ITask>(
   {
-    zoneId: { type: Schema.Types.ObjectId, ref: 'Zone' },
     pageId: { type: Schema.Types.ObjectId, ref: 'Page' },
     chapterId: { type: Schema.Types.ObjectId, ref: 'Chapter', required: true },
     seriesId: { type: Schema.Types.ObjectId, ref: 'Series', required: true },
+    assignmentLevel: { type: String, enum: ['chapter', 'page'], default: 'page' },
     type: { type: String, enum: ['inking', 'background', 'tone', 'lettering', 'effects'], required: true },
     title: { type: String, required: true },
     description: { type: String },
@@ -48,5 +49,6 @@ const taskSchema = new Schema<ITask>(
 taskSchema.index({ assignedTo: 1, status: 1 });
 taskSchema.index({ seriesId: 1 });
 taskSchema.index({ chapterId: 1 });
+taskSchema.index({ pageId: 1 });
 
 export const Task = mongoose.model<ITask>('Task', taskSchema);
