@@ -123,6 +123,7 @@ export const tasksAPI = {
   update: (id: string, data: unknown) => api.put(`/tasks/${id}`, data),
   accept: (id: string) => api.patch(`/tasks/${id}/accept`),
   decline: (id: string) => api.patch(`/tasks/${id}/decline`),
+  cancel: (id: string) => api.delete(`/tasks/${id}`),
   updateStatus: (id: string, status: string) => api.patch(`/tasks/${id}/status`, { status }),
   submit: (id: string, formData: FormData) =>
     api.post(`/tasks/${id}/submit`, formData, {

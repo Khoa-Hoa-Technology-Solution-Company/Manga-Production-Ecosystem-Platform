@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
-import { tasksAPI } from '../../lib/api'
+import { tasksAPI, pagesAPI } from '../../lib/api'
 import { formatCurrency } from '../../i18n'
 
 /* ── Type colors ────────────────────────────────────── */
@@ -43,11 +43,29 @@ export function AssistantPortalPage() {
   const [mainTab, setMainTab] = useState('tasks')
   const [activeFilter, setActiveFilter] = useState('all')
   const [assistantTypeFilter, setAssistantTypeFilter] = useState<'all' | 'dedicated' | 'freelance'>('all')
+  const [assignmentLevelFilter, setAssignmentLevelFilter] = useState<'all' | 'chapter' | 'page'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const [chapterPages, setChapterPages] = useState<Record<string, any[]>>({})
+
+  // Automatically fetch pages for any chapter tasks that are in progress
+  useEffect(() => {
+    const chapterTasks = tasks.filter(t => t.assignmentLevel === 'chapter' && t.status === 'in_progress')
+    chapterTasks.forEach(async (t) => {
+      const cid = t.chapterId?._id || t.chapterId
+      if (cid && !chapterPages[cid]) {
+        try {
+          const res = await pagesAPI.getByChapter(cid)
+          setChapterPages(prev => ({ ...prev, [cid]: res.data.pages || [] }))
+        } catch (err) {
+          console.error('Failed to fetch chapter pages:', err)
+        }
+      }
+    })
+  }, [tasks])
 
   // ── Stats computed from tasks ─────────────────────
   const stats = [
@@ -133,6 +151,28 @@ export function AssistantPortalPage() {
     }
   }
 
+  const handleChapterPageSubmit = async (taskId: string, pageId: string, file: File) => {
+    setSubmitting(taskId)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('pageId', pageId)
+      await tasksAPI.submit(taskId, formData)
+      
+      const task = tasks.find(t => t._id === taskId)
+      const cid = task?.chapterId?._id || task?.chapterId
+      if (cid) {
+        const res = await pagesAPI.getByChapter(cid)
+        setChapterPages(prev => ({ ...prev, [cid]: res.data.pages || [] }))
+      }
+      await loadTasks()
+    } catch (err) {
+      console.error('Failed to submit page', err)
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
   // ── Start task ────────────────────────────────────
   const handleStart = async (taskId: string) => {
     try {
@@ -151,6 +191,10 @@ export function AssistantPortalPage() {
   }).filter((t) => {
     if (assistantTypeFilter === 'dedicated') return t.assistantType === 'dedicated'
     if (assistantTypeFilter === 'freelance') return t.assistantType === 'freelance' || !t.assistantType
+    return true
+  }).filter((t) => {
+    if (assignmentLevelFilter === 'chapter') return t.assignmentLevel === 'chapter'
+    if (assignmentLevelFilter === 'page') return t.assignmentLevel === 'page'
     return true
   }).filter((t) =>
     searchQuery === '' ||
@@ -254,24 +298,44 @@ export function AssistantPortalPage() {
             </div>
           </div>
 
-          {/* Assistant Type Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Type:</span>
-            {(['all', 'dedicated', 'freelance'] as const).map(type => (
-              <button
-                key={type}
-                onClick={() => setAssistantTypeFilter(type)}
-                className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${
-                  assistantTypeFilter === type
-                    ? type === 'dedicated' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : type === 'freelance' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-neutral-100 text-neutral-800 border-neutral-300'
-                    : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
-                }`}
-              >
-                {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Assistant Type Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Type:</span>
+              {(['all', 'dedicated', 'freelance'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setAssistantTypeFilter(type)}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${
+                    assistantTypeFilter === type
+                      ? type === 'dedicated' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : type === 'freelance' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-neutral-100 text-neutral-800 border-neutral-300'
+                      : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
+                </button>
+              ))}
+            </div>
+
+            {/* Assignment Level Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Level:</span>
+              {(['all', 'chapter', 'page'] as const).map(lvl => (
+                <button
+                  key={lvl}
+                  onClick={() => setAssignmentLevelFilter(lvl)}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${
+                    assignmentLevelFilter === lvl
+                      ? 'bg-neutral-900 text-white border-neutral-900'
+                      : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? '📖 Chapter' : '📄 Page'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -312,7 +376,17 @@ export function AssistantPortalPage() {
                 </div>
 
                 <CardContent className="p-3 space-y-2.5">
-                  <p className="text-xs font-medium truncate">{task.title}</p>
+                  <div>
+                    <p className="text-xs font-medium truncate">{task.title}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-semibold">
+                        {task.assignmentLevel === 'chapter' ? '📖 Chapter' : '📄 Page'}
+                      </Badge>
+                      {task.assignmentLevel === 'page' && task.pageId && (
+                        <span className="text-[10px] text-neutral-500 font-medium">Page {task.pageId.pageNumber || task.pageId}</span>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
@@ -389,19 +463,61 @@ export function AssistantPortalPage() {
                         </div>
                       )}
 
-                      <label className="flex items-center justify-center gap-1.5 w-full h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
-                        <Upload className="size-3" />
-                        {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit Work')}
-                        <input
-                          type="file"
-                          accept="image/*,.psd,.ai"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleSubmit(task._id, e.target.files[0])
-                          }}
-                          disabled={submitting === task._id}
-                        />
-                      </label>
+                      {task.assignmentLevel === 'chapter' ? (
+                        <div className="space-y-2 border-t border-neutral-100 pt-2">
+                          <p className="text-[10px] font-semibold text-neutral-500 mb-1">Upload files for pages:</p>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {(chapterPages[task.chapterId?._id || task.chapterId] || []).map((page: any) => (
+                              <div key={page._id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-neutral-100 bg-neutral-50/50 text-[10px]">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <div className="size-6 rounded overflow-hidden bg-neutral-200 shrink-0">
+                                    <img src={page.originalImage.startsWith('http') ? page.originalImage : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`} className="h-full w-full object-cover" />
+                                  </div>
+                                  <span className="truncate">Page {page.pageNumber}</span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {page.processedImage && (
+                                    <span className="text-[9px] text-emerald-600 bg-emerald-50 px-1 rounded font-medium">Uploaded</span>
+                                  )}
+                                  <label className="flex items-center justify-center size-6 rounded bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
+                                    <Upload className="size-3" />
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        if (e.target.files?.[0]) handleChapterPageSubmit(task._id, page._id, e.target.files[0])
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 mt-2"
+                            onClick={() => handleSubmit(task._id)}
+                            disabled={submitting === task._id}
+                          >
+                            {submitting === task._id ? t('common.loading', 'Loading...') : 'Submit Chapter for Review'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <label className="flex items-center justify-center gap-1.5 w-full h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
+                          <Upload className="size-3" />
+                          {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit Work')}
+                          <input
+                            type="file"
+                            accept="image/*,.psd,.ai"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) handleSubmit(task._id, e.target.files[0])
+                            }}
+                            disabled={submitting === task._id}
+                          />
+                        </label>
+                      )}
                     </div>
                   )}
 

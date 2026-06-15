@@ -43,6 +43,22 @@ export async function notifyTaskAssigned(
   });
 }
 
+export async function notifyTaskCancelled(
+  assistantId: string,
+  taskTitle: string,
+  seriesTitle: string,
+  taskId: string
+): Promise<void> {
+  await createNotification({
+    userId: assistantId,
+    type: 'task_cancelled',
+    title: 'Task Cancelled',
+    message: `The task "${taskTitle}" for series "${seriesTitle}" has been cancelled by the Mangaka.`,
+    relatedId: taskId,
+    relatedType: 'Task',
+  });
+}
+
 export async function notifyTaskSubmitted(
   mangakaId: string,
   assistantName: string,

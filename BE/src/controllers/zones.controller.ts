@@ -55,12 +55,6 @@ export async function remove(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Delete associated unfinished tasks so they are removed from Assistant's workflow
-    await (await import('../models/Task')).Task.deleteMany({
-      zoneId: req.params.id,
-      status: { $ne: 'done' },
-    });
-
     res.json({ message: 'Zone deleted.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Chapter } from '../models/Chapter';
 import { Page } from '../models/Page';
+import { Task } from '../models/Task';
 
 function hasAccess(chapter: any, userId: string | undefined, userRole: string, mode: 'read' | 'edit' | 'comment' | 'invite' = 'read') {
   if (!chapter || !userId) return false;
@@ -20,7 +21,16 @@ function hasAccess(chapter: any, userId: string | undefined, userRole: string, m
 export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite' = 'read') {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const chapterId = req.params.chapterId || req.params.id;
+      let chapterId = req.params.chapterId || req.params.id || req.body.chapterId || req.query.chapterId;
+
+      // If this is a task route with an ID, resolve the chapterId from the Task document
+      if (req.baseUrl.includes('/tasks') && req.params.id) {
+        const task = await Task.findById(req.params.id);
+        if (task) {
+          chapterId = String(task.chapterId);
+        }
+      }
+
       if (!chapterId) {
         res.status(400).json({ error: 'chapterId is required.' });
         return;
