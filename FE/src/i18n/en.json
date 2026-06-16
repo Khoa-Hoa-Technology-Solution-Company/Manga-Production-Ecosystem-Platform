@@ -428,6 +428,8 @@
     "notificationSection": "Notification Settings",
     "subscribeNewSeries": "Notify on New Series Release",
     "subscribeNewSeriesDesc": "Receive a system notification when a brand new series is published on MangaFlow.",
+    "notificationSound": "Enable notification sound",
+    "notificationSoundDesc": "Play a sound when a new real-time notification is received.",
     "saveSuccess": "Settings updated successfully!",
     "saveError": "Failed to update settings. Please try again.",
     "saving": "Saving..."

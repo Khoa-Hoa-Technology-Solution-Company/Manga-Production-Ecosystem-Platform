@@ -7,6 +7,7 @@ import { notificationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { NotificationsModal } from './NotificationsModal'
+import { playNotificationSound } from '../../lib/sound'
 
 type SidebarKey = 'home' | 'dashboard' | 'studio' | 'series-manager' | 'tasks' | 'editor-portal' | 'editorial-board' | 'discover' | 'settings'
 
@@ -83,7 +84,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     // Listen for real-time notifications
     const handleNewNotification = () => {
       setUnreadCount((prev) => prev + 1)
-      // Optional: Add a toast notification here
+      playNotificationSound()
     }
 
     socketService.on('notification:new', handleNewNotification)

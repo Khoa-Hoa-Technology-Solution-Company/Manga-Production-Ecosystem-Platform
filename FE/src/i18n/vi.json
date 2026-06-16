@@ -428,6 +428,8 @@
     "notificationSection": "Cài đặt thông báo",
     "subscribeNewSeries": "Nhận thông báo khi có series mới",
     "subscribeNewSeriesDesc": "Gửi thông báo hệ thống cho tôi khi một bộ truyện mới được xuất bản trên MangaFlow.",
+    "notificationSound": "Bật âm thanh thông báo",
+    "notificationSoundDesc": "Phát âm thanh khi nhận được thông báo thời gian thực mới.",
     "saveSuccess": "Cập nhật cài đặt thành công!",
     "saveError": "Không thể cập nhật cài đặt. Vui lòng thử lại.",
     "saving": "Đang lưu..."
