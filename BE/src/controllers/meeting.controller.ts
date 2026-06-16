@@ -43,8 +43,9 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     // Notify all participants (excluding the creator themselves)
     const formattedDate = new Date(dateTime).toLocaleString();
     let seriesTitle = '';
+    let seriesObj: any = null;
     if (seriesId) {
-      const seriesObj = await Series.findById(seriesId);
+      seriesObj = await Series.findById(seriesId);
       if (seriesObj) seriesTitle = ` for series "${seriesObj.title}"`;
     }
 
@@ -53,6 +54,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     for (const participantId of uniqueParticipants) {
       if (participantId.toString() === req.user!._id.toString()) continue;
 
+      // Meeting schedule notification
       await createNotification({
         userId: participantId,
         type: 'system',
@@ -60,6 +62,30 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
         message: `${creatorName} scheduled a review meeting "${title}"${seriesTitle} on ${formattedDate}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
+      });
+
+      // Additional notification for Series Review
+      if (seriesObj) {
+        await createNotification({
+          userId: participantId,
+          type: 'system',
+          title: 'Series Review Invitation',
+          message: `You are invited to review the series "${seriesObj.title}" in the meeting "${title}" on ${formattedDate}.`,
+          relatedId: seriesObj._id.toString(),
+          relatedType: 'Series',
+        });
+      }
+    }
+
+    // Notify the Mangaka of the series
+    if (seriesObj) {
+      await createNotification({
+        userId: seriesObj.mangakaId.toString(),
+        type: 'system',
+        title: 'Review Meeting Scheduled',
+        message: `A review meeting "${title}" has been scheduled for your series "${seriesObj.title}" on ${formattedDate}.`,
+        relatedId: seriesObj._id.toString(),
+        relatedType: 'Series',
       });
     }
 
@@ -122,6 +148,11 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
     const creatorName = req.user!.displayName || 'An organizer';
     const formattedDate = new Date(meeting.dateTime).toLocaleString();
 
+    let seriesObj: any = null;
+    if (meeting.seriesId) {
+      seriesObj = await Series.findById(meeting.seriesId);
+    }
+
     for (const participantId of meeting.participants) {
       if (participantId.toString() === userId.toString()) continue;
 
@@ -132,6 +163,28 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
         message: `The review meeting "${meeting.title}" originally scheduled on ${formattedDate} has been cancelled by ${creatorName}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
+      });
+
+      if (seriesObj) {
+        await createNotification({
+          userId: participantId.toString(),
+          type: 'system',
+          title: 'Series Review Cancelled',
+          message: `The review meeting for series "${seriesObj.title}" on ${formattedDate} has been cancelled.`,
+          relatedId: seriesObj._id.toString(),
+          relatedType: 'Series',
+        });
+      }
+    }
+
+    if (seriesObj) {
+      await createNotification({
+        userId: seriesObj.mangakaId.toString(),
+        type: 'system',
+        title: 'Review Meeting Cancelled',
+        message: `The review meeting scheduled for your series "${seriesObj.title}" on ${formattedDate} has been cancelled.`,
+        relatedId: seriesObj._id.toString(),
+        relatedType: 'Series',
       });
     }
 
