@@ -2002,6 +2002,7 @@ export function EditorPortalPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               {meetings.map((m) => {
                 const isUpcoming = !!m.isUpcoming
+                const meetingDate = new Date(m.dateTime)
                 return (
                   <Card key={m._id} className="p-5 flex flex-col justify-between border border-neutral-200 hover:border-neutral-300 transition-all rounded-2xl bg-white shadow-2xs relative">
                     <div className="space-y-3">
