@@ -94,20 +94,58 @@ type DashboardStats = {
   totalDecisions: number
 }
 
+interface MeetingParticipant {
+  _id: string
+  displayName: string
+  email: string
+  avatar?: string
+  role: string
+}
+
+interface MeetingSeries {
+  _id: string
+  title: string
+  coverImage?: string
+}
+
+interface MeetingItem {
+  _id: string
+  title: string
+  description?: string
+  dateTime: string
+  location: string
+  seriesId?: MeetingSeries
+  participants: MeetingParticipant[]
+  createdBy: {
+    _id: string
+    displayName: string
+    avatar?: string
+    role: string
+  }
+  isUpcoming?: boolean
+}
+
+interface ReviewerItem {
+  _id: string
+  displayName: string
+  email: string
+  avatar?: string
+  role: string
+}
+
 /* ──────────────────────────────────── component ── */
 export function EditorialBoardPortalPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const tabParam = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState(tabParam || 'dashboard')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') || 'dashboard'
 
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam)
-    }
-  }, [tabParam])
+  const setActiveTab = (tab: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', tab)
+    setSearchParams(params)
+  }
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -181,7 +219,7 @@ export function EditorialBoardPortalPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // Meetings schedule state
-  const [meetings, setMeetings] = useState<any[]>([])
+  const [meetings, setMeetings] = useState<MeetingItem[]>([])
   const [showMeetingForm, setShowMeetingForm] = useState(false)
   const [meetingTitle, setMeetingTitle] = useState('')
   const [meetingDesc, setMeetingDesc] = useState('')
@@ -189,7 +227,7 @@ export function EditorialBoardPortalPage() {
   const [meetingLoc, setMeetingLoc] = useState('')
   const [meetingSeriesId, setMeetingSeriesId] = useState('')
   const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
-  const [availableReviewers, setAvailableReviewers] = useState<any[]>([])
+  const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
   const [submittingMeeting, setSubmittingMeeting] = useState(false)
 
   const tabs = [
@@ -222,7 +260,11 @@ export function EditorialBoardPortalPage() {
       setAtRiskSeries(dashboardRes.data.atRiskSeries || [])
       setRecentDecisions(dashboardRes.data.recentDecisions || [])
       setLowRatingChapters(dashboardRes.data.lowRatingChapters || [])
-      setMeetings(meetingsRes.data.meetings || [])
+      const formattedMeetings: MeetingItem[] = (meetingsRes.data.meetings || []).map((m: MeetingItem) => ({
+        ...m,
+        isUpcoming: new Date(m.dateTime).getTime() > Date.now(),
+      }))
+      setMeetings(formattedMeetings)
     } catch (err) {
       console.error('Failed to fetch EB data:', err)
     } finally {
@@ -1342,8 +1384,7 @@ export function EditorialBoardPortalPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {meetings.map((m) => {
-                const meetingDate = new Date(m.dateTime)
-                const isUpcoming = meetingDate.getTime() > Date.now()
+                const isUpcoming = !!m.isUpcoming
                 return (
                   <Card key={m._id} className="p-5 flex flex-col justify-between border border-neutral-200 hover:border-neutral-300 transition-all rounded-2xl bg-white shadow-2xs relative">
                     <div className="space-y-3">
@@ -1383,7 +1424,7 @@ export function EditorialBoardPortalPage() {
                           Invited Participants ({m.participants?.length || 0})
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          {m.participants?.map((p: any) => (
+                          {m.participants?.map((p: MeetingParticipant) => (
                             <div
                               key={p._id}
                               title={`${p.displayName} (${p.role.replace('_', ' ')})`}

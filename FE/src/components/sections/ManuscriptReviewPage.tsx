@@ -66,6 +66,33 @@ interface SeriesReviewData {
   mangakaId?: { _id: string; displayName: string; avatar?: string }
 }
 
+interface EbMeetingInfo {
+  _id: string
+  title: string
+  isParticipant: boolean
+  votesCount: number
+  participantsCount: number
+}
+
+interface EbMemberVote {
+  member?: { _id: string; displayName: string } | string
+  comments?: string
+}
+
+interface EbSeriesInfo {
+  _id: string
+  userVote?: string | null
+  userVoteRubric?: {
+    artStyle?: number
+    storytelling?: number
+    characterDesign?: number
+    pacing?: number
+    commercialPotential?: number
+  } | null
+  memberVotes?: EbMemberVote[]
+  meeting?: EbMeetingInfo | null
+}
+
 export function ManuscriptReviewPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
@@ -94,7 +121,7 @@ export function ManuscriptReviewPage() {
   const [submittingAction, setSubmittingAction] = useState(false)
 
   // Editorial Board Rubric States
-  const [ebSeriesInfo, setEbSeriesInfo] = useState<any | null>(null)
+  const [ebSeriesInfo, setEbSeriesInfo] = useState<EbSeriesInfo | null>(null)
   const [rubricArtStyle, setRubricArtStyle] = useState(5)
   const [rubricStorytelling, setRubricStorytelling] = useState(5)
   const [rubricCharacterDesign, setRubricCharacterDesign] = useState(5)
@@ -119,7 +146,7 @@ export function ManuscriptReviewPage() {
       })
       alert('Vote submitted successfully!')
       const ebPendingRes = await ebAPI.getPending()
-      const matched = ebPendingRes.data.series?.find((s: any) => s._id === seriesId)
+      const matched = ebPendingRes.data.series?.find((s: EbSeriesInfo) => s._id === seriesId)
       if (matched) {
         setEbSeriesInfo(matched)
       }
@@ -201,7 +228,7 @@ export function ManuscriptReviewPage() {
           if (user?.role?.toLowerCase() === 'editorial_board') {
             try {
               const ebPendingRes = await ebAPI.getPending()
-              const matched = ebPendingRes.data.series?.find((s: any) => s._id === ch.seriesId)
+              const matched = ebPendingRes.data.series?.find((s: EbSeriesInfo) => s._id === ch.seriesId)
               if (matched) {
                 setEbSeriesInfo(matched)
                 if (matched.userVoteRubric) {
@@ -212,7 +239,10 @@ export function ManuscriptReviewPage() {
                   setRubricCommercialPotential(matched.userVoteRubric.commercialPotential || 5)
                 }
                 if (matched.userVote) {
-                  const myVoteComment = matched.memberVotes?.find((mv: any) => mv.member?._id === user._id || mv.member === user._id)?.comments;
+                  const myVoteComment = matched.memberVotes?.find((mv: EbMemberVote) => {
+                    const memberId = typeof mv.member === 'object' ? mv.member?._id : mv.member;
+                    return memberId === user?._id;
+                  })?.comments;
                   setVoteComments(myVoteComment || '');
                 }
               }
@@ -247,7 +277,7 @@ export function ManuscriptReviewPage() {
           setLoading(false)
         })
       })
-  }, [chapterId])
+  }, [chapterId, user?._id, user?.role])
 
   // Load annotations
   const refreshAnnotations = async () => {

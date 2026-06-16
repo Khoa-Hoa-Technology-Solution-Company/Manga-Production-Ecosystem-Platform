@@ -124,6 +124,45 @@ interface AnalyticsData {
   }
 }
 
+interface MeetingParticipant {
+  _id: string
+  displayName: string
+  email: string
+  avatar?: string
+  role: string
+}
+
+interface MeetingSeries {
+  _id: string
+  title: string
+  coverImage?: string
+}
+
+interface MeetingItem {
+  _id: string
+  title: string
+  description?: string
+  dateTime: string
+  location: string
+  seriesId?: MeetingSeries
+  participants: MeetingParticipant[]
+  createdBy: {
+    _id: string
+    displayName: string
+    avatar?: string
+    role: string
+  }
+  isUpcoming?: boolean
+}
+
+interface ReviewerItem {
+  _id: string
+  displayName: string
+  email: string
+  avatar?: string
+  role: string
+}
+
 export function EditorPortalPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -131,22 +170,17 @@ export function EditorPortalPage() {
 
   const isEB = user?.role === 'editorial_board'
 
-  const [searchParams] = useSearchParams()
-  const tabParam = searchParams.get('tab')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = (searchParams.get('tab') as 'portfolio' | 'milestones' | 'warnings' | 'approvals' | 'analytics' | 'meetings') || (isEB ? 'approvals' : 'portfolio')
 
-  // Tab State: default 'portfolio' for Tantou, 'approvals' for Editorial Board
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'milestones' | 'warnings' | 'approvals' | 'analytics' | 'meetings'>(
-    (tabParam as any) || (isEB ? 'approvals' : 'portfolio')
-  )
-
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam as any)
-    }
-  }, [tabParam])
+  const setActiveTab = (tab: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', tab)
+    setSearchParams(params)
+  }
 
   // Meetings schedule state
-  const [meetings, setMeetings] = useState<any[]>([])
+  const [meetings, setMeetings] = useState<MeetingItem[]>([])
   const [showMeetingForm, setShowMeetingForm] = useState(false)
   const [meetingTitle, setMeetingTitle] = useState('')
   const [meetingDesc, setMeetingDesc] = useState('')
@@ -154,7 +188,7 @@ export function EditorPortalPage() {
   const [meetingLoc, setMeetingLoc] = useState('')
   const [meetingSeriesId, setMeetingSeriesId] = useState('')
   const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
-  const [availableReviewers, setAvailableReviewers] = useState<any[]>([])
+  const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
   const [submittingMeeting, setSubmittingMeeting] = useState(false)
 
   // Expanded Series Details states (in Approvals)
@@ -390,7 +424,11 @@ export function EditorPortalPage() {
   const loadMeetings = async () => {
     try {
       const res = await meetingAPI.getAll()
-      setMeetings(res.data.meetings || [])
+      const formattedMeetings: MeetingItem[] = (res.data.meetings || []).map((m: MeetingItem) => ({
+        ...m,
+        isUpcoming: new Date(m.dateTime).getTime() > Date.now(),
+      }))
+      setMeetings(formattedMeetings)
     } catch (err) {
       console.error('Failed to load meetings', err)
     }
@@ -1839,7 +1877,7 @@ export function EditorPortalPage() {
                       type="text"
                       required
                       value={meetingTitle}
-                      onChange={(e: any) => setMeetingTitle(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMeetingTitle(e.target.value)}
                       placeholder="e.g. Series Editorial Evaluation Meeting"
                       className="rounded-xl text-xs bg-white"
                     />
@@ -1851,7 +1889,7 @@ export function EditorPortalPage() {
                       type="datetime-local"
                       required
                       value={meetingDateTime}
-                      onChange={(e: any) => setMeetingDateTime(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMeetingDateTime(e.target.value)}
                       className="rounded-xl text-xs bg-white"
                     />
                   </div>
@@ -1863,7 +1901,7 @@ export function EditorPortalPage() {
                     <Input
                       type="text"
                       value={meetingLoc}
-                      onChange={(e: any) => setMeetingLoc(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMeetingLoc(e.target.value)}
                       placeholder="Google Meet link or Room 302"
                       className="rounded-xl text-xs bg-white"
                     />
@@ -1873,7 +1911,7 @@ export function EditorPortalPage() {
                     <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.selectRelatedSeries')}</label>
                     <select
                       value={meetingSeriesId}
-                      onChange={(e: any) => setMeetingSeriesId(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMeetingSeriesId(e.target.value)}
                       className="w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs outline-none focus:border-indigo-500 font-medium shadow-2xs"
                     >
                       <option value="">-- No Series --</option>
@@ -1891,7 +1929,7 @@ export function EditorPortalPage() {
                   <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.meetingDescription')}</label>
                   <Textarea
                     value={meetingDesc}
-                    onChange={(e: any) => setMeetingDesc(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMeetingDesc(e.target.value)}
                     placeholder="Brief agenda details..."
                     className="min-h-[60px] rounded-xl text-xs bg-white"
                   />
@@ -1963,8 +2001,7 @@ export function EditorPortalPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {meetings.map((m) => {
-                const meetingDate = new Date(m.dateTime)
-                const isUpcoming = meetingDate.getTime() > Date.now()
+                const isUpcoming = !!m.isUpcoming
                 return (
                   <Card key={m._id} className="p-5 flex flex-col justify-between border border-neutral-200 hover:border-neutral-300 transition-all rounded-2xl bg-white shadow-2xs relative">
                     <div className="space-y-3">
@@ -2004,7 +2041,7 @@ export function EditorPortalPage() {
                           Invited Participants ({m.participants?.length || 0})
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          {m.participants?.map((p: any) => (
+                          {m.participants?.map((p: MeetingParticipant) => (
                             <div
                               key={p._id}
                               title={`${p.displayName} (${p.role.replace('_', ' ')})`}
