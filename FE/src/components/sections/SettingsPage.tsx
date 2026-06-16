@@ -13,6 +13,9 @@ export function SettingsPage() {
   const [bio, setBio] = useState('')
   const [avatar, setAvatar] = useState(user?.avatar || '')
   const [subscribedToNewSeries, setSubscribedToNewSeries] = useState(user?.subscribedToNewSeries || false)
+  const [notificationSoundEnabled, setNotificationSoundEnabled] = useState(() => {
+    return localStorage.getItem('mangaflow-notification-sound') !== 'false'
+  })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,6 +55,7 @@ export function SettingsPage() {
       const updatedUser = res.data.user
       if (updatedUser) {
         updateUser(updatedUser)
+        localStorage.setItem('mangaflow-notification-sound', notificationSoundEnabled ? 'true' : 'false')
         setMessage({ type: 'success', text: t('settingsPage.saveSuccess') })
       }
     } catch (err) {
@@ -166,6 +170,24 @@ export function SettingsPage() {
                 type="checkbox"
                 checked={subscribedToNewSeries}
                 onChange={(e) => setSubscribedToNewSeries(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neutral-950"></div>
+            </label>
+          </div>
+
+          <div className="flex items-start justify-between gap-4 pt-4 border-t border-neutral-100">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-neutral-950">{t('settingsPage.notificationSound')}</h3>
+              <p className="text-xs text-neutral-550 leading-relaxed max-w-xl">
+                {t('settingsPage.notificationSoundDesc')}
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
+              <input
+                type="checkbox"
+                checked={notificationSoundEnabled}
+                onChange={(e) => setNotificationSoundEnabled(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neutral-950"></div>
