@@ -40,7 +40,7 @@ export const authAPI = {
     api.post('/auth/register', data),
   getMe: () => api.get('/auth/me'),
   updateProfile: (data: unknown) => api.put('/auth/profile', data),
-  search: (q: string) => api.get('/auth/search', { params: { q } }),
+  search: (q: string, params?: Record<string, unknown>) => api.get('/auth/search', { params: { q, ...params } }),
   recommendAssistants: (params?: { skills?: string; limit?: number }) => api.get('/auth/assistants/recommend', { params }),
 };
 
@@ -92,7 +92,7 @@ export const approvalAPI = {
 export const ebAPI = {
   getPending: () => api.get('/eb/pending'),
   getDashboard: () => api.get('/eb/dashboard'),
-  castVote: (seriesId: string, data: { decision: string; comments?: string }) =>
+  castVote: (seriesId: string, data: { decision: string; comments?: string; rubric?: Record<string, number> }) =>
     api.post(`/eb/vote/${seriesId}`, data),
   makeFinalDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
     api.patch(`/eb/decision/${seriesId}`, data),
@@ -100,6 +100,14 @@ export const ebAPI = {
     api.post(`/eb/reader-votes/${seriesId}`, data),
   cancelSeries: (seriesId: string, data: { reason: string }) =>
     api.patch(`/eb/cancel/${seriesId}`, data),
+};
+
+// ── Meeting API ─────────────────────────────────────
+export const meetingAPI = {
+  getAll: () => api.get('/meetings'),
+  create: (data: { title: string; description?: string; dateTime: string; location?: string; seriesId?: string; participants: string[] }) =>
+    api.post('/meetings', data),
+  delete: (id: string) => api.delete(`/meetings/${id}`),
 };
 
 // ── Chapters API ────────────────────────────────────

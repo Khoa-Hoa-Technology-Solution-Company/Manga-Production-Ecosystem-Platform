@@ -26,23 +26,65 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
 
     const enriched = await Promise.all(
       seriesList.map(async (s) => {
-        const [votesFor, votesAgainst, chapterCount] = await Promise.all([
-          EBVote.countDocuments({ seriesId: s._id, decision: 'approved' }),
-          EBVote.countDocuments({ seriesId: s._id, decision: 'rejected' }),
+        const [votes, chapterCount] = await Promise.all([
+          EBVote.find({ seriesId: s._id }).populate('memberId', 'displayName avatar role'),
           Chapter.countDocuments({ seriesId: s._id }),
         ]);
 
-        const userVote = await EBVote.findOne({
-          seriesId: s._id,
-          memberId: req.user!._id,
+        const votesFor = votes.filter((v) => v.decision === 'approved').length;
+        const votesAgainst = votes.filter((v) => v.decision === 'rejected').length;
+        const userVoteObj = votes.find((v) => v.memberId && (v.memberId as any)._id.toString() === req.user!._id.toString());
+        const userVote = userVoteObj ? userVoteObj.decision : null;
+        const userVoteRubric = userVoteObj ? userVoteObj.rubric : null;
+
+        let artStyleSum = 0;
+        let storytellingSum = 0;
+        let characterDesignSum = 0;
+        let pacingSum = 0;
+        let commercialPotentialSum = 0;
+        let votesWithRubricCount = 0;
+
+        votes.forEach((v) => {
+          if (v.rubric) {
+            artStyleSum += v.rubric.artStyle;
+            storytellingSum += v.rubric.storytelling;
+            characterDesignSum += v.rubric.characterDesign;
+            pacingSum += v.rubric.pacing;
+            commercialPotentialSum += v.rubric.commercialPotential;
+            votesWithRubricCount++;
+          }
         });
+
+        const averageRubric = votesWithRubricCount > 0 ? {
+          artStyle: Math.round((artStyleSum / votesWithRubricCount) * 10) / 10,
+          storytelling: Math.round((storytellingSum / votesWithRubricCount) * 10) / 10,
+          characterDesign: Math.round((characterDesignSum / votesWithRubricCount) * 10) / 10,
+          pacing: Math.round((pacingSum / votesWithRubricCount) * 10) / 10,
+          commercialPotential: Math.round((commercialPotentialSum / votesWithRubricCount) * 10) / 10,
+        } : null;
+
+        const totalAverage = averageRubric
+          ? Math.round(((averageRubric.artStyle + averageRubric.storytelling + averageRubric.characterDesign + averageRubric.pacing + averageRubric.commercialPotential) / 5) * 10) / 10
+          : null;
+
+        const memberVotes = votes.map((v) => ({
+          _id: v._id,
+          member: v.memberId,
+          decision: v.decision,
+          comments: v.comments,
+          rubric: v.rubric,
+          createdAt: v.createdAt,
+        }));
 
         return {
           ...s.toObject(),
           votesFor,
           votesAgainst,
           totalChapters: chapterCount,
-          userVote: userVote?.decision || null,
+          userVote,
+          userVoteRubric,
+          averageRubric: averageRubric ? { ...averageRubric, totalAverage } : null,
+          memberVotes,
         };
       })
     );
@@ -148,9 +190,26 @@ export async function getDashboard(req: Request, res: Response): Promise<void> {
 export async function castVote(req: Request, res: Response): Promise<void> {
   try {
     const { seriesId } = req.params;
-    const { decision, comments } = req.body;
+    const { decision, comments, rubric } = req.body;
+    let finalDecision = decision;
+    if (rubric) {
+      const { artStyle, storytelling, characterDesign, pacing, commercialPotential } = rubric;
+      const checkVal = (val: any) => typeof val === 'number' && val >= 1 && val <= 10;
+      if (
+        !checkVal(artStyle) ||
+        !checkVal(storytelling) ||
+        !checkVal(characterDesign) ||
+        !checkVal(pacing) ||
+        !checkVal(commercialPotential)
+      ) {
+        res.status(400).json({ error: 'All rubric criteria scores must be numbers between 1 and 10.' });
+        return;
+      }
+      const average = (artStyle + storytelling + characterDesign + pacing + commercialPotential) / 5;
+      finalDecision = average >= 5 ? 'approved' : 'rejected';
+    }
 
-    if (!decision || !['approved', 'rejected'].includes(decision)) {
+    if (!finalDecision || !['approved', 'rejected'].includes(finalDecision)) {
       res.status(400).json({ error: 'Decision must be "approved" or "rejected".' });
       return;
     }
@@ -168,7 +227,7 @@ export async function castVote(req: Request, res: Response): Promise<void> {
 
     await EBVote.findOneAndUpdate(
       { seriesId, memberId: req.user!._id },
-      { seriesId, memberId: req.user!._id, decision, comments },
+      { seriesId, memberId: req.user!._id, decision: finalDecision, comments, rubric },
       { upsert: true, new: true, runValidators: true }
     );
 
