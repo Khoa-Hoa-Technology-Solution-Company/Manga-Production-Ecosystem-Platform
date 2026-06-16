@@ -11,6 +11,7 @@ declare global {
         email: string;
         displayName: string;
         role: string;
+        isEbHead: boolean;
       };
       chapterAccess?: {
         chapterId: string;
@@ -34,7 +35,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     const token = authHeader.split(' ')[1];
     const decoded: JwtPayload = verifyToken(token);
 
-    const user = await User.findById(decoded.userId).select('email displayName role isActive');
+    const user = await User.findById(decoded.userId).select('email displayName role isActive isEbHead');
     if (!user || !user.isActive) {
       res.status(401).json({ error: 'Invalid token or user deactivated.' });
       return;
@@ -45,6 +46,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       email: user.email,
       displayName: user.displayName,
       role: user.role,
+      isEbHead: !!user.isEbHead,
     };
 
     next();

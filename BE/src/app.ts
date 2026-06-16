@@ -23,6 +23,7 @@ import annotationsRoutes from './routes/annotations.routes';
 import editorRoutes from './routes/editor.routes';
 import dedicatedAssistantRoutes from './routes/dedicated-assistant.routes';
 import ebRoutes from './routes/eb.routes';
+import meetingRoutes from './routes/meeting.routes';
 
 const app = express();
 
@@ -106,6 +107,7 @@ app.use('/api/annotations', annotationsRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/series', dedicatedAssistantRoutes);
 app.use('/api/eb', ebRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, type MouseEvent, } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { pagesAPI, annotationsAPI, chaptersAPI, seriesAPI } from '../../lib/api'
+import { pagesAPI, annotationsAPI, chaptersAPI, seriesAPI, ebAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { Badge } from '../ui'
 import {
@@ -17,7 +17,10 @@ import {
   EyeOff,
   PenTool,
   Trash2,
-  BookOpen
+  BookOpen,
+  Gavel,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react'
 import { DraftReviewCanvas, type AnnotationData as DraftAnnotationData } from './DraftReviewCanvas'
 
@@ -63,6 +66,33 @@ interface SeriesReviewData {
   mangakaId?: { _id: string; displayName: string; avatar?: string }
 }
 
+interface EbMeetingInfo {
+  _id: string
+  title: string
+  isParticipant: boolean
+  votesCount: number
+  participantsCount: number
+}
+
+interface EbMemberVote {
+  member?: { _id: string; displayName: string } | string
+  comments?: string
+}
+
+interface EbSeriesInfo {
+  _id: string
+  userVote?: string | null
+  userVoteRubric?: {
+    artStyle?: number
+    storytelling?: number
+    characterDesign?: number
+    pacing?: number
+    commercialPotential?: number
+  } | null
+  memberVotes?: EbMemberVote[]
+  meeting?: EbMeetingInfo | null
+}
+
 export function ManuscriptReviewPage() {
   const { chapterId } = useParams<{ chapterId: string }>()
   const navigate = useNavigate()
@@ -89,6 +119,44 @@ export function ManuscriptReviewPage() {
   const [activeClickCoords, setActiveClickCoords] = useState<{ x: number; y: number } | null>(null)
   const [submittingPin, setSubmittingPin] = useState(false)
   const [submittingAction, setSubmittingAction] = useState(false)
+
+  // Editorial Board Rubric States
+  const [ebSeriesInfo, setEbSeriesInfo] = useState<EbSeriesInfo | null>(null)
+  const [rubricArtStyle, setRubricArtStyle] = useState(5)
+  const [rubricStorytelling, setRubricStorytelling] = useState(5)
+  const [rubricCharacterDesign, setRubricCharacterDesign] = useState(5)
+  const [rubricPacing, setRubricPacing] = useState(5)
+  const [rubricCommercialPotential, setRubricCommercialPotential] = useState(5)
+  const [voteComments, setVoteComments] = useState('')
+  const [submittingVote, setSubmittingVote] = useState(false)
+
+  const handleVote = async (seriesId: string, decision: 'approved' | 'rejected') => {
+    setSubmittingVote(true)
+    try {
+      await ebAPI.castVote(seriesId, {
+        decision,
+        comments: voteComments,
+        rubric: {
+          artStyle: rubricArtStyle,
+          storytelling: rubricStorytelling,
+          characterDesign: rubricCharacterDesign,
+          pacing: rubricPacing,
+          commercialPotential: rubricCommercialPotential,
+        },
+      })
+      alert('Vote submitted successfully!')
+      const ebPendingRes = await ebAPI.getPending()
+      const matched = ebPendingRes.data.series?.find((s: EbSeriesInfo) => s._id === seriesId)
+      if (matched) {
+        setEbSeriesInfo(matched)
+      }
+    } catch (err) {
+      console.error('Failed to cast vote:', err)
+      alert('Failed to cast vote')
+    } finally {
+      setSubmittingVote(false)
+    }
+  }
 
   const handleApproveChapter = async () => {
     if (!chapter?._id) return
@@ -156,6 +224,32 @@ export function ManuscriptReviewPage() {
           } catch (err) {
             console.error('Failed to load series details in review page:', err)
           }
+
+          if (user?.role?.toLowerCase() === 'editorial_board') {
+            try {
+              const ebPendingRes = await ebAPI.getPending()
+              const matched = ebPendingRes.data.series?.find((s: EbSeriesInfo) => s._id === ch.seriesId)
+              if (matched) {
+                setEbSeriesInfo(matched)
+                if (matched.userVoteRubric) {
+                  setRubricArtStyle(matched.userVoteRubric.artStyle || 5)
+                  setRubricStorytelling(matched.userVoteRubric.storytelling || 5)
+                  setRubricCharacterDesign(matched.userVoteRubric.characterDesign || 5)
+                  setRubricPacing(matched.userVoteRubric.pacing || 5)
+                  setRubricCommercialPotential(matched.userVoteRubric.commercialPotential || 5)
+                }
+                if (matched.userVote) {
+                  const myVoteComment = matched.memberVotes?.find((mv: EbMemberVote) => {
+                    const memberId = typeof mv.member === 'object' ? mv.member?._id : mv.member;
+                    return memberId === user?._id;
+                  })?.comments;
+                  setVoteComments(myVoteComment || '');
+                }
+              }
+            } catch (err) {
+              console.error('Failed to load EB series info in review page:', err)
+            }
+          }
         }
       }
       setPages(pagesRes.data.pages || [])
@@ -183,7 +277,7 @@ export function ManuscriptReviewPage() {
           setLoading(false)
         })
       })
-  }, [chapterId])
+  }, [chapterId, user?._id, user?.role])
 
   // Load annotations
   const refreshAnnotations = async () => {
@@ -633,6 +727,126 @@ export function ManuscriptReviewPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Editorial Board Rubric Scoring */}
+          {user?.role?.toLowerCase() === 'editorial_board' && ebSeriesInfo && (
+            <div className="border-b border-white/[0.06] p-4 space-y-3 bg-[#131627]/60 text-xs shrink-0 select-text overflow-y-auto max-h-[50%]">
+              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Gavel className="size-3" />
+                {t('editorialBoard.title', 'Editorial Evaluation')}
+              </span>
+              
+              {(() => {
+                const canVote = ebSeriesInfo.meeting && ebSeriesInfo.meeting.isParticipant;
+                return (
+                  <>
+                    {!ebSeriesInfo.meeting ? (
+                      <div className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal">
+                        ⚠️ Awaiting scheduled review meeting before voting can start.
+                      </div>
+                    ) : !ebSeriesInfo.meeting.isParticipant ? (
+                      <div className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal">
+                        ⚠️ Only meeting participants are allowed to vote.
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-2.5 mt-2">
+                      {[
+                        { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
+                        { key: 'storytelling', label: t('editorialBoard.storytelling', 'Storytelling'), val: rubricStorytelling, setVal: setRubricStorytelling },
+                        { key: 'characterDesign', label: t('editorialBoard.characterDesign', 'Character Design'), val: rubricCharacterDesign, setVal: setRubricCharacterDesign },
+                        { key: 'pacing', label: t('editorialBoard.pacing', 'Pacing & Layout'), val: rubricPacing, setVal: setRubricPacing },
+                        { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
+                      ].map(({ key, label, val, setVal }) => (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-neutral-300">
+                            <span>{label}</span>
+                            <span className="font-bold text-indigo-400">{val}/10</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="10"
+                            value={val}
+                            onChange={(e) => setVal(parseInt(e.target.value))}
+                            disabled={!canVote}
+                            className="w-full accent-indigo-500 cursor-pointer h-1 bg-white/10 rounded-lg appearance-none disabled:opacity-40"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <textarea
+                      value={voteComments}
+                      onChange={(e) => setVoteComments(e.target.value)}
+                      placeholder={canVote ? "Evaluation comments..." : "Voting is view-only."}
+                      disabled={!canVote}
+                      className="w-full mt-2 min-h-12 rounded-xl border border-white/[0.08] p-2.5 text-xs outline-none bg-[#171B2F] text-white focus:border-indigo-500 transition-all disabled:opacity-50"
+                    />
+
+                    {/* Dynamic Auto-decision & Submit */}
+                    {(() => {
+                      const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5
+                      const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected'
+
+                      return (
+                        <div className="space-y-2 mt-2 pt-2 border-t border-white/[0.06]">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-neutral-400">Avg: <strong className="text-white">{currentAverage.toFixed(1)}/10</strong></span>
+                            <span className="flex items-center gap-1">
+                              <span className="text-neutral-500 text-[8px] uppercase font-bold">Decision:</span>
+                              {autoDecision === 'approved' ? (
+                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Approve</span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">Reject</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={submittingVote || !canVote}
+                            onClick={() => handleVote(ebSeriesInfo._id, autoDecision)}
+                            className={`w-full py-2 px-3 text-xs font-semibold rounded-xl text-white transition-all border-none cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                              autoDecision === 'approved'
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20'
+                                : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-rose-500 shadow-md shadow-rose-950/20'
+                            }`}
+                          >
+                            {submittingVote ? (
+                              <div className="size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                            ) : autoDecision === 'approved' ? (
+                              <ThumbsUp className="size-3.5" />
+                            ) : (
+                              <ThumbsDown className="size-3.5" />
+                            )}
+                            <span>
+                              {ebSeriesInfo.userVote 
+                                ? 'Update Evaluation Vote' 
+                                : 'Submit Evaluation Vote'
+                              }
+                            </span>
+                          </button>
+                          {ebSeriesInfo.userVote && (
+                            <div className="text-center text-[9px] text-neutral-400">
+                              You voted: <strong className={ebSeriesInfo.userVote === 'approved' ? 'text-emerald-400' : 'text-rose-400'}>{ebSeriesInfo.userVote.toUpperCase()}</strong>
+                            </div>
+                          )}
+
+                          {ebSeriesInfo.meeting && (
+                            <div className="mt-2 bg-white/[0.02] border border-white/[0.05] p-2 rounded-xl text-[9px] text-left leading-normal space-y-0.5">
+                              <div className="text-neutral-300 font-semibold truncate">Meeting: {ebSeriesInfo.meeting.title}</div>
+                              <div className="text-neutral-400">Votes Cast: {ebSeriesInfo.meeting.votesCount} / {ebSeriesInfo.meeting.participantsCount} ({Math.round((ebSeriesInfo.meeting.votesCount / ebSeriesInfo.meeting.participantsCount) * 100)}%)</div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </>
+                );
+              })()}
             </div>
           )}
 

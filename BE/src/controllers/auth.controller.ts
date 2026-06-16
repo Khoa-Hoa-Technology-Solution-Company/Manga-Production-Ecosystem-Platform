@@ -25,6 +25,7 @@ export async function register(req: Request, res: Response): Promise<void> {
         role: user.role,
         avatar: user.avatar,
         subscribedToNewSeries: user.subscribedToNewSeries,
+        isEbHead: user.isEbHead,
       },
     });
   } catch (error: any) {
@@ -64,6 +65,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         role: user.role,
         avatar: user.avatar,
         subscribedToNewSeries: user.subscribedToNewSeries,
+        isEbHead: user.isEbHead,
       },
     });
   } catch (error: any) {
@@ -109,20 +111,30 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
 export async function searchUsers(req: Request, res: Response): Promise<void> {
   try {
     const q = String(req.query.q || '').trim();
-    if (!q) {
+    const roles = req.query.roles ? String(req.query.roles).split(',') : [];
+
+    const query: any = { isActive: true };
+
+    if (q) {
+      query.$or = [
+        { email: { $regex: q, $options: 'i' } },
+        { displayName: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    if (roles.length > 0) {
+      query.role = { $in: roles };
+    }
+
+    // If both query 'q' and 'roles' are empty, return empty list
+    if (!q && roles.length === 0) {
       res.json({ users: [] });
       return;
     }
 
-    const users = await User.find({
-      $or: [
-        { email: { $regex: q, $options: 'i' } },
-        { displayName: { $regex: q, $options: 'i' } },
-      ],
-      isActive: true,
-    })
+    const users = await User.find(query)
       .select('_id email displayName role avatar')
-      .limit(10);
+      .limit(50);
 
     res.json({ users });
   } catch (error: any) {

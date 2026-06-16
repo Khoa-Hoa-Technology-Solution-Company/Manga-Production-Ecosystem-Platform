@@ -14,6 +14,7 @@ export interface IUser extends Document {
   rating?: number;
   totalEarnings?: number;
   subscribedToNewSeries?: boolean;
+  isEbHead?: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +38,7 @@ const userSchema = new Schema<IUser>(
     rating: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 },
     subscribedToNewSeries: { type: Boolean, default: false },
+    isEbHead: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

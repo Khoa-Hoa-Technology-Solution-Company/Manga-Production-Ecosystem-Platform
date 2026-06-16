@@ -77,6 +77,12 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
         } else {
           navigate('/studio/manage')
         }
+      } else if (notif.relatedType === 'Meeting') {
+        if (user?.role === 'editor') {
+          navigate('/editor?tab=meetings')
+        } else if (user?.role === 'editorial_board') {
+          navigate('/editorial-board?tab=meetings')
+        }
       }
     } catch (err) {
       console.error('Navigation failed', err)

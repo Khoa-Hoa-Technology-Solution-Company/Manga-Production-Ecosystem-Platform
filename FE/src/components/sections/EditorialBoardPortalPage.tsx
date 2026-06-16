@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Gavel, Clock, Trophy, BarChart3, ThumbsUp, ThumbsDown,
   BookOpen, ChevronDown, ChevronUp, AlertTriangle, Send,
@@ -8,7 +8,8 @@ import {
   LayoutDashboard, Activity, ChevronRight
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
-import { ebAPI, dashboardAPI, chaptersAPI } from '../../lib/api'
+import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -33,6 +34,44 @@ type SeriesItem = {
   votesFor?: number
   votesAgainst?: number
   userVote?: string | null
+  userVoteRubric?: {
+    artStyle: number
+    storytelling: number
+    characterDesign: number
+    pacing: number
+    commercialPotential: number
+  } | null
+  averageRubric?: {
+    artStyle: number
+    storytelling: number
+    characterDesign: number
+    pacing: number
+    commercialPotential: number
+    totalAverage: number
+  } | null
+  memberVotes?: Array<{
+    _id: string
+    member: { _id: string; displayName: string; avatar?: string; role: string }
+    decision: string
+    comments?: string
+    rubric?: {
+      artStyle: number
+      storytelling: number
+      characterDesign: number
+      pacing: number
+      commercialPotential: number
+    }
+    createdAt: string
+  }>
+  meeting?: {
+    _id: string
+    title: string
+    dateTime: string
+    participants: Array<{ _id: string; displayName: string; avatar?: string; role: string }>
+    participantsCount: number
+    votesCount: number
+    isParticipant: boolean
+  } | null
 }
 
 type ChapterItem = {
@@ -55,11 +94,58 @@ type DashboardStats = {
   totalDecisions: number
 }
 
+interface MeetingParticipant {
+  _id: string
+  displayName: string
+  email: string
+  avatar?: string
+  role: string
+}
+
+interface MeetingSeries {
+  _id: string
+  title: string
+  coverImage?: string
+}
+
+interface MeetingItem {
+  _id: string
+  title: string
+  description?: string
+  dateTime: string
+  location: string
+  seriesId?: MeetingSeries
+  participants: MeetingParticipant[]
+  createdBy: {
+    _id: string
+    displayName: string
+    avatar?: string
+    role: string
+  }
+  isUpcoming?: boolean
+}
+
+interface ReviewerItem {
+  _id: string
+  displayName: string
+  email: string
+  avatar?: string
+  role: string
+}
+
 /* ──────────────────────────────────── component ── */
 export function EditorialBoardPortalPage() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') || 'dashboard'
+
+  const setActiveTab = (tab: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', tab)
+    setSearchParams(params)
+  }
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,9 +188,14 @@ export function EditorialBoardPortalPage() {
     series: { _id: string; title: string; coverImage?: string; mangakaId?: { displayName: string } }
   }>>([])
 
-  // Voting state
+  // Voting state (with rubric criteria 1-10)
   const [votingSeriesId, setVotingSeriesId] = useState<string | null>(null)
   const [voteComments, setVoteComments] = useState('')
+  const [rubricArtStyle, setRubricArtStyle] = useState(5)
+  const [rubricStorytelling, setRubricStorytelling] = useState(5)
+  const [rubricCharacterDesign, setRubricCharacterDesign] = useState(5)
+  const [rubricPacing, setRubricPacing] = useState(5)
+  const [rubricCommercialPotential, setRubricCommercialPotential] = useState(5)
   const [submittingVote, setSubmittingVote] = useState(false)
 
   // Final Decision state
@@ -127,9 +218,22 @@ export function EditorialBoardPortalPage() {
   // Expanded series for details
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  // Meetings schedule state
+  const [meetings, setMeetings] = useState<MeetingItem[]>([])
+  const [showMeetingForm, setShowMeetingForm] = useState(false)
+  const [meetingTitle, setMeetingTitle] = useState('')
+  const [meetingDesc, setMeetingDesc] = useState('')
+  const [meetingDateTime, setMeetingDateTime] = useState('')
+  const [meetingLoc, setMeetingLoc] = useState('')
+  const [meetingSeriesId, setMeetingSeriesId] = useState('')
+  const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
+  const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
+  const [submittingMeeting, setSubmittingMeeting] = useState(false)
+
   const tabs = [
     { key: 'dashboard', label: t('editorialBoard.dashboard'), icon: <LayoutDashboard className="size-3.5" /> },
     { key: 'votes', label: t('editorialBoard.pendingVotes'), icon: <Gavel className="size-3.5" />, count: pendingSeries.length },
+    { key: 'meetings', label: t('editorialBoard.meetingsTab', 'Meetings'), icon: <Calendar className="size-3.5" /> },
     { key: 'rankings', label: t('editorialBoard.seriesRankings'), icon: <Trophy className="size-3.5" /> },
     { key: 'input', label: t('editorialBoard.inputVotes'), icon: <BarChart3 className="size-3.5" /> },
   ]
@@ -137,10 +241,11 @@ export function EditorialBoardPortalPage() {
   /* ── data fetching ── */
   const fetchData = useCallback(async () => {
     try {
-      const [pendingRes, rankingsRes, dashboardRes] = await Promise.all([
+      const [pendingRes, rankingsRes, dashboardRes, meetingsRes] = await Promise.all([
         ebAPI.getPending().catch(() => ({ data: { series: [] } })),
         dashboardAPI.getRankings().catch(() => ({ data: { rankings: [] } })),
         ebAPI.getDashboard().catch(() => ({ data: { stats: { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 }, atRiskSeries: [], recentDecisions: [] } })),
+        meetingAPI.getAll().catch(() => ({ data: { meetings: [] } })),
       ])
 
       setPendingSeries(pendingRes.data.series || [])
@@ -155,12 +260,17 @@ export function EditorialBoardPortalPage() {
       setAtRiskSeries(dashboardRes.data.atRiskSeries || [])
       setRecentDecisions(dashboardRes.data.recentDecisions || [])
       setLowRatingChapters(dashboardRes.data.lowRatingChapters || [])
+      const formattedMeetings: MeetingItem[] = (meetingsRes.data.meetings || []).map((m: MeetingItem) => ({
+        ...m,
+        isUpcoming: new Date(m.dateTime).getTime() > Date.now(),
+      }))
+      setMeetings(formattedMeetings)
     } catch (err) {
       console.error('Failed to fetch EB data:', err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])
@@ -169,14 +279,103 @@ export function EditorialBoardPortalPage() {
   const handleVote = async (seriesId: string, decision: 'approved' | 'rejected') => {
     setSubmittingVote(true)
     try {
-      await ebAPI.castVote(seriesId, { decision, comments: voteComments })
+      await ebAPI.castVote(seriesId, {
+        decision,
+        comments: voteComments,
+        rubric: {
+          artStyle: rubricArtStyle,
+          storytelling: rubricStorytelling,
+          characterDesign: rubricCharacterDesign,
+          pacing: rubricPacing,
+          commercialPotential: rubricCommercialPotential,
+        },
+      })
       setVotingSeriesId(null)
       setVoteComments('')
+      setRubricArtStyle(5)
+      setRubricStorytelling(5)
+      setRubricCharacterDesign(5)
+      setRubricPacing(5)
+      setRubricCommercialPotential(5)
       fetchData()
     } catch (err) {
       console.error('Failed to cast vote:', err)
     } finally {
       setSubmittingVote(false)
+    }
+  }
+
+  const handleCreateMeeting = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0) return
+    setSubmittingMeeting(true)
+    try {
+      await meetingAPI.create({
+        title: meetingTitle,
+        description: meetingDesc,
+        dateTime: meetingDateTime,
+        location: meetingLoc,
+        seriesId: meetingSeriesId || undefined,
+        participants: meetingParticipants,
+      })
+      setShowMeetingForm(false)
+      // Reset form
+      setMeetingTitle('')
+      setMeetingDesc('')
+      setMeetingDateTime('')
+      setMeetingLoc('')
+      setMeetingSeriesId('')
+      setMeetingParticipants([])
+      fetchData()
+    } catch (err) {
+      console.error('Failed to create meeting:', err)
+    } finally {
+      setSubmittingMeeting(false)
+    }
+  }
+
+  const handleDeleteMeeting = async (id: string) => {
+    if (!window.confirm(t('editorialBoard.confirmCancelMeeting'))) return
+    try {
+      await meetingAPI.delete(id)
+      fetchData()
+    } catch (err) {
+      console.error('Failed to delete meeting:', err)
+    }
+  }
+
+  const handleOpenMeetingForm = async () => {
+    setShowMeetingForm(true)
+    try {
+      const res = await authAPI.search('', { roles: 'editor,editorial_board' })
+      setAvailableReviewers(res.data.users || [])
+    } catch (err) {
+      console.error('Failed to load reviewers:', err)
+    }
+  }
+
+  const handleToggleParticipant = (id: string) => {
+    setMeetingParticipants((prev) =>
+      prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
+    )
+  }
+
+  const handleOpenVote = (series: SeriesItem) => {
+    setVotingSeriesId(series._id)
+    setDecisionSeriesId(null)
+    setVoteComments('')
+    if (series.userVoteRubric) {
+      setRubricArtStyle(series.userVoteRubric.artStyle || 5)
+      setRubricStorytelling(series.userVoteRubric.storytelling || 5)
+      setRubricCharacterDesign(series.userVoteRubric.characterDesign || 5)
+      setRubricPacing(series.userVoteRubric.pacing || 5)
+      setRubricCommercialPotential(series.userVoteRubric.commercialPotential || 5)
+    } else {
+      setRubricArtStyle(5)
+      setRubricStorytelling(5)
+      setRubricCharacterDesign(5)
+      setRubricPacing(5)
+      setRubricCommercialPotential(5)
     }
   }
 
@@ -665,89 +864,244 @@ export function EditorialBoardPortalPage() {
                         )}
                       </div>
 
-                      {/* Vote actions */}
-                      {votingSeriesId === series._id ? (
-                        <div className="mt-4 space-y-3 rounded-xl bg-neutral-50 p-4">
-                          <Textarea
-                            value={voteComments}
-                            onChange={(e) => setVoteComments(e.target.value)}
-                            placeholder="Optional comments..."
-                            className="min-h-[60px] rounded-xl text-sm"
-                          />
+                      {votingSeriesId === series._id ? (() => {
+                        const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5;
+                        const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected';
+
+                        return (
+                          <div className="mt-4 space-y-3 rounded-xl bg-neutral-50 p-4 text-left">
+                            {/* Rubric sliders */}
+                            <div className="space-y-3 bg-white p-3 rounded-xl border border-neutral-100 my-2">
+                              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
+                                {t('editorialBoard.rubricScores', 'Rubric Scores')}
+                              </h4>
+                              <div className="space-y-3">
+                                {[
+                                  { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
+                                  { key: 'storytelling', label: t('editorialBoard.storytelling', 'Storytelling'), val: rubricStorytelling, setVal: setRubricStorytelling },
+                                  { key: 'characterDesign', label: t('editorialBoard.characterDesign', 'Character Design'), val: rubricCharacterDesign, setVal: setRubricCharacterDesign },
+                                  { key: 'pacing', label: t('editorialBoard.pacing', 'Pacing & Layout'), val: rubricPacing, setVal: setRubricPacing },
+                                  { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
+                                ].map(({ key, label, val, setVal }) => (
+                                  <div key={key} className="space-y-1">
+                                    <div className="flex justify-between text-xs">
+                                      <span className="font-medium text-neutral-700">{label}</span>
+                                      <span className="font-bold text-indigo-600">{val}/10</span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min="1"
+                                      max="10"
+                                      value={val}
+                                      onChange={(e) => setVal(parseInt(e.target.value))}
+                                      className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-neutral-200 rounded-lg appearance-none"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <Textarea
+                              value={voteComments}
+                              onChange={(e) => setVoteComments(e.target.value)}
+                              placeholder="Optional comments..."
+                              className="min-h-[60px] rounded-xl text-sm bg-white"
+                            />
+
+                            {/* Average & Auto Decision Indicator */}
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-neutral-100">
+                              <div className="text-xs font-semibold text-neutral-700">
+                                {t('editorialBoard.averageScore', 'Average Score')}: <span className="text-indigo-600 text-sm font-bold">{currentAverage.toFixed(1)}/10</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Decision:</span>
+                                {autoDecision === 'approved' ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                                    <ThumbsUp className="size-3" /> {t('editorialBoard.voteApprove', 'Approve')}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+                                    <ThumbsDown className="size-3" /> {t('editorialBoard.voteReject', 'Reject')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="gap-1.5 rounded-xl"
+                                onClick={() => setVotingSeriesId(null)}
+                              >
+                                {t('common.cancel')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                className={`flex-1 gap-1.5 rounded-xl text-white font-semibold transition-all duration-300 ${
+                                  autoDecision === 'approved'
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-100'
+                                    : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-md shadow-red-100'
+                                }`}
+                                onClick={() => handleVote(series._id, autoDecision)}
+                                disabled={submittingVote}
+                              >
+                                {submittingVote ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : autoDecision === 'approved' ? (
+                                  <ThumbsUp className="size-3.5" />
+                                ) : (
+                                  <ThumbsDown className="size-3.5" />
+                                )}
+                                {autoDecision === 'approved'
+                                  ? t('editorialBoard.submitApproveVote', 'Submit Approve Vote')
+                                  : t('editorialBoard.submitRejectVote', 'Submit Reject Vote')
+                                }
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })() : (
+                        <div className="mt-4 space-y-2">
                           <div className="flex gap-2">
                             <Button
                               size="sm"
-                              variant="ghost"
-                              className="gap-1.5 rounded-xl"
-                              onClick={() => setVotingSeriesId(null)}
-                            >
-                              {t('common.cancel')}
-                            </Button>
-                            <Button
-                              size="sm"
                               variant="outline"
-                              className="gap-1.5 rounded-xl border border-red-200 !bg-red-50 !text-red-600 hover:!bg-red-100 hover:!text-red-700"
-                              onClick={() => handleVote(series._id, 'rejected')}
-                              disabled={submittingVote}
+                              className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1 disabled:opacity-40"
+                              onClick={() => handleOpenVote(series)}
+                              disabled={!series.meeting || !series.meeting.isParticipant}
                             >
-                              {submittingVote ? <Loader2 className="size-3.5 animate-spin" /> : <ThumbsDown className="size-3.5" />}
-                              {t('editorialBoard.voteReject')}
+                              <Gavel className="size-3.5" />
+                              {t('editorialBoard.castVote')}
                             </Button>
-                            <Button
-                              size="sm"
-                              className="gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700"
-                              onClick={() => handleVote(series._id, 'approved')}
-                              disabled={submittingVote}
-                            >
-                              {submittingVote ? <Loader2 className="size-3.5 animate-spin" /> : <ThumbsUp className="size-3.5" />}
-                              {t('editorialBoard.voteApprove')}
-                            </Button>
+                            
+                            {user?.isEbHead && (
+                              <Button
+                                size="sm"
+                                className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 flex-1 disabled:opacity-45"
+                                onClick={() => {
+                                  setDecisionSeriesId(series._id)
+                                  setVotingSeriesId(null)
+                                }}
+                                disabled={!series.meeting || series.meeting.votesCount < series.meeting.participantsCount}
+                              >
+                                <Trophy className="size-3.5" />
+                                {t('editorialBoard.endVote')}
+                              </Button>
+                            )}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="mt-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1"
-                            onClick={() => {
-                              setVotingSeriesId(series._id)
-                              setDecisionSeriesId(null)
-                            }}
-                          >
-                            <Gavel className="size-3.5" />
-                            {t('editorialBoard.castVote')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 flex-1"
-                            onClick={() => {
-                              setDecisionSeriesId(series._id)
-                              setVotingSeriesId(null)
-                            }}
-                          >
-                            <Trophy className="size-3.5" />
-                            {t('editorialBoard.endVote')}
-                          </Button>
+
+                          {!series.meeting ? (
+                            <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-xl text-center font-medium">
+                              ⚠️ {t('editorialBoard.awaitingMeetingAlert', 'Awaiting scheduled review meeting before voting can start.')}
+                            </div>
+                          ) : (
+                            <div className="space-y-1 bg-indigo-50/50 border border-indigo-100/50 p-2 rounded-xl text-[10px] text-left">
+                              <div className="flex justify-between text-indigo-900 font-semibold">
+                                <span>Meeting: {series.meeting.title}</span>
+                                <span>{new Date(series.meeting.dateTime).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between text-neutral-500">
+                                <span>Votes Cast: {series.meeting.votesCount} / {series.meeting.participantsCount} ({Math.round((series.meeting.votesCount / series.meeting.participantsCount) * 100)}%)</span>
+                                {series.meeting.isParticipant ? (
+                                  <span className="text-emerald-600 font-bold">✓ Invited participant</span>
+                                ) : (
+                                  <span className="text-red-500 font-bold">✗ Not invited</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Vote Aggregation Display */}
-                      <div className="mt-4 rounded-xl bg-neutral-50 p-3">
-                        <div className="mb-2 flex items-center justify-between text-xs font-medium">
-                          <span className="text-emerald-600 flex items-center gap-1"><ThumbsUp className="size-3" /> {series.votesFor || 0} {t('editorialBoard.votesFor')}</span>
-                          <span className="text-red-600 flex items-center gap-1">{series.votesAgainst || 0} {t('editorialBoard.votesAgainst')} <ThumbsDown className="size-3" /></span>
+                      {/* Vote Aggregation Display & Rubric Scorecard */}
+                      <div className="mt-4 rounded-xl bg-neutral-50 p-3 space-y-3">
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-xs font-medium">
+                            <span className="text-emerald-600 flex items-center gap-1"><ThumbsUp className="size-3" /> {series.votesFor || 0} {t('editorialBoard.votesFor')}</span>
+                            <span className="text-red-600 flex items-center gap-1">{series.votesAgainst || 0} {t('editorialBoard.votesAgainst')} <ThumbsDown className="size-3" /></span>
+                          </div>
+                          <div className="h-1.5 flex overflow-hidden rounded-full bg-neutral-200">
+                            <div
+                              className="bg-emerald-500 transition-all"
+                              style={{ width: `${((series.votesFor || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
+                            />
+                            <div
+                              className="bg-red-500 transition-all"
+                              style={{ width: `${((series.votesAgainst || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1.5 flex overflow-hidden rounded-full bg-neutral-200">
-                          <div
-                            className="bg-emerald-500 transition-all"
-                            style={{ width: `${((series.votesFor || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
-                          />
-                          <div
-                            className="bg-red-500 transition-all"
-                            style={{ width: `${((series.votesAgainst || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
-                          />
-                        </div>
+
+                        {series.averageRubric && (
+                          <div className="mt-3 border-t border-neutral-200/60 pt-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
+                                {t('editorialBoard.rubricScorecard')}
+                              </h4>
+                              <div className="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                {t('editorialBoard.averageScore')}: {series.averageRubric.totalAverage}/10
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
+                              {[
+                                { label: t('editorialBoard.artStyle'), val: series.averageRubric.artStyle },
+                                { label: t('editorialBoard.storytelling'), val: series.averageRubric.storytelling },
+                                { label: t('editorialBoard.characterDesign'), val: series.averageRubric.characterDesign },
+                                { label: t('editorialBoard.pacing'), val: series.averageRubric.pacing },
+                                { label: t('editorialBoard.commercialPotential'), val: series.averageRubric.commercialPotential },
+                              ].map(({ label, val }) => (
+                                <div key={label} className="space-y-0.5">
+                                  <div className="flex justify-between font-semibold text-neutral-600">
+                                    <span>{label}</span>
+                                    <span>{val}/10</span>
+                                  </div>
+                                  <div className="h-1 w-full bg-neutral-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-600 transition-all" style={{ width: `${val * 10}%` }} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {series.memberVotes && series.memberVotes.length > 0 && (
+                              <div className="mt-2 border-t border-neutral-200/60 pt-2">
+                                <details className="group">
+                                  <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-indigo-600 select-none hover:text-indigo-800">
+                                    <span>{t('editorialBoard.memberScoresBreakdown')} ({series.memberVotes.length})</span>
+                                    <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
+                                  </summary>
+                                  <div className="mt-2 space-y-2 max-h-40 overflow-y-auto pr-1">
+                                    {series.memberVotes.map((mv) => (
+                                      <div key={mv._id} className="p-2 bg-white border border-neutral-100 rounded-lg space-y-1 text-[11px] shadow-2xs">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-neutral-800">{mv.member?.displayName}</span>
+                                          <Badge className={mv.decision === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}>
+                                            {mv.decision === 'approved' ? 'Approve' : 'Reject'}
+                                          </Badge>
+                                        </div>
+                                        {mv.rubric && (
+                                          <div className="text-[9px] text-neutral-500 flex flex-wrap gap-x-2 gap-y-0.5 py-0.5 border-t border-dashed border-neutral-100">
+                                            <span>🎨 Art: {mv.rubric.artStyle}</span>
+                                            <span>📖 Story: {mv.rubric.storytelling}</span>
+                                            <span>👤 Char: {mv.rubric.characterDesign}</span>
+                                            <span>⏱️ Pace: {mv.rubric.pacing}</span>
+                                            <span>💰 Comm: {mv.rubric.commercialPotential}</span>
+                                          </div>
+                                        )}
+                                        {mv.comments && (
+                                          <p className="text-[10px] text-neutral-600 italic bg-neutral-50 p-1.5 rounded-lg border border-neutral-100/50">
+                                            "{mv.comments}"
+                                          </p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </details>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Final Decision Form (End Vote / Kết thúc vote) */}
@@ -853,6 +1207,257 @@ export function EditorialBoardPortalPage() {
                 </CardContent>
               </Card>
             ))
+          )}
+        </div>
+      )}
+
+      {/* ────── MEETINGS TAB ────── */}
+      {activeTab === 'meetings' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wider">
+              {t('editorialBoard.upcomingMeetings')}
+            </h2>
+            {user?.isEbHead ? (
+              <Button
+                onClick={handleOpenMeetingForm}
+                className="gap-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold py-2 px-3 shadow-md"
+              >
+                <Calendar className="size-4" />
+                {t('editorialBoard.scheduleMeeting')}
+              </Button>
+            ) : (
+              <span className="text-xs text-neutral-400 italic font-medium">
+                View-only (Only the EB Head can schedule meetings)
+              </span>
+            )}
+          </div>
+
+          {/* Meeting Form */}
+          {showMeetingForm && (
+            <Card className="border-indigo-100 bg-indigo-50/10 shadow-xs rounded-2xl p-5 animate-in fade-in slide-in-from-top-3 duration-200">
+              <form onSubmit={handleCreateMeeting} className="space-y-4">
+                <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-1.5">
+                    <Calendar className="size-4.5 text-indigo-600" />
+                    {t('editorialBoard.scheduleMeeting')}
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-neutral-500 rounded-lg text-xs"
+                    onClick={() => setShowMeetingForm(false)}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.meetingTitle')}</label>
+                    <Input
+                      type="text"
+                      required
+                      value={meetingTitle}
+                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      placeholder="e.g. Series Editorial Evaluation Meeting"
+                      className="rounded-xl text-xs bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.meetingDateTime')}</label>
+                    <Input
+                      type="datetime-local"
+                      required
+                      value={meetingDateTime}
+                      onChange={(e) => setMeetingDateTime(e.target.value)}
+                      className="rounded-xl text-xs bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.meetingLocation')}</label>
+                    <Input
+                      type="text"
+                      value={meetingLoc}
+                      onChange={(e) => setMeetingLoc(e.target.value)}
+                      placeholder="Google Meet link or Room 302"
+                      className="rounded-xl text-xs bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.selectRelatedSeries')}</label>
+                    <select
+                      value={meetingSeriesId}
+                      onChange={(e) => setMeetingSeriesId(e.target.value)}
+                      className="w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs outline-none focus:border-indigo-500 font-medium shadow-2xs"
+                    >
+                      <option value="">-- No Series --</option>
+                      {[
+                        ...pendingSeries.map((s) => ({ _id: s._id, title: `[Draft] ${s.title}` })),
+                        ...rankings.map((s) => ({ _id: s._id, title: `[Active] ${s.title}` })),
+                      ].map((s) => (
+                        <option key={s._id} value={s._id}>{s.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.meetingDescription')}</label>
+                  <Textarea
+                    value={meetingDesc}
+                    onChange={(e) => setMeetingDesc(e.target.value)}
+                    placeholder="Brief agenda details..."
+                    className="min-h-[60px] rounded-xl text-xs bg-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-neutral-700 block">
+                    {t('editorialBoard.selectParticipants')} <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 bg-white border border-neutral-200 rounded-xl">
+                    {availableReviewers.length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-xs text-neutral-400">Loading reviewers...</div>
+                    ) : (
+                      availableReviewers.map((rev) => {
+                        const isSelected = meetingParticipants.includes(rev._id)
+                        return (
+                          <div
+                            key={rev._id}
+                            onClick={() => handleToggleParticipant(rev._id)}
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-semibold'
+                                : 'border-neutral-100 hover:bg-neutral-50 text-neutral-700'
+                            }`}
+                          >
+                            <div className="grid size-5 shrink-0 place-items-center rounded-full bg-neutral-100 text-[9px] font-bold">
+                              {rev.displayName?.[0] || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate">{rev.displayName}</p>
+                              <p className="text-[8px] text-neutral-400 capitalize">{rev.role.replace('_', ' ')}</p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-xl text-xs"
+                    onClick={() => setShowMeetingForm(false)}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-750 text-xs font-bold px-4 py-2"
+                    disabled={submittingMeeting || !meetingTitle || !meetingDateTime || meetingParticipants.length === 0}
+                  >
+                    {submittingMeeting ? <Loader2 className="size-4.5 animate-spin" /> : t('common.create')}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          )}
+
+          {/* Meetings List */}
+          {meetings.length === 0 ? (
+            <Card className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-4 grid size-16 place-items-center rounded-full bg-neutral-100">
+                <Calendar className="size-7 text-neutral-400" />
+              </div>
+              <p className="text-sm font-medium text-neutral-700">{t('editorialBoard.noMeetings')}</p>
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {meetings.map((m) => {
+                const isUpcoming = !!m.isUpcoming
+                const meetingDate = new Date(m.dateTime)
+                return (
+                  <Card key={m._id} className="p-5 flex flex-col justify-between border border-neutral-200 hover:border-neutral-300 transition-all rounded-2xl bg-white shadow-2xs relative">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <h3 className="font-extrabold text-sm text-neutral-900 tracking-tight">{m.title}</h3>
+                          {m.description && <p className="text-xs text-neutral-500 line-clamp-2">{m.description}</p>}
+                        </div>
+                        <Badge className={`shrink-0 ${isUpcoming ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
+                          {isUpcoming ? 'Upcoming' : 'Past'}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-2 text-xs text-neutral-600 border-t border-neutral-50 pt-2.5">
+                        <div className="flex items-center gap-2">
+                          <Clock className="size-3.5 text-indigo-500 shrink-0" />
+                          <span>{meetingDate.toLocaleString()}</span>
+                        </div>
+                        {m.location && (
+                          <div className="flex items-center gap-2">
+                            <Activity className="size-3.5 text-indigo-500 shrink-0" />
+                            <span className="truncate">{m.location}</span>
+                          </div>
+                        )}
+                        {m.seriesId && (
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="size-3.5 text-indigo-500 shrink-0" />
+                            <span className="font-semibold text-neutral-800">
+                              Series: {m.seriesId?.title || 'Unknown Series'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 border-t border-neutral-50 pt-2.5">
+                        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                          Invited Participants ({m.participants?.length || 0})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {m.participants?.map((p: MeetingParticipant) => (
+                            <div
+                              key={p._id}
+                              title={`${p.displayName} (${p.role.replace('_', ' ')})`}
+                              className="inline-flex items-center gap-1 bg-neutral-50 border border-neutral-100 px-2 py-0.5 rounded-full text-[10px] font-semibold text-neutral-600"
+                            >
+                              <div className="size-3.5 rounded-full bg-neutral-200 grid place-items-center text-[7px] font-bold">
+                                {p.displayName?.[0] || '?'}
+                              </div>
+                              <span className="max-w-[80px] truncate">{p.displayName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-neutral-50 text-[10px] text-neutral-400">
+                      <span>Scheduled by {m.createdBy?.displayName}</span>
+                      {user?.isEbHead && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteMeeting(m._id)}
+                          className="text-rose-600 hover:bg-rose-50 h-7 px-2 rounded-lg font-semibold border border-rose-100"
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

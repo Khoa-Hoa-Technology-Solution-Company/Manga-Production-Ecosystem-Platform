@@ -4,6 +4,7 @@ import { EBVote } from '../models/EBVote';
 import { User } from '../models/User';
 import { Chapter } from '../models/Chapter';
 import { Vote } from '../models/Vote';
+import { Meeting } from '../models/Meeting';
 import {
   notifySeriesPublished,
   notifySeriesEBRejected,
@@ -26,23 +27,79 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
 
     const enriched = await Promise.all(
       seriesList.map(async (s) => {
-        const [votesFor, votesAgainst, chapterCount] = await Promise.all([
-          EBVote.countDocuments({ seriesId: s._id, decision: 'approved' }),
-          EBVote.countDocuments({ seriesId: s._id, decision: 'rejected' }),
+        const [votes, chapterCount, meeting] = await Promise.all([
+          EBVote.find({ seriesId: s._id }).populate('memberId', 'displayName avatar role'),
           Chapter.countDocuments({ seriesId: s._id }),
+          Meeting.findOne({ seriesId: s._id }).populate('participants', 'displayName email avatar role'),
         ]);
 
-        const userVote = await EBVote.findOne({
-          seriesId: s._id,
-          memberId: req.user!._id,
+        const votesFor = votes.filter((v) => v.decision === 'approved').length;
+        const votesAgainst = votes.filter((v) => v.decision === 'rejected').length;
+        const userVoteObj = votes.find((v) => v.memberId && (v.memberId as any)._id.toString() === req.user!._id.toString());
+        const userVote = userVoteObj ? userVoteObj.decision : null;
+        const userVoteRubric = userVoteObj ? userVoteObj.rubric : null;
+
+        let artStyleSum = 0;
+        let storytellingSum = 0;
+        let characterDesignSum = 0;
+        let pacingSum = 0;
+        let commercialPotentialSum = 0;
+        let votesWithRubricCount = 0;
+
+        votes.forEach((v) => {
+          if (v.rubric) {
+            artStyleSum += v.rubric.artStyle;
+            storytellingSum += v.rubric.storytelling;
+            characterDesignSum += v.rubric.characterDesign;
+            pacingSum += v.rubric.pacing;
+            commercialPotentialSum += v.rubric.commercialPotential;
+            votesWithRubricCount++;
+          }
         });
+
+        const averageRubric = votesWithRubricCount > 0 ? {
+          artStyle: Math.round((artStyleSum / votesWithRubricCount) * 10) / 10,
+          storytelling: Math.round((storytellingSum / votesWithRubricCount) * 10) / 10,
+          characterDesign: Math.round((characterDesignSum / votesWithRubricCount) * 10) / 10,
+          pacing: Math.round((pacingSum / votesWithRubricCount) * 10) / 10,
+          commercialPotential: Math.round((commercialPotentialSum / votesWithRubricCount) * 10) / 10,
+        } : null;
+
+        const totalAverage = averageRubric
+          ? Math.round(((averageRubric.artStyle + averageRubric.storytelling + averageRubric.characterDesign + averageRubric.pacing + averageRubric.commercialPotential) / 5) * 10) / 10
+          : null;
+
+        const memberVotes = votes.map((v) => ({
+          _id: v._id,
+          member: v.memberId,
+          decision: v.decision,
+          comments: v.comments,
+          rubric: v.rubric,
+          createdAt: v.createdAt,
+        }));
+
+        const meetingParticipantsCount = meeting ? meeting.participants.length : 0;
+        const meetingVotesCount = meeting ? votes.filter(v => v.memberId && meeting.participants.some(p => p._id.toString() === (v.memberId as any)._id.toString())).length : 0;
+        const isParticipant = meeting ? meeting.participants.some(p => p._id.toString() === req.user!._id.toString()) : false;
 
         return {
           ...s.toObject(),
           votesFor,
           votesAgainst,
           totalChapters: chapterCount,
-          userVote: userVote?.decision || null,
+          userVote,
+          userVoteRubric,
+          averageRubric: averageRubric ? { ...averageRubric, totalAverage } : null,
+          memberVotes,
+          meeting: meeting ? {
+            _id: meeting._id,
+            title: meeting.title,
+            dateTime: meeting.dateTime,
+            participants: meeting.participants,
+            participantsCount: meetingParticipantsCount,
+            votesCount: meetingVotesCount,
+            isParticipant,
+          } : null,
         };
       })
     );
@@ -148,9 +205,26 @@ export async function getDashboard(req: Request, res: Response): Promise<void> {
 export async function castVote(req: Request, res: Response): Promise<void> {
   try {
     const { seriesId } = req.params;
-    const { decision, comments } = req.body;
+    const { decision, comments, rubric } = req.body;
+    let finalDecision = decision;
+    if (rubric) {
+      const { artStyle, storytelling, characterDesign, pacing, commercialPotential } = rubric;
+      const checkVal = (val: any) => typeof val === 'number' && val >= 1 && val <= 10;
+      if (
+        !checkVal(artStyle) ||
+        !checkVal(storytelling) ||
+        !checkVal(characterDesign) ||
+        !checkVal(pacing) ||
+        !checkVal(commercialPotential)
+      ) {
+        res.status(400).json({ error: 'All rubric criteria scores must be numbers between 1 and 10.' });
+        return;
+      }
+      const average = (artStyle + storytelling + characterDesign + pacing + commercialPotential) / 5;
+      finalDecision = average >= 5 ? 'approved' : 'rejected';
+    }
 
-    if (!decision || !['approved', 'rejected'].includes(decision)) {
+    if (!finalDecision || !['approved', 'rejected'].includes(finalDecision)) {
       res.status(400).json({ error: 'Decision must be "approved" or "rejected".' });
       return;
     }
@@ -166,9 +240,23 @@ export async function castVote(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const meeting = await Meeting.findOne({ seriesId: series._id });
+    if (!meeting) {
+      res.status(400).json({ error: 'Voting is not allowed until a review meeting is scheduled for this series.' });
+      return;
+    }
+
+    const isParticipant = meeting.participants.some(
+      (pId) => pId.toString() === req.user!._id.toString()
+    );
+    if (!isParticipant) {
+      res.status(403).json({ error: 'You are not a participant in the scheduled review meeting for this series.' });
+      return;
+    }
+
     await EBVote.findOneAndUpdate(
       { seriesId, memberId: req.user!._id },
-      { seriesId, memberId: req.user!._id, decision, comments },
+      { seriesId, memberId: req.user!._id, decision: finalDecision, comments, rubric },
       { upsert: true, new: true, runValidators: true }
     );
 
@@ -204,6 +292,25 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
 
     if (series.status !== 'Pending_EB') {
       res.status(400).json({ error: 'Series is not pending EB review.' });
+      return;
+    }
+
+    const meeting = await Meeting.findOne({ seriesId: series._id });
+    if (!meeting) {
+      res.status(400).json({ error: 'Voting cannot be finalized because no review meeting has been scheduled for this series.' });
+      return;
+    }
+
+    const participantsCount = meeting.participants.length;
+    const votesCount = await EBVote.countDocuments({
+      seriesId,
+      memberId: { $in: meeting.participants },
+    });
+
+    if (votesCount < participantsCount) {
+      res.status(400).json({
+        error: `Cannot finalize decision. Only ${votesCount}/${participantsCount} meeting participants have voted.`,
+      });
       return;
     }
 
