@@ -4,6 +4,7 @@ import { EBVote } from '../models/EBVote';
 import { User } from '../models/User';
 import { Chapter } from '../models/Chapter';
 import { Vote } from '../models/Vote';
+import { Meeting } from '../models/Meeting';
 import {
   notifySeriesPublished,
   notifySeriesEBRejected,
@@ -26,9 +27,10 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
 
     const enriched = await Promise.all(
       seriesList.map(async (s) => {
-        const [votes, chapterCount] = await Promise.all([
+        const [votes, chapterCount, meeting] = await Promise.all([
           EBVote.find({ seriesId: s._id }).populate('memberId', 'displayName avatar role'),
           Chapter.countDocuments({ seriesId: s._id }),
+          Meeting.findOne({ seriesId: s._id }).populate('participants', 'displayName email avatar role'),
         ]);
 
         const votesFor = votes.filter((v) => v.decision === 'approved').length;
@@ -76,6 +78,10 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
           createdAt: v.createdAt,
         }));
 
+        const meetingParticipantsCount = meeting ? meeting.participants.length : 0;
+        const meetingVotesCount = meeting ? votes.filter(v => v.memberId && meeting.participants.some(p => p._id.toString() === (v.memberId as any)._id.toString())).length : 0;
+        const isParticipant = meeting ? meeting.participants.some(p => p._id.toString() === req.user!._id.toString()) : false;
+
         return {
           ...s.toObject(),
           votesFor,
@@ -85,6 +91,15 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
           userVoteRubric,
           averageRubric: averageRubric ? { ...averageRubric, totalAverage } : null,
           memberVotes,
+          meeting: meeting ? {
+            _id: meeting._id,
+            title: meeting.title,
+            dateTime: meeting.dateTime,
+            participants: meeting.participants,
+            participantsCount: meetingParticipantsCount,
+            votesCount: meetingVotesCount,
+            isParticipant,
+          } : null,
         };
       })
     );
@@ -225,6 +240,20 @@ export async function castVote(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const meeting = await Meeting.findOne({ seriesId: series._id });
+    if (!meeting) {
+      res.status(400).json({ error: 'Voting is not allowed until a review meeting is scheduled for this series.' });
+      return;
+    }
+
+    const isParticipant = meeting.participants.some(
+      (pId) => pId.toString() === req.user!._id.toString()
+    );
+    if (!isParticipant) {
+      res.status(403).json({ error: 'You are not a participant in the scheduled review meeting for this series.' });
+      return;
+    }
+
     await EBVote.findOneAndUpdate(
       { seriesId, memberId: req.user!._id },
       { seriesId, memberId: req.user!._id, decision: finalDecision, comments, rubric },
@@ -263,6 +292,25 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
 
     if (series.status !== 'Pending_EB') {
       res.status(400).json({ error: 'Series is not pending EB review.' });
+      return;
+    }
+
+    const meeting = await Meeting.findOne({ seriesId: series._id });
+    if (!meeting) {
+      res.status(400).json({ error: 'Voting cannot be finalized because no review meeting has been scheduled for this series.' });
+      return;
+    }
+
+    const participantsCount = meeting.participants.length;
+    const votesCount = await EBVote.countDocuments({
+      seriesId,
+      memberId: { $in: meeting.participants },
+    });
+
+    if (votesCount < participantsCount) {
+      res.status(400).json({
+        error: `Cannot finalize decision. Only ${votesCount}/${participantsCount} meeting participants have voted.`,
+      });
       return;
     }
 

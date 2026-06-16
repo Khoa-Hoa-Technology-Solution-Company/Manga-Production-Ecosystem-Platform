@@ -9,6 +9,11 @@ import { Series } from '../models/Series';
  */
 export async function createMeeting(req: Request, res: Response): Promise<void> {
   try {
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can schedule a review meeting.' });
+      return;
+    }
+
     const { title, description, dateTime, location, seriesId, participants } = req.body;
 
     if (!title || !dateTime || !participants || !Array.isArray(participants) || participants.length === 0) {
@@ -43,7 +48,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       if (seriesObj) seriesTitle = ` for series "${seriesObj.title}"`;
     }
 
-    const creatorName = req.user!.displayName || 'An Editorial Board member';
+    const creatorName = req.user!.displayName || 'The Editorial Board Head';
 
     for (const participantId of uniqueParticipants) {
       if (participantId.toString() === req.user!._id.toString()) continue;
@@ -95,17 +100,20 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
     const { id } = req.params;
     const userId = req.user!._id;
 
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can cancel meetings.' });
+      return;
+    }
+
     const meeting = await Meeting.findById(id);
     if (!meeting) {
       res.status(404).json({ error: 'Meeting not found.' });
       return;
     }
 
-    // Only creator, editorial board, or editor can delete
+    // Only creator/EB Head can delete
     const isCreator = meeting.createdBy.toString() === userId.toString();
-    const canDelete = isCreator || ['editorial_board', 'editor'].includes(req.user!.role);
-
-    if (!canDelete) {
+    if (!isCreator) {
       res.status(403).json({ error: 'You do not have permission to cancel this meeting.' });
       return;
     }

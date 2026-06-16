@@ -25,6 +25,7 @@ export async function register(req: Request, res: Response): Promise<void> {
         role: user.role,
         avatar: user.avatar,
         subscribedToNewSeries: user.subscribedToNewSeries,
+        isEbHead: user.isEbHead,
       },
     });
   } catch (error: any) {
@@ -64,6 +65,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         role: user.role,
         avatar: user.avatar,
         subscribedToNewSeries: user.subscribedToNewSeries,
+        isEbHead: user.isEbHead,
       },
     });
   } catch (error: any) {

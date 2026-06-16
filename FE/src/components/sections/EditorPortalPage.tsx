@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
 import { seriesAPI, chaptersAPI, editorAPI, meetingAPI, authAPI } from '../../lib/api'
 import {
@@ -131,10 +131,19 @@ export function EditorPortalPage() {
 
   const isEB = user?.role === 'editorial_board'
 
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+
   // Tab State: default 'portfolio' for Tantou, 'approvals' for Editorial Board
   const [activeTab, setActiveTab] = useState<'portfolio' | 'milestones' | 'warnings' | 'approvals' | 'analytics' | 'meetings'>(
-    isEB ? 'approvals' : 'portfolio'
+    (tabParam as any) || (isEB ? 'approvals' : 'portfolio')
   )
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam as any)
+    }
+  }, [tabParam])
 
   // Meetings schedule state
   const [meetings, setMeetings] = useState<any[]>([])

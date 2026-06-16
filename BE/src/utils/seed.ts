@@ -32,7 +32,7 @@ async function seed() {
     { email: 'mangaka@mangaflow.com', password: 'password123', displayName: 'Yuki Mori', role: 'mangaka', bio: 'Creator of Shadow Blade Saga' },
     { email: 'assistant@mangaflow.com', password: 'password123', displayName: 'Ren Takahashi', role: 'assistant', skills: ['inking', 'background', 'tone'] },
     { email: 'editor@mangaflow.com', password: 'password123', displayName: 'Kenji Sato', role: 'editor', bio: 'Senior Editor' },
-    { email: 'eb@mangaflow.com', password: 'password123', displayName: 'Aiko Nakamura', role: 'editorial_board', bio: 'Editorial Director' },
+    { email: 'eb@mangaflow.com', password: 'password123', displayName: 'Aiko Nakamura', role: 'editorial_board', bio: 'Editorial Director', isEbHead: true },
     { email: 'reader@mangaflow.com', password: 'password123', displayName: 'Hiro Kazuo', role: 'reader' },
   ]);
 

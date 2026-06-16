@@ -708,88 +708,114 @@ export function ManuscriptReviewPage() {
                 {t('editorialBoard.title', 'Editorial Evaluation')}
               </span>
               
-              <div className="space-y-2.5 mt-2">
-                {[
-                  { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
-                  { key: 'storytelling', label: t('editorialBoard.storytelling', 'Storytelling'), val: rubricStorytelling, setVal: setRubricStorytelling },
-                  { key: 'characterDesign', label: t('editorialBoard.characterDesign', 'Character Design'), val: rubricCharacterDesign, setVal: setRubricCharacterDesign },
-                  { key: 'pacing', label: t('editorialBoard.pacing', 'Pacing & Layout'), val: rubricPacing, setVal: setRubricPacing },
-                  { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
-                ].map(({ key, label, val, setVal }) => (
-                  <div key={key} className="space-y-1">
-                    <div className="flex justify-between text-[10px] text-neutral-300">
-                      <span>{label}</span>
-                      <span className="font-bold text-indigo-400">{val}/10</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={val}
-                      onChange={(e) => setVal(parseInt(e.target.value))}
-                      className="w-full accent-indigo-500 cursor-pointer h-1 bg-white/10 rounded-lg appearance-none"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <textarea
-                value={voteComments}
-                onChange={(e) => setVoteComments(e.target.value)}
-                placeholder="Evaluation comments..."
-                className="w-full mt-2 min-h-12 rounded-xl border border-white/[0.08] p-2.5 text-xs outline-none bg-[#171B2F] text-white focus:border-indigo-500 transition-all"
-              />
-
-              {/* Dynamic Auto-decision & Submit */}
               {(() => {
-                const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5
-                const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected'
-
+                const canVote = ebSeriesInfo.meeting && ebSeriesInfo.meeting.isParticipant;
                 return (
-                  <div className="space-y-2 mt-2 pt-2 border-t border-white/[0.06]">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-neutral-400">Avg: <strong className="text-white">{currentAverage.toFixed(1)}/10</strong></span>
-                      <span className="flex items-center gap-1">
-                        <span className="text-neutral-500 text-[8px] uppercase font-bold">Decision:</span>
-                        {autoDecision === 'approved' ? (
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Approve</span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">Reject</span>
-                        )}
-                      </span>
+                  <>
+                    {!ebSeriesInfo.meeting ? (
+                      <div className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal">
+                        ⚠️ Awaiting scheduled review meeting before voting can start.
+                      </div>
+                    ) : !ebSeriesInfo.meeting.isParticipant ? (
+                      <div className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal">
+                        ⚠️ Only meeting participants are allowed to vote.
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-2.5 mt-2">
+                      {[
+                        { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
+                        { key: 'storytelling', label: t('editorialBoard.storytelling', 'Storytelling'), val: rubricStorytelling, setVal: setRubricStorytelling },
+                        { key: 'characterDesign', label: t('editorialBoard.characterDesign', 'Character Design'), val: rubricCharacterDesign, setVal: setRubricCharacterDesign },
+                        { key: 'pacing', label: t('editorialBoard.pacing', 'Pacing & Layout'), val: rubricPacing, setVal: setRubricPacing },
+                        { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
+                      ].map(({ key, label, val, setVal }) => (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-neutral-300">
+                            <span>{label}</span>
+                            <span className="font-bold text-indigo-400">{val}/10</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="10"
+                            value={val}
+                            onChange={(e) => setVal(parseInt(e.target.value))}
+                            disabled={!canVote}
+                            className="w-full accent-indigo-500 cursor-pointer h-1 bg-white/10 rounded-lg appearance-none disabled:opacity-40"
+                          />
+                        </div>
+                      ))}
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={submittingVote}
-                      onClick={() => handleVote(ebSeriesInfo._id, autoDecision)}
-                      className={`w-full py-2 px-3 text-xs font-semibold rounded-xl text-white transition-all border-none cursor-pointer flex items-center justify-center gap-1.5 ${
-                        autoDecision === 'approved'
-                          ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20'
-                          : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-md shadow-rose-950/20'
-                      }`}
-                    >
-                      {submittingVote ? (
-                        <div className="size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                      ) : autoDecision === 'approved' ? (
-                        <ThumbsUp className="size-3.5" />
-                      ) : (
-                        <ThumbsDown className="size-3.5" />
-                      )}
-                      <span>
-                        {ebSeriesInfo.userVote 
-                          ? 'Update Evaluation Vote' 
-                          : 'Submit Evaluation Vote'
-                        }
-                      </span>
-                    </button>
-                    {ebSeriesInfo.userVote && (
-                      <div className="text-center text-[9px] text-neutral-400">
-                        You voted: <strong className={ebSeriesInfo.userVote === 'approved' ? 'text-emerald-400' : 'text-rose-400'}>{ebSeriesInfo.userVote.toUpperCase()}</strong>
-                      </div>
-                    )}
-                  </div>
-                )
+                    <textarea
+                      value={voteComments}
+                      onChange={(e) => setVoteComments(e.target.value)}
+                      placeholder={canVote ? "Evaluation comments..." : "Voting is view-only."}
+                      disabled={!canVote}
+                      className="w-full mt-2 min-h-12 rounded-xl border border-white/[0.08] p-2.5 text-xs outline-none bg-[#171B2F] text-white focus:border-indigo-500 transition-all disabled:opacity-50"
+                    />
+
+                    {/* Dynamic Auto-decision & Submit */}
+                    {(() => {
+                      const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5
+                      const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected'
+
+                      return (
+                        <div className="space-y-2 mt-2 pt-2 border-t border-white/[0.06]">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-neutral-400">Avg: <strong className="text-white">{currentAverage.toFixed(1)}/10</strong></span>
+                            <span className="flex items-center gap-1">
+                              <span className="text-neutral-500 text-[8px] uppercase font-bold">Decision:</span>
+                              {autoDecision === 'approved' ? (
+                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Approve</span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">Reject</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={submittingVote || !canVote}
+                            onClick={() => handleVote(ebSeriesInfo._id, autoDecision)}
+                            className={`w-full py-2 px-3 text-xs font-semibold rounded-xl text-white transition-all border-none cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                              autoDecision === 'approved'
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20'
+                                : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-rose-500 shadow-md shadow-rose-950/20'
+                            }`}
+                          >
+                            {submittingVote ? (
+                              <div className="size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                            ) : autoDecision === 'approved' ? (
+                              <ThumbsUp className="size-3.5" />
+                            ) : (
+                              <ThumbsDown className="size-3.5" />
+                            )}
+                            <span>
+                              {ebSeriesInfo.userVote 
+                                ? 'Update Evaluation Vote' 
+                                : 'Submit Evaluation Vote'
+                              }
+                            </span>
+                          </button>
+                          {ebSeriesInfo.userVote && (
+                            <div className="text-center text-[9px] text-neutral-400">
+                              You voted: <strong className={ebSeriesInfo.userVote === 'approved' ? 'text-emerald-400' : 'text-rose-400'}>{ebSeriesInfo.userVote.toUpperCase()}</strong>
+                            </div>
+                          )}
+
+                          {ebSeriesInfo.meeting && (
+                            <div className="mt-2 bg-white/[0.02] border border-white/[0.05] p-2 rounded-xl text-[9px] text-left leading-normal space-y-0.5">
+                              <div className="text-neutral-300 font-semibold truncate">Meeting: {ebSeriesInfo.meeting.title}</div>
+                              <div className="text-neutral-400">Votes Cast: {ebSeriesInfo.meeting.votesCount} / {ebSeriesInfo.meeting.participantsCount} ({Math.round((ebSeriesInfo.meeting.votesCount / ebSeriesInfo.meeting.participantsCount) * 100)}%)</div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </>
+                );
               })()}
             </div>
           )}

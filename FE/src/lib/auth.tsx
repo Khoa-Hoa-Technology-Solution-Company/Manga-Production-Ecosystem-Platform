@@ -8,6 +8,7 @@ type User = {
   role: string;
   avatar?: string;
   subscribedToNewSeries?: boolean;
+  isEbHead?: boolean;
 };
 
 type AuthContextType = {

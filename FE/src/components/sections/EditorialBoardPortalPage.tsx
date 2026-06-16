@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Gavel, Clock, Trophy, BarChart3, ThumbsUp, ThumbsDown,
   BookOpen, ChevronDown, ChevronUp, AlertTriangle, Send,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
 import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -62,6 +63,15 @@ type SeriesItem = {
     }
     createdAt: string
   }>
+  meeting?: {
+    _id: string
+    title: string
+    dateTime: string
+    participants: Array<{ _id: string; displayName: string; avatar?: string; role: string }>
+    participantsCount: number
+    votesCount: number
+    isParticipant: boolean
+  } | null
 }
 
 type ChapterItem = {
@@ -87,8 +97,17 @@ type DashboardStats = {
 /* ──────────────────────────────────── component ── */
 export function EditorialBoardPortalPage() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(tabParam || 'dashboard')
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam)
+    }
+  }, [tabParam])
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -901,27 +920,55 @@ export function EditorialBoardPortalPage() {
                           </div>
                         );
                       })() : (
-                        <div className="mt-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1"
-                            onClick={() => handleOpenVote(series)}
-                          >
-                            <Gavel className="size-3.5" />
-                            {t('editorialBoard.castVote')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 flex-1"
-                            onClick={() => {
-                              setDecisionSeriesId(series._id)
-                              setVotingSeriesId(null)
-                            }}
-                          >
-                            <Trophy className="size-3.5" />
-                            {t('editorialBoard.endVote')}
-                          </Button>
+                        <div className="mt-4 space-y-2">
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1 disabled:opacity-40"
+                              onClick={() => handleOpenVote(series)}
+                              disabled={!series.meeting || !series.meeting.isParticipant}
+                            >
+                              <Gavel className="size-3.5" />
+                              {t('editorialBoard.castVote')}
+                            </Button>
+                            
+                            {user?.isEbHead && (
+                              <Button
+                                size="sm"
+                                className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 flex-1 disabled:opacity-45"
+                                onClick={() => {
+                                  setDecisionSeriesId(series._id)
+                                  setVotingSeriesId(null)
+                                }}
+                                disabled={!series.meeting || series.meeting.votesCount < series.meeting.participantsCount}
+                              >
+                                <Trophy className="size-3.5" />
+                                {t('editorialBoard.endVote')}
+                              </Button>
+                            )}
+                          </div>
+
+                          {!series.meeting ? (
+                            <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-xl text-center font-medium">
+                              ⚠️ {t('editorialBoard.awaitingMeetingAlert', 'Awaiting scheduled review meeting before voting can start.')}
+                            </div>
+                          ) : (
+                            <div className="space-y-1 bg-indigo-50/50 border border-indigo-100/50 p-2 rounded-xl text-[10px] text-left">
+                              <div className="flex justify-between text-indigo-900 font-semibold">
+                                <span>Meeting: {series.meeting.title}</span>
+                                <span>{new Date(series.meeting.dateTime).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between text-neutral-500">
+                                <span>Votes Cast: {series.meeting.votesCount} / {series.meeting.participantsCount} ({Math.round((series.meeting.votesCount / series.meeting.participantsCount) * 100)}%)</span>
+                                {series.meeting.isParticipant ? (
+                                  <span className="text-emerald-600 font-bold">✓ Invited participant</span>
+                                ) : (
+                                  <span className="text-red-500 font-bold">✗ Not invited</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1129,13 +1176,19 @@ export function EditorialBoardPortalPage() {
             <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wider">
               {t('editorialBoard.upcomingMeetings')}
             </h2>
-            <Button
-              onClick={handleOpenMeetingForm}
-              className="gap-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold py-2 px-3 shadow-md"
-            >
-              <Calendar className="size-4" />
-              {t('editorialBoard.scheduleMeeting')}
-            </Button>
+            {user?.isEbHead ? (
+              <Button
+                onClick={handleOpenMeetingForm}
+                className="gap-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold py-2 px-3 shadow-md"
+              >
+                <Calendar className="size-4" />
+                {t('editorialBoard.scheduleMeeting')}
+              </Button>
+            ) : (
+              <span className="text-xs text-neutral-400 italic font-medium">
+                View-only (Only the EB Head can schedule meetings)
+              </span>
+            )}
           </div>
 
           {/* Meeting Form */}
@@ -1348,14 +1401,16 @@ export function EditorialBoardPortalPage() {
 
                     <div className="flex justify-between items-center mt-4 pt-3 border-t border-neutral-50 text-[10px] text-neutral-400">
                       <span>Scheduled by {m.createdBy?.displayName}</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteMeeting(m._id)}
-                        className="text-rose-600 hover:bg-rose-50 h-7 px-2 rounded-lg font-semibold border border-rose-100"
-                      >
-                        Cancel
-                      </Button>
+                      {user?.isEbHead && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteMeeting(m._id)}
+                          className="text-rose-600 hover:bg-rose-50 h-7 px-2 rounded-lg font-semibold border border-rose-100"
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 )
