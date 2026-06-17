@@ -432,7 +432,7 @@ function StudioWorkspacePageContent() {
       const seriesRes = await seriesAPI.getAll()
       const list = seriesRes.data.series || []
       setSeriesList(list)
-      
+
       const activeSeriesId = targetSeriesId || selectedSeriesId
       if (activeSeriesId) {
         setSelectedSeriesId(activeSeriesId)
@@ -458,14 +458,14 @@ function StudioWorkspacePageContent() {
     seriesAPI.getAll().then(res => {
       const list = res.data.series || []
       setSeriesList(list)
-      
+
       if (list.length > 0) {
         const nextSeriesId = paramSeriesId && list.some((s: any) => s._id === paramSeriesId)
           ? paramSeriesId
           : list[0]._id
         setSelectedSeriesId(nextSeriesId)
       }
-    }).catch(() => {})
+    }).catch(() => { })
   }, [paramSeriesId])
 
   // Load chapters when selectedSeriesId changes, respecting paramChapterId
@@ -474,7 +474,7 @@ function StudioWorkspacePageContent() {
     chaptersAPI.getBySeries(selectedSeriesId).then(res => {
       const nextChapters = res.data.chapters || []
       setChapters(nextChapters)
-      
+
       if (nextChapters.length > 0) {
         const nextChapterId = paramChapterId && nextChapters.some((c: any) => c._id === paramChapterId)
           ? paramChapterId
@@ -483,7 +483,7 @@ function StudioWorkspacePageContent() {
       } else {
         setSelectedChapterId('')
       }
-    }).catch(() => {})
+    }).catch(() => { })
   }, [selectedSeriesId, paramChapterId])
 
   useEffect(() => {
@@ -500,7 +500,7 @@ function StudioWorkspacePageContent() {
     pagesAPI.getByChapter(selectedChapterId).then(res => {
       const nextPages = res.data.pages || []
       setPages(nextPages)
-      
+
       if (nextPages.length > 0) {
         const nextPageIdx = paramPageId
           ? nextPages.findIndex((p: any) => p._id === paramPageId)
@@ -509,7 +509,7 @@ function StudioWorkspacePageContent() {
       } else {
         setCurrentPageIdx(0)
       }
-    }).catch(() => {})
+    }).catch(() => { })
   }, [selectedChapterId, paramPageId])
 
   const emitCanvasSync = useCallback((kind: 'object:added' | 'object:removed' | 'object:modified' | 'canvas:snapshot', payload: any) => {
@@ -2328,7 +2328,7 @@ function StudioWorkspacePageContent() {
                               <p className="text-[10px] font-semibold text-amber-800 leading-tight">Chapter đang được giao</p>
                               <p className="text-[9px] text-amber-700 mt-0.5">
                                 Đã giao cho <strong>{activeChapterTask.assignedTo?.displayName || 'Assistant'}</strong>
-                                <span className="ml-1 capitalize px-1 rounded bg-amber-200 text-amber-900">{activeChapterTask.status?.replace('_',' ')}</span>
+                                <span className="ml-1 capitalize px-1 rounded bg-amber-200 text-amber-900">{activeChapterTask.status?.replace('_', ' ')}</span>
                               </p>
                             </div>
                             <AlertCircle className="size-3.5 shrink-0 text-amber-500" />
@@ -2366,7 +2366,7 @@ function StudioWorkspacePageContent() {
                               <p className="text-[10px] font-semibold text-blue-800 leading-tight">Trang {currentPage?.pageNumber} đang được giao</p>
                               <p className="text-[9px] text-blue-700 mt-0.5">
                                 Đã giao cho <strong>{activePageTask.assignedTo?.displayName || 'Assistant'}</strong>
-                                <span className="ml-1 capitalize px-1 rounded bg-blue-200 text-blue-900">{activePageTask.status?.replace('_',' ')}</span>
+                                <span className="ml-1 capitalize px-1 rounded bg-blue-200 text-blue-900">{activePageTask.status?.replace('_', ' ')}</span>
                               </p>
                             </div>
                             <AlertCircle className="size-3.5 shrink-0 text-blue-500" />
@@ -2436,11 +2436,10 @@ function StudioWorkspacePageContent() {
                           <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-neutral-50">
                             <Badge
                               variant="secondary"
-                              className={`text-[9px] px-1.5 py-0 h-4 font-semibold capitalize ${
-                                task.status === 'done' ? 'text-emerald-600 bg-emerald-50' : 
+                              className={`text-[9px] px-1.5 py-0 h-4 font-semibold capitalize ${task.status === 'done' ? 'text-emerald-600 bg-emerald-50' :
                                 task.status === 'review' ? 'text-amber-600 bg-amber-50' :
-                                task.status === 'in_progress' ? 'text-blue-600 bg-blue-50' : 'text-neutral-500 bg-neutral-50'
-                              }`}
+                                  task.status === 'in_progress' ? 'text-blue-600 bg-blue-50' : 'text-neutral-500 bg-neutral-50'
+                                }`}
                             >
                               {task.status.replace('_', ' ')}
                             </Badge>
@@ -2450,7 +2449,7 @@ function StudioWorkspacePageContent() {
                               </span>
                             )}
                           </div>
-                          
+
                           {task.status === 'review' && isMangaka && !isReviewLocked && (
                             <Button
                               size="sm"
@@ -2461,7 +2460,7 @@ function StudioWorkspacePageContent() {
                               {t('studio.reviewSubmission', 'Review Submission')}
                             </Button>
                           )}
-                          
+
                           {task.status === 'open' && isMangaka && !isReviewLocked && (
                             <div className="flex gap-1.5 mt-2">
                               <Button
@@ -2536,12 +2535,11 @@ function StudioWorkspacePageContent() {
                             onClick={() => {
                               setSelectedAnnotationId(isSelected ? null : ann._id)
                             }}
-                            className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all cursor-pointer ${
-                              annotationVisibility[ann._id] === false ? 'opacity-40 border-neutral-200 bg-neutral-100/10' :
+                            className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all cursor-pointer ${annotationVisibility[ann._id] === false ? 'opacity-40 border-neutral-200 bg-neutral-100/10' :
                               isSelected
                                 ? 'border-red-500 bg-red-100/20 ring-2 ring-red-500/20 shadow-xs'
                                 : isOpen ? 'border-red-200 bg-red-50/30 hover:border-red-300 hover:bg-red-50/50' : 'border-neutral-100 bg-neutral-50/50 opacity-60 hover:border-neutral-300'
-                            }`}
+                              }`}
                           >
                             <div className="flex justify-between items-start gap-2">
                               <span className={`text-[9px] font-bold uppercase tracking-wider ${annotationVisibility[ann._id] === false ? 'text-neutral-400' :
