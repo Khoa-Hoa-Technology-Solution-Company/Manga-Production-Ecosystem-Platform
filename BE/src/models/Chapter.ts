@@ -23,6 +23,7 @@ export interface IChapter extends Document {
   collaborators: IChapterMember[];
   totalPages: number;
   progress: number;
+  views: number;
   publishedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +51,7 @@ const chapterSchema = new Schema<IChapter>(
     ],
     totalPages: { type: Number, default: 0 },
     progress: { type: Number, default: 0, min: 0, max: 100 },
+    views: { type: Number, default: 0 },
     publishedAt: { type: Date },
   },
   { timestamps: true }

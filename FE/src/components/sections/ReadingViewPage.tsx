@@ -144,6 +144,7 @@ export function ReadingViewPage() {
   const [replyText, setReplyText] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const viewerRef = useRef<HTMLDivElement>(null)
+  const hasIncrementedView = useRef<string | null>(null)
 
   // Fullscreen event listener
   useEffect(() => {
@@ -197,6 +198,16 @@ export function ReadingViewPage() {
   const currentChapterIndex = chaptersList.findIndex((c) => c._id === chapterId)
   const prevChapter = currentChapterIndex > 0 ? chaptersList[currentChapterIndex - 1] : null
   const nextChapter = currentChapterIndex >= 0 && currentChapterIndex < chaptersList.length - 1 ? chaptersList[currentChapterIndex + 1] : null
+
+  // Increment view count when entering chapter
+  useEffect(() => {
+    if (chapterId && hasIncrementedView.current !== chapterId) {
+      hasIncrementedView.current = chapterId
+      chaptersAPI.incrementView(chapterId).catch((err) => {
+        console.error('Failed to increment view count:', err)
+      })
+    }
+  }, [chapterId])
 
   // Resolve real chapter details, series details, pages, and votes
   useEffect(() => {

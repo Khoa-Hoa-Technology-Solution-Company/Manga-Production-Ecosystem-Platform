@@ -9,16 +9,26 @@ type RankingItem = {
   genre: string[]
   weeklyVotes: number
   totalVotes: number
+  averageRating?: number
+  ratingCount?: number
   status: string
 }
 
 export function SeriesRankingSection() {
+  const [sortBy, setSortBy] = useState<'votes' | 'rating'>('votes')
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
+  const handleSortChange = (newSortBy: 'votes' | 'rating') => {
+    if (newSortBy !== sortBy) {
+      setSortBy(newSortBy)
+      setLoading(true)
+    }
+  }
+
   useEffect(() => {
-    dashboardAPI.getRankings()
+    dashboardAPI.getRankings(sortBy)
       .then((res) => {
         setRankings(res.data.rankings || [])
       })
@@ -28,7 +38,7 @@ export function SeriesRankingSection() {
       .finally(() => {
         setLoading(false)
       })
-  }, [])
+  }, [sortBy])
 
   const filteredRankings = rankings.filter((row) =>
     row.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -38,11 +48,31 @@ export function SeriesRankingSection() {
     <Card className="gap-4 p-6 shadow-sm">
       <CardHeader className="flex-row items-center justify-between gap-2 p-0">
         <div className="flex flex-col gap-1">
-          <CardTitle className="text-base leading-6">Series Ranking & Reader Votes</CardTitle>
-          <span className="text-xs leading-4 text-neutral-500">Top performing active and completed series this week</span>
+          <CardTitle className="text-base leading-6">Series Ranking & Ratings</CardTitle>
+          <span className="text-xs leading-4 text-neutral-500">Top performing active and completed series</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Sort selection tabs */}
+          <div className="flex rounded-lg bg-neutral-100 p-0.5 border border-neutral-200">
+            <button
+              onClick={() => handleSortChange('votes')}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                sortBy === 'votes' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'
+              }`}
+            >
+              Weekly Votes
+            </button>
+            <button
+              onClick={() => handleSortChange('rating')}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                sortBy === 'rating' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'
+              }`}
+            >
+              Average Rating
+            </button>
+          </div>
+
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-neutral-500" />
             <Input
@@ -65,7 +95,12 @@ export function SeriesRankingSection() {
                 <TableHead>Genre</TableHead>
                 <TableHead>
                   <div className="flex items-center gap-1">
-                    Weekly <ArrowDown className="size-3" />
+                    Rating {sortBy === 'rating' && <ArrowDown className="size-3" />}
+                  </div>
+                </TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    Weekly Votes {sortBy === 'votes' && <ArrowDown className="size-3" />}
                   </div>
                 </TableHead>
                 <TableHead>Total Votes</TableHead>
@@ -75,13 +110,13 @@ export function SeriesRankingSection() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-neutral-500">
+                  <TableCell colSpan={7} className="text-center py-6 text-neutral-500">
                     Loading rankings...
                   </TableCell>
                 </TableRow>
               ) : filteredRankings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-neutral-500">
+                  <TableCell colSpan={7} className="text-center py-6 text-neutral-500">
                     No series found
                   </TableCell>
                 </TableRow>
@@ -96,7 +131,13 @@ export function SeriesRankingSection() {
                       </div>
                     </TableCell>
                     <TableCell className="text-neutral-500">{row.genre.join(', ')}</TableCell>
-                    <TableCell className="font-semibold text-neutral-900">{row.weeklyVotes.toLocaleString()}</TableCell>
+                    <TableCell className="font-semibold text-amber-500">
+                      ⭐ {row.averageRating !== undefined ? row.averageRating.toFixed(1) : '0.0'}
+                      <span className="text-[10px] text-neutral-400 font-normal ml-1">
+                        ({row.ratingCount || 0})
+                      </span>
+                    </TableCell>
+                    <TableCell className={`font-semibold ${sortBy === 'votes' ? 'text-neutral-900' : 'text-neutral-500'}`}>{row.weeklyVotes.toLocaleString()}</TableCell>
                     <TableCell className="text-neutral-500">{row.totalVotes.toLocaleString()}</TableCell>
                     <TableCell>
                       <span 

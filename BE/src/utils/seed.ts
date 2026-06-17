@@ -37,7 +37,6 @@ async function seed() {
   ]);
 
   console.log('  ✅ Users created (5)');
-
   // ── Series ────────────────────────────────────────
   const [s1, s2, s3] = await Series.create([
     {
@@ -53,6 +52,8 @@ async function seed() {
       totalVotes: 1200000,
       weeklyVotes: 45200,
       readerCount: 340000,
+      averageRating: 4.8,
+      ratingCount: 250,
     },
     {
       title: 'Neon Samurai',
@@ -67,6 +68,8 @@ async function seed() {
       totalVotes: 982000,
       weeklyVotes: 38500,
       readerCount: 280000,
+      averageRating: 4.5,
+      ratingCount: 180,
     },
     {
       title: 'Lunar Whispers',
@@ -79,6 +82,8 @@ async function seed() {
       totalVotes: 845000,
       weeklyVotes: 28000,
       readerCount: 420000,
+      averageRating: 4.2,
+      ratingCount: 90,
     },
   ]);
 
@@ -86,14 +91,14 @@ async function seed() {
 
   // ── Chapters with various statuses ────────────────
   const chapters = await Chapter.create([
-    { seriesId: s1._id, chapterNumber: 40, title: 'Rising Shadows', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 22, progress: 100, publishedAt: new Date('2026-03-05') },
-    { seriesId: s1._id, chapterNumber: 41, title: 'The Dark Forge', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 24, progress: 100, publishedAt: new Date('2026-03-12') },
-    { seriesId: s1._id, chapterNumber: 42, title: 'The Blade Awakens', status: 'Approved', mangakaId: mangaka._id, editorId: editor._id, totalPages: 24, progress: 95 },
-    { seriesId: s1._id, chapterNumber: 43, title: 'Storm of Souls', status: 'Reviewing', mangakaId: mangaka._id, editorId: editor._id, totalPages: 20, progress: 80 },
-    { seriesId: s1._id, chapterNumber: 44, title: 'Dawn\'s Edge', status: 'Draft', mangakaId: mangaka._id, totalPages: 18, progress: 40 },
-    { seriesId: s2._id, chapterNumber: 105, title: 'Neon Requiem', status: 'Reviewing', mangakaId: mangaka._id, editorId: editor._id, totalPages: 26, progress: 90 },
-    { seriesId: s2._id, chapterNumber: 106, title: 'Circuit Breaker', status: 'Draft', mangakaId: mangaka._id, totalPages: 22, progress: 30 },
-    { seriesId: s3._id, chapterNumber: 19, title: 'Moonlit Confession', status: 'Draft', mangakaId: mangaka._id, totalPages: 20, progress: 55 },
+    { seriesId: s1._id, chapterNumber: 40, title: 'Rising Shadows', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 22, progress: 100, views: 154000, publishedAt: new Date('2026-03-05') },
+    { seriesId: s1._id, chapterNumber: 41, title: 'The Dark Forge', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 24, progress: 100, views: 186000, publishedAt: new Date('2026-03-12') },
+    { seriesId: s1._id, chapterNumber: 42, title: 'The Blade Awakens', status: 'Approved', mangakaId: mangaka._id, editorId: editor._id, totalPages: 24, progress: 95, views: 0 },
+    { seriesId: s1._id, chapterNumber: 43, title: 'Storm of Souls', status: 'Reviewing', mangakaId: mangaka._id, editorId: editor._id, totalPages: 20, progress: 80, views: 0 },
+    { seriesId: s1._id, chapterNumber: 44, title: 'Dawn\'s Edge', status: 'Draft', mangakaId: mangaka._id, totalPages: 18, progress: 40, views: 0 },
+    { seriesId: s2._id, chapterNumber: 105, title: 'Neon Requiem', status: 'Reviewing', mangakaId: mangaka._id, editorId: editor._id, totalPages: 26, progress: 90, views: 0 },
+    { seriesId: s2._id, chapterNumber: 106, title: 'Circuit Breaker', status: 'Draft', mangakaId: mangaka._id, totalPages: 22, progress: 30, views: 0 },
+    { seriesId: s3._id, chapterNumber: 19, title: 'Moonlit Confession', status: 'Draft', mangakaId: mangaka._id, totalPages: 20, progress: 55, views: 0 },
   ]);
 
   console.log('  ✅ Chapters created (8)');

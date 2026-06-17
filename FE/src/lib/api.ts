@@ -121,6 +121,7 @@ export const chaptersAPI = {
   shareAccess: (id: string, data: { userId: string; role?: string; canEdit?: boolean; canComment?: boolean; canInvite?: boolean }) =>
     api.post(`/chapters/${id}/access`, data),
   removeAccess: (id: string, userId: string) => api.delete(`/chapters/${id}/access/${userId}`),
+  incrementView: (id: string) => api.post(`/chapters/${id}/view`),
 };
 
 // ── Tasks API ───────────────────────────────────────
@@ -143,7 +144,7 @@ export const tasksAPI = {
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
   getWorkflow: () => api.get('/dashboard/workflow'),
-  getRankings: () => api.get('/dashboard/rankings'),
+  getRankings: (sortBy?: string) => api.get('/dashboard/rankings', { params: { sortBy } }),
 };
 
 // ── Pages API ───────────────────────────────────────

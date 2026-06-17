@@ -161,6 +161,12 @@ export const chaptersAPI = {
   getBySeries: (seriesId: string) =>
     apiFetch<{ chapters: any[] }>(`/chapters/series/${seriesId}`),
 
+  getById: (id: string) =>
+    apiFetch<{ chapter: any }>(`/chapters/${id}`),
+
+  incrementView: (id: string) =>
+    apiFetch<{ message: string }>(`/chapters/${id}/view`, { method: 'POST' }),
+
   create: (seriesId: string, data: any) =>
     apiFetch<{ chapter: any }>(`/chapters/series/${seriesId}`, {
       method: 'POST',
@@ -218,7 +224,10 @@ export const tasksAPI = {
 export const dashboardAPI = {
   getStats: () => apiFetch<{ stats: any }>('/dashboard/stats'),
   getWorkflow: () => apiFetch<{ workflow: any }>('/dashboard/workflow'),
-  getRankings: () => apiFetch<{ rankings: any[] }>('/dashboard/rankings'),
+  getRankings: (sortBy?: string) => {
+    const qs = sortBy ? `?sortBy=${sortBy}` : '';
+    return apiFetch<{ rankings: any[] }>(`/dashboard/rankings${qs}`);
+  },
 };
 
 // ── Pages API ───────────────────────────────────────

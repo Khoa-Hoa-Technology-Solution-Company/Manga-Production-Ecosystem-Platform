@@ -18,6 +18,8 @@ export interface ISeries extends Document {
   totalVotes: number;
   weeklyVotes: number;
   readerCount: number;
+  averageRating: number;
+  ratingCount: number;
   publicationSchedule?: 'weekly' | 'monthly';
   cancellationRisk: boolean;
   deadline?: Date;
@@ -42,6 +44,8 @@ const seriesSchema = new Schema<ISeries>(
     totalVotes: { type: Number, default: 0 },
     weeklyVotes: { type: Number, default: 0 },
     readerCount: { type: Number, default: 0 },
+    averageRating: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
     publicationSchedule: { type: String, enum: ['weekly', 'monthly'] },
     cancellationRisk: { type: Boolean, default: false },
     deadline: { type: Date },

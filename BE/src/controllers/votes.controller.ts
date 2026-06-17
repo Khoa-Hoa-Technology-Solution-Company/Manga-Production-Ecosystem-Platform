@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { Vote } from '../models/Vote';
 import { Series } from '../models/Series';
 import { emitToRoom } from '../socket';
@@ -16,10 +17,25 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
       { upsert: true, new: true, runValidators: true }
     );
 
-    // Update series vote count
+    // Update series vote count, average rating, and rating count
     if (req.body.seriesId) {
-      const totalVotes = await Vote.countDocuments({ seriesId: req.body.seriesId });
-      await Series.findByIdAndUpdate(req.body.seriesId, { totalVotes });
+      const seriesIdObj = new mongoose.Types.ObjectId(req.body.seriesId);
+      const [totalVotes, avgRatingData] = await Promise.all([
+        Vote.countDocuments({ seriesId: seriesIdObj }),
+        Vote.aggregate([
+          { $match: { seriesId: seriesIdObj, rating: { $exists: true, $ne: null } } },
+          { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+        ]),
+      ]);
+
+      const averageRating = avgRatingData[0]?.avg || 0;
+      const ratingCount = avgRatingData[0]?.count || 0;
+
+      await Series.findByIdAndUpdate(seriesIdObj, {
+        totalVotes,
+        averageRating: Math.round(averageRating * 10) / 10,
+        ratingCount,
+      });
     }
 
     // Emit the updated stats to the chapter room
