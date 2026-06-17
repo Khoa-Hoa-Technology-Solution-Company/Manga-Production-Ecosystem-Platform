@@ -224,6 +224,7 @@ export default function ReaderScreen() {
   const [loadingPages, setLoadingPages] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const hasIncrementedView = useRef<string | null>(null);
 
   // Fetch series details and chapters
   const loadSeriesData = () => {
@@ -253,6 +254,17 @@ export default function ReaderScreen() {
   useEffect(() => {
     loadSeriesData();
   }, [seriesId]);
+
+  // Increment view count when chapter index or chapters change
+  useEffect(() => {
+    const currentChapter = chapters[activeChapterIndex];
+    if (currentChapter && currentChapter._id && hasIncrementedView.current !== currentChapter._id) {
+      hasIncrementedView.current = currentChapter._id;
+      chaptersAPI.incrementView(currentChapter._id).catch((err) => {
+        console.error('Failed to increment view count on mobile:', err);
+      });
+    }
+  }, [activeChapterIndex, chapters]);
 
   // Fetch pages and comments cascade when active chapter changes
   useEffect(() => {

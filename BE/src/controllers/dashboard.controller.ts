@@ -78,11 +78,16 @@ export async function getWorkflow(_req: Request, res: Response): Promise<void> {
   }
 }
 
-export async function getRankings(_req: Request, res: Response): Promise<void> {
+export async function getRankings(req: Request, res: Response): Promise<void> {
   try {
+    const { sortBy } = req.query;
+    const sortOption: any = sortBy === 'rating'
+      ? { averageRating: -1, totalVotes: -1 }
+      : { weeklyVotes: -1 };
+
     const rankings = await Series.find({ status: { $in: ['Active', 'Completed'] } })
       .populate('mangakaId', 'displayName avatar')
-      .sort({ weeklyVotes: -1 })
+      .sort(sortOption)
       .limit(20)
       .lean();
 

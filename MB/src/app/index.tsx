@@ -98,7 +98,7 @@ export default function HomeScreen() {
       .finally(() => setLoadingSeries(false));
 
     dashboardAPI
-      .getRankings()
+      .getRankings('rating')
       .then((data) => {
         setRankings((data?.rankings || []).slice(0, 6));
       })
@@ -123,7 +123,7 @@ export default function HomeScreen() {
         genre: s.genre?.[0] || 'Action',
         readers: s.readerCount ? `${(s.readerCount / 1000).toFixed(0)}K` : '0',
         votes: s.totalVotes ? `${(s.totalVotes / 1000).toFixed(0)}K` : '0',
-        rating: '4.9',
+        rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
         cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/800/600`,
         accent: [
           ['#120F2A', '#4c1d95', '#fb7185'],
@@ -188,7 +188,7 @@ export default function HomeScreen() {
       (rankings || []).map((s, idx) => ({
         rank: idx + 1,
         name: s.title,
-        votes: s.weeklyVotes ? `${(s.weeklyVotes / 1000).toFixed(1)}K` : '0',
+        votes: s.averageRating ? `${s.averageRating.toFixed(1)} ⭐` : '0.0 ⭐',
         badge: s.mangakaId?.displayName || 'Unknown Author',
         level: idx === 0 ? 'Diamond' : idx === 1 ? 'Platinum' : idx <= 3 ? 'Gold' : 'Silver',
         color: idx === 0 ? '#38bdf8' : idx === 1 ? '#a855f7' : idx <= 3 ? '#f59e0b' : '#94a3b8',

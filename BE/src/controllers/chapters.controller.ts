@@ -256,3 +256,27 @@ export async function getById(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: error.message });
   }
 }
+
+export async function incrementView(req: Request, res: Response): Promise<void> {
+  try {
+    const chapter = await Chapter.findById(req.params.id);
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+
+    if (chapter.status === 'Published') {
+      await Chapter.findByIdAndUpdate(chapter._id, { $inc: { views: 1 } });
+      await Series.findByIdAndUpdate(chapter.seriesId, { $inc: { readerCount: 1 } });
+    }
+
+    res.json({ message: 'View recorded successfully.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+
+
+
+
