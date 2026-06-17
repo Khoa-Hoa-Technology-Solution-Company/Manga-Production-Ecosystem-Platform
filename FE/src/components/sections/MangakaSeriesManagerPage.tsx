@@ -1,168 +1,53 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { BookOpen, Layers3, Pencil, Plus, RefreshCw, Trash2, Upload, Users, UserPlus, X, Search, CheckCircle2, Clock, ArrowRight, Send } from 'lucide-react'
-import { Badge, Button, Card, Input, Tabs, Avatar, AvatarFallback } from '../ui'
+import { Plus, RefreshCw, Sparkles, Users } from 'lucide-react'
+import { Button, Tabs } from '../ui'
 import { seriesAPI, chaptersAPI, authAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 
-function toGenreText(value: unknown): string {
-  if (Array.isArray(value)) {
-    const mapped = value.map(item => {
-      if (typeof item === 'string') {
-        const trimmed = item.trim()
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-          try {
-            const parsed = JSON.parse(trimmed)
-            if (Array.isArray(parsed)) return parsed.join(', ')
-          } catch {
-            // ignore parse errors
-          }
-        }
-      }
-      return String(item)
-    })
-    const joined = mapped.join(', ')
-    if (joined.startsWith('[') && joined.endsWith(']')) {
-      try {
-        const parsed = JSON.parse(joined)
-        if (Array.isArray(parsed)) return parsed.join(', ')
-      } catch {
-        // ignore parse errors
-      }
-    }
-    return joined
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      try {
-        const parsed = JSON.parse(trimmed)
-        if (Array.isArray(parsed)) {
-          return parsed.map(item => toGenreText(item)).join(', ')
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return trimmed
-  }
-  return ''
-}
-
-function seriesCoverUrl(coverImage?: string) {
-  if (!coverImage) return ''
-  if (coverImage.startsWith('http')) return coverImage
-  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
-  return `${base}${coverImage}`
-}
-
-interface SeriesData {
-  _id: string
-  title: string
-  description?: string
-  genre?: string
-  coverImage?: string
-  mangakaId?: string | { _id: string }
-  status?: string
-  totalChapters?: number
-  rejectionNotes?: string
-  editorId?: string | { _id: string; displayName?: string }
-  editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none'
-}
-
-interface ChapterData {
-  _id: string
-  seriesId?: string | { _id: string }
-  chapterNumber: number
-  title: string
-  status: string
-  totalPages?: number
-  progress?: number
-  collaborators?: { userId: { _id: string; displayName: string; avatar?: string } }[]
-}
-
-interface EditorUserData {
-  _id: string
-  displayName?: string
-  username: string
-  email: string
-}
-
-interface UserData {
-  _id: string
-  displayName?: string
-  username: string
-  email: string
-  role: string
-}
-
-interface DedicatedAssistantData {
-  userId: string | {
-    _id: string
-    displayName?: string
-    email?: string
-    skills?: string[]
-  }
-}
+import {
+  type SeriesData,
+  type ChapterData,
+  type EditorUserData,
+  type UserData,
+  type DedicatedAssistantData,
+} from './series-manager/utils'
+import { SeriesListPanel } from './series-manager/SeriesListPanel'
+import { SeriesDetailPanel } from './series-manager/SeriesDetailPanel'
+import { SeriesFormDrawer } from './series-manager/SeriesFormDrawer'
+import { ChapterFormDrawer } from './series-manager/ChapterFormDrawer'
+import { EditorSubmitModal } from './series-manager/EditorSubmitModal'
+import { AssistantsPanel } from './series-manager/AssistantsPanel'
 
 export function MangakaSeriesManagerPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
-  const [seriesList, setSeriesList] = useState<SeriesData[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedSeriesId, setSelectedSeriesId] = useState(searchParams.get('seriesId') || '')
+
+  // State Management
+  const [seriesList, setSeriesList] = useState<SeriesData[]>([])
   const [chapters, setChapters] = useState<ChapterData[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState(searchParams.get('tab') || 'series')
 
-  useEffect(() => {
-    const sId = searchParams.get('seriesId')
-    const tVal = searchParams.get('tab')
-    if (sId && sId !== selectedSeriesId) {
-      Promise.resolve().then(() => {
-        setSelectedSeriesId(sId)
-      })
-    }
-    if (tVal && tVal !== tab) {
-      Promise.resolve().then(() => {
-        setTab(tVal)
-      })
-    }
-  }, [searchParams, selectedSeriesId, tab])
+  // Derived state from URL search params (Single Source of Truth)
+  const selectedSeriesId = searchParams.get('seriesId') || (seriesList[0]?._id || '')
+  const tab = searchParams.get('tab') || 'series'
 
-  useEffect(() => {
-    setSearchParams(prev => {
-      if (selectedSeriesId) prev.set('seriesId', selectedSeriesId)
-      else prev.delete('seriesId')
-      if (tab) prev.set('tab', tab)
-      else prev.delete('tab')
-      return prev
-    }, { replace: true })
-  }, [selectedSeriesId, tab, setSearchParams])
-  
   const [editorsList, setEditorsList] = useState<EditorUserData[]>([])
+  
+  // Submit Editor Modal
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [submitSeriesId, setSubmitSeriesId] = useState('')
-  const [selectedEditorId, setSelectedEditorId] = useState('')
   const [modalMode, setModalMode] = useState<'invite' | 'submit'>('invite')
-  const [designatedEditorId, setDesignatedEditorId] = useState('')
+
+  // Drawers trigger
+  const [isSeriesDrawerOpen, setIsSeriesDrawerOpen] = useState(false)
+  const [editingSeries, setEditingSeries] = useState<SeriesData | null>(null)
   
-  const [showSeriesForm, setShowSeriesForm] = useState(false)
-  const [showEditSeriesForm, setShowEditSeriesForm] = useState(false)
-  const [seriesTitle, setSeriesTitle] = useState('')
-  const [seriesDescription, setSeriesDescription] = useState('')
-  const [seriesGenre, setSeriesGenre] = useState('action, fantasy')
-  const [seriesCoverUrlInput, setSeriesCoverUrlInput] = useState('')
-  const [seriesCoverFile, setSeriesCoverFile] = useState<File | null>(null)
-  const [seriesCoverPreview, setSeriesCoverPreview] = useState('')
-  
-  const [showChapterForm, setShowChapterForm] = useState(false)
-  const [showEditChapterForm, setShowEditChapterForm] = useState(false)
-  const [editingChapterId, setEditingChapterId] = useState('')
-  const [chapterNumber, setChapterNumber] = useState('1')
-  const [chapterTitle, setChapterTitle] = useState('Chapter 1')
+  const [isChapterDrawerOpen, setIsChapterDrawerOpen] = useState(false)
+  const [editingChapter, setEditingChapter] = useState<ChapterData | null>(null)
 
   // Dedicated Assistant Management
   const [dedicatedAssistants, setDedicatedAssistants] = useState<DedicatedAssistantData[]>([])
@@ -170,67 +55,48 @@ export function MangakaSeriesManagerPage() {
   const [assistantSearchResults, setAssistantSearchResults] = useState<UserData[]>([])
   const [addingAssistant, setAddingAssistant] = useState(false)
   const [loadingAssistants, setLoadingAssistants] = useState(false)
-  
-  const selectedSeries = useMemo(() => seriesList.find((s) => s._id === selectedSeriesId), [seriesList, selectedSeriesId])
-  const selectedChapters = useMemo(
-    () => chapters.filter((chapter) => {
-      const sId = chapter.seriesId && typeof chapter.seriesId === 'object'
-        ? (chapter.seriesId as { _id: string })._id
-        : chapter.seriesId
-      return String(sId) === String(selectedSeriesId)
-    }),
-    [chapters, selectedSeriesId]
-  )
 
-  const ui = {
-    title: t('seriesManager.title', 'Series Manager'),
-    subtitle: t('seriesManager.subtitle', 'Create series, add chapters, and manage your production structure.'),
-    refresh: t('common.refresh', 'Refresh'),
-    newSeries: t('seriesManager.newSeries', 'New Series'),
-    newChapter: t('seriesManager.newChapter', 'New Chapter'),
-    edit: t('common.edit', 'Edit'),
-    delete: t('common.delete', 'Delete'),
-    save: t('common.save', 'Save'),
-    seriesTab: t('seriesManager.seriesTab', 'Series'),
-    chaptersTab: t('seriesManager.chaptersTab', 'Chapters'),
-    yourSeries: t('seriesManager.yourSeries', 'Your Series'),
-    seriesOwnerHint: t('seriesManager.seriesOwnerHint', 'Only series you own are shown here.'),
-    createSeriesTitle: t('seriesManager.createSeriesTitle', 'Create Series'),
-    editSeriesTitle: t('seriesManager.editSeriesTitle', 'Edit Series'),
-    seriesTitle: t('seriesManager.seriesTitle', 'Series title'),
-    seriesDescription: t('seriesManager.seriesDescription', 'Series description'),
-    seriesGenres: t('seriesManager.seriesGenres', 'Genres, comma separated'),
-    uploadCover: t('seriesManager.uploadCover', 'Upload cover image from device'),
-    seriesCoverUrl: t('seriesManager.seriesCoverUrl', 'Cover image URL (optional)'),
-    cancel: t('common.cancel', 'Cancel'),
-    create: t('common.create', 'Create'),
-    noSeries: t('seriesManager.noSeries', 'No series yet.'),
-    detailsTitle: t('seriesManager.detailsTitle', 'Series details'),
-    selectSeriesHint: t('seriesManager.selectSeriesHint', 'Select a series to view chapters'),
-    chapterNumber: t('seriesManager.chapterNumber', 'Chapter number'),
-    chapterTitle: t('seriesManager.chapterTitle', 'Chapter title'),
-    noChapters: t('seriesManager.noChapters', 'No chapters yet.'),
-    chapterListHint: t('seriesManager.chapterListHint', 'Quickly manage chapters of the selected series.'),
-    noData: t('seriesManager.noData', 'No data.'),
-    loading: t('common.loading', 'Loading...'),
-    chaptersCount: t('seriesManager.chaptersCount', '{{count}} items'),
-    pages: t('seriesManager.pages', 'Pages'),
-    progress: t('seriesManager.progress', 'Progress'),
-    collaborators: t('seriesManager.collaborators', 'Collaborators'),
-    workspaceLabel: t('seriesManager.workspaceLabel', 'Mangaka workspace'),
-    seriesCount: t('seriesManager.seriesCount', '{{count}} series'),
-    editCover: t('seriesManager.editCover', 'Change cover'),
-    editSeriesHint: t('seriesManager.editSeriesHint', 'Update title, description, genres, or cover.'),
-    deleteSeriesConfirm: t('seriesManager.deleteSeriesConfirm', 'Delete this series? All chapters will also be removed from this manager view.'),
-    deleteChapterConfirm: t('seriesManager.deleteChapterConfirm', 'Delete this chapter?'),
-    chapterListTitle: t('seriesManager.chapterListTitle', 'Chapter list'),
-    chapterCount: t('seriesManager.chapterCount', '{{count}} chapters'),
-    chapterStats: t('seriesManager.chapterStats', 'Chapter stats'),
-    totalPages: t('seriesManager.totalPages', 'Total pages'),
-    avgProgress: t('seriesManager.avgProgress', 'Avg. progress'),
-    totalCollaborators: t('seriesManager.totalCollaborators', 'Total collaborators'),
+  const handleSelectSeries = (id: string) => {
+    setSearchParams(
+      (prev) => {
+        if (id) prev.set('seriesId', id)
+        else prev.delete('seriesId')
+        return prev
+      },
+      { replace: true }
+    )
   }
 
+  const handleTabChange = (key: string) => {
+    setSearchParams(
+      (prev) => {
+        if (key) prev.set('tab', key)
+        else prev.delete('tab')
+        return prev
+      },
+      { replace: true }
+    )
+  }
+
+  const selectedSeries = useMemo(() => {
+    return seriesList.find((s) => s._id === selectedSeriesId) || null
+  }, [seriesList, selectedSeriesId])
+
+  const selectedChapters = useMemo(() => {
+    return chapters.filter((chapter) => {
+      const sId =
+        chapter.seriesId && typeof chapter.seriesId === 'object'
+          ? (chapter.seriesId as { _id: string })._id
+          : chapter.seriesId
+      return String(sId) === String(selectedSeriesId)
+    })
+  }, [chapters, selectedSeriesId])
+
+  const nextChapterNumber = useMemo(() => {
+    return selectedChapters.length > 0 ? Math.max(...selectedChapters.map((c) => c.chapterNumber || 0)) + 1 : 1
+  }, [selectedChapters])
+
+  // Data Fetching
   const loadData = async (preferredSeriesId?: string) => {
     setLoading(true)
     try {
@@ -241,11 +107,24 @@ export function MangakaSeriesManagerPage() {
       })
       setSeriesList(list)
 
-      const nextSeriesId = preferredSeriesId && list.some((s: SeriesData) => s._id === preferredSeriesId)
-        ? preferredSeriesId
-        : (selectedSeriesId && list.some((s: SeriesData) => s._id === selectedSeriesId) ? selectedSeriesId : list[0]?._id || '')
+      const urlSeriesId = searchParams.get('seriesId')
+      const nextSeriesId =
+        preferredSeriesId && list.some((s: SeriesData) => s._id === preferredSeriesId)
+          ? preferredSeriesId
+          : urlSeriesId && list.some((s: SeriesData) => s._id === urlSeriesId)
+          ? urlSeriesId
+          : list[0]?._id || ''
 
-      setSelectedSeriesId(nextSeriesId)
+      if (nextSeriesId && urlSeriesId !== nextSeriesId) {
+        setSearchParams(
+          (prev) => {
+            prev.set('seriesId', nextSeriesId)
+            return prev
+          },
+          { replace: true }
+        )
+      }
+
       if (nextSeriesId) {
         const chapterRes = await chaptersAPI.getBySeries(nextSeriesId)
         setChapters(chapterRes.data.chapters || [])
@@ -267,57 +146,22 @@ export function MangakaSeriesManagerPage() {
   }, [user?._id])
 
   useEffect(() => {
-    seriesAPI.getEditors()
+    seriesAPI
+      .getEditors()
       .then((res) => {
-        const list = res.data.editors || []
-        setEditorsList(list)
-        if (list.length > 0) {
-          setSelectedEditorId(list[0]._id)
-        }
+        setEditorsList(res.data.editors || [])
       })
       .catch(console.error)
   }, [])
 
-  const handleSubmitForApproval = async () => {
-    if (!submitSeriesId || !selectedEditorId) return
-    setSaving(true)
-    try {
-      if (modalMode === 'invite') {
-        await seriesAPI.update(submitSeriesId, {
-          editorId: selectedEditorId
-        })
-        alert('Tantou Editor invitation sent successfully!')
-      } else {
-        await seriesAPI.update(submitSeriesId, {
-          status: 'Pending_Editor',
-          editorId: selectedEditorId
-        })
-        alert('Draft manuscript submitted to Editor successfully!')
-      }
-      setShowSubmitModal(false)
-      await loadData(selectedSeriesId)
-    } catch (err) {
-      const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || 'Action failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
+  // Load chapters on series switch
   useEffect(() => {
     if (!selectedSeriesId) return
-    chaptersAPI.getBySeries(selectedSeriesId)
+    chaptersAPI
+      .getBySeries(selectedSeriesId)
       .then((res) => setChapters(res.data.chapters || []))
       .catch(() => setChapters([]))
   }, [selectedSeriesId])
-
-  useEffect(() => {
-    const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c) => c.chapterNumber || 0)) + 1 : 1
-    Promise.resolve().then(() => {
-      setChapterNumber(String(nextNum))
-      setChapterTitle(`Chapter ${nextNum}`)
-    })
-  }, [chapters])
 
   // Load dedicated assistants when series changes and is Active
   useEffect(() => {
@@ -330,13 +174,145 @@ export function MangakaSeriesManagerPage() {
     Promise.resolve().then(() => {
       setLoadingAssistants(true)
     })
-    seriesAPI.getDedicatedAssistants(selectedSeriesId)
+    seriesAPI
+      .getDedicatedAssistants(selectedSeriesId)
       .then((res) => setDedicatedAssistants(res.data.dedicatedAssistants || []))
       .catch(() => setDedicatedAssistants([]))
-      .finally(() => setLoadingAssistants(false))
+      .finally(() => {
+        setLoadingAssistants(false)
+      })
   }, [selectedSeriesId, selectedSeries?.status])
 
-  // Search assistants
+  // Form actions: Series
+  const handleOpenNewSeries = () => {
+    setEditingSeries(null)
+    setIsSeriesDrawerOpen(true)
+  }
+
+  const handleOpenEditSeries = () => {
+    if (!selectedSeries) return
+    setEditingSeries(selectedSeries)
+    setIsSeriesDrawerOpen(true)
+  }
+
+  const handleSaveSeries = async (data: {
+    title: string
+    description: string
+    genre: string
+    coverFile: File | null
+    coverUrl: string
+    editorId: string
+  }) => {
+    setSaving(true)
+    try {
+      const genreArray = data.genre.split(',').map((g) => g.trim()).filter(Boolean)
+      const formData = new FormData()
+      formData.append('title', data.title)
+      formData.append('description', data.description)
+      formData.append('genre', genreArray.join(', '))
+      if (data.coverFile) formData.append('coverImageFile', data.coverFile)
+      if (data.coverUrl) formData.append('coverImage', data.coverUrl)
+
+      if (editingSeries) {
+        formData.append('editorId', data.editorId || 'none')
+        await seriesAPI.update(editingSeries._id, formData)
+        setIsSeriesDrawerOpen(false)
+        await loadData(editingSeries._id)
+      } else {
+        if (data.editorId) formData.append('editorId', data.editorId)
+        const res = await seriesAPI.create(formData)
+        setIsSeriesDrawerOpen(false)
+        await loadData(res.data.series?._id)
+      }
+    } catch (err) {
+      console.error(err)
+      alert(t('seriesManager.saveFailed', 'Failed to save series details.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteSeries = async () => {
+    if (!selectedSeriesId) return
+    setSaving(true)
+    try {
+      await seriesAPI.delete(selectedSeriesId)
+      handleSelectSeries('')
+      await loadData()
+    } catch (err) {
+      console.error(err)
+      alert(t('seriesManager.deleteFailed', 'Failed to delete series.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Form actions: Chapters
+  const handleOpenNewChapter = () => {
+    setEditingChapter(null)
+    setIsChapterDrawerOpen(true)
+  }
+
+  const handleOpenEditChapter = (chapter: ChapterData) => {
+    setEditingChapter(chapter)
+    setIsChapterDrawerOpen(true)
+  }
+
+  const handleSaveChapter = async (data: { chapterNumber: number; title: string }) => {
+    if (!selectedSeriesId) return
+    setSaving(true)
+    try {
+      if (editingChapter) {
+        await chaptersAPI.update(editingChapter._id, {
+          chapterNumber: data.chapterNumber,
+          title: data.title,
+        })
+        setIsChapterDrawerOpen(false)
+        await loadData(selectedSeriesId)
+      } else {
+        await chaptersAPI.create(selectedSeriesId, {
+          chapterNumber: data.chapterNumber,
+          title: data.title,
+        })
+        setIsChapterDrawerOpen(false)
+        await loadData(selectedSeriesId)
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || t('seriesManager.chapterSaveFailed', 'Failed to save chapter.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteChapter = async (chapterId: string) => {
+    setSaving(true)
+    try {
+      await chaptersAPI.delete(chapterId)
+      await loadData(selectedSeriesId)
+    } catch (err) {
+      console.error(err)
+      alert(t('seriesManager.chapterDeleteFailed', 'Failed to delete chapter.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSubmitChapterForReview = async (chapterId: string) => {
+    setSaving(true)
+    try {
+      await chaptersAPI.updateStatus(chapterId, 'Reviewing')
+      alert(t('seriesManager.chapterSubmittedSuccess', 'Chapter submitted for review successfully!'))
+      await loadData(selectedSeriesId)
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || t('seriesManager.chapterSubmitFailed', 'Failed to submit chapter.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Assistant management
   const handleSearchAssistants = async (query: string) => {
     setAssistantSearchQuery(query)
     if (query.trim().length < 2) {
@@ -352,7 +328,6 @@ export function MangakaSeriesManagerPage() {
     }
   }
 
-  // Add dedicated assistant
   const handleAddDedicatedAssistant = async (userId: string) => {
     if (!selectedSeriesId) return
     setAddingAssistant(true)
@@ -363,945 +338,207 @@ export function MangakaSeriesManagerPage() {
       setAssistantSearchResults([])
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || 'Failed to add assistant')
+      alert(error.response?.data?.error || t('seriesManager.addAssistantFailed', 'Failed to add dedicated assistant.'))
     } finally {
       setAddingAssistant(false)
     }
   }
 
-  // Remove dedicated assistant
   const handleRemoveDedicatedAssistant = async (userId: string) => {
     if (!selectedSeriesId) return
-    if (!window.confirm('Remove this dedicated assistant?')) return
     try {
       await seriesAPI.removeDedicatedAssistant(selectedSeriesId, userId)
-      setDedicatedAssistants(prev => prev.filter(a => {
-        const aId = typeof a.userId === 'object' && a.userId ? a.userId._id : a.userId
-        return aId !== userId
-      }))
+      setDedicatedAssistants((prev) =>
+        prev.filter((a) => {
+          const aId = typeof a.userId === 'object' && a.userId ? a.userId._id : a.userId
+          return aId !== userId
+        })
+      )
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || 'Failed to remove assistant')
+      alert(error.response?.data?.error || t('seriesManager.removeAssistantFailed', 'Failed to remove dedicated assistant.'))
     }
   }
 
-  const handleCoverFileChange = (file?: File) => {
-    if (!file) return
-    setSeriesCoverFile(file)
-    setSeriesCoverPreview(URL.createObjectURL(file))
-  }
-
-  const resetSeriesForm = () => {
-    setSeriesTitle('')
-    setSeriesDescription('')
-    setSeriesGenre('action, fantasy')
-    setSeriesCoverFile(null)
-    setSeriesCoverPreview('')
-    setSeriesCoverUrlInput('')
-    setDesignatedEditorId('')
-  }
-
-  const openEditSeries = () => {
+  // Editor invitation & manuscript submission
+  const handleOpenInviteModal = () => {
     if (!selectedSeries) return
-    setSeriesTitle(selectedSeries.title || '')
-    setSeriesDescription(selectedSeries.description || '')
-    setSeriesGenre(toGenreText(selectedSeries.genre))
-    setSeriesCoverUrlInput(selectedSeries.coverImage || '')
-    setSeriesCoverPreview(seriesCoverUrl(selectedSeries.coverImage))
-    setSeriesCoverFile(null)
-    const eId = selectedSeries.editorId && typeof selectedSeries.editorId === 'object'
-      ? (selectedSeries.editorId as { _id: string })._id
-      : selectedSeries.editorId || ''
-    setDesignatedEditorId(eId)
-    setShowEditSeriesForm(true)
+    setModalMode('invite')
+    setSubmitSeriesId(selectedSeries._id)
+    setShowSubmitModal(true)
   }
 
-  const handleCreateSeries = async () => {
-    if (!seriesTitle.trim() || !seriesDescription.trim()) return
-    setSaving(true)
-    try {
-      const genre = seriesGenre.split(',').map((g) => g.trim()).filter(Boolean)
-      const formData = new FormData()
-      formData.append('title', seriesTitle.trim())
-      formData.append('description', seriesDescription.trim())
-      formData.append('genre', genre.join(', '))
-      if (seriesCoverFile) formData.append('coverImageFile', seriesCoverFile)
-      if (seriesCoverUrlInput.trim()) formData.append('coverImage', seriesCoverUrlInput.trim())
-      if (designatedEditorId) formData.append('editorId', designatedEditorId)
-
-      const res = await seriesAPI.create(formData)
-      resetSeriesForm()
-      setShowSeriesForm(false)
-      await loadData(res.data.series?._id)
-    } finally {
-      setSaving(false)
-    }
+  const handleOpenSubmitModal = () => {
+    if (!selectedSeries) return
+    setModalMode('submit')
+    setSubmitSeriesId(selectedSeries._id)
+    setShowSubmitModal(true)
   }
 
-  const handleUpdateSeries = async () => {
-    if (!selectedSeriesId || !seriesTitle.trim() || !seriesDescription.trim()) return
+  const handleSubmitToEditor = async (editorId: string) => {
+    if (!submitSeriesId) return
     setSaving(true)
     try {
-      const genre = seriesGenre.split(',').map((g) => g.trim()).filter(Boolean)
-      const formData = new FormData()
-      formData.append('title', seriesTitle.trim())
-      formData.append('description', seriesDescription.trim())
-      formData.append('genre', genre.join(', '))
-      if (seriesCoverFile) formData.append('coverImageFile', seriesCoverFile)
-      if (seriesCoverUrlInput.trim()) formData.append('coverImage', seriesCoverUrlInput.trim())
-      formData.append('editorId', designatedEditorId || 'none')
-
-      await seriesAPI.update(selectedSeriesId, formData)
-      setShowEditSeriesForm(false)
-      setSeriesCoverFile(null)
-      await loadData(selectedSeriesId)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDeleteSeries = async () => {
-    if (!selectedSeriesId) return
-    if (!window.confirm(ui.deleteSeriesConfirm)) return
-    setSaving(true)
-    try {
-      await seriesAPI.delete(selectedSeriesId)
-      setSelectedSeriesId('')
-      await loadData()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleCreateChapter = async () => {
-    if (!selectedSeriesId || !chapterNumber.trim() || !chapterTitle.trim()) return
-    setSaving(true)
-    try {
-      await chaptersAPI.create(selectedSeriesId, {
-        chapterNumber: Number(chapterNumber),
-        title: chapterTitle.trim(),
-      })
-      setShowChapterForm(false)
+      if (modalMode === 'invite') {
+        await seriesAPI.update(submitSeriesId, {
+          editorId: editorId,
+        })
+        alert(t('seriesManager.inviteSuccess', 'Tantou Editor invitation sent successfully!'))
+      } else {
+        await seriesAPI.update(submitSeriesId, {
+          status: 'Pending_Editor',
+          editorId: editorId,
+        })
+        alert(t('seriesManager.submitSuccess', 'Draft manuscript submitted to Editor successfully!'))
+      }
+      setShowSubmitModal(false)
       await loadData(selectedSeriesId)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || 'Failed to create chapter')
+      alert(error.response?.data?.error || t('seriesManager.editorActionFailed', 'Operation failed.'))
     } finally {
       setSaving(false)
     }
   }
 
-  const openEditChapter = (chapter: ChapterData) => {
-    setEditingChapterId(chapter._id)
-    setShowChapterForm(false)
-    setChapterNumber(String(chapter.chapterNumber || 1))
-    setChapterTitle(chapter.title || '')
-    setShowEditChapterForm(true)
-  }
-
-  const handleUpdateChapter = async () => {
-    if (!editingChapterId || !chapterNumber.trim() || !chapterTitle.trim()) return
-    setSaving(true)
-    try {
-      await chaptersAPI.update(editingChapterId, {
-        chapterNumber: Number(chapterNumber),
-        title: chapterTitle.trim(),
-      })
-      setShowEditChapterForm(false)
-      setEditingChapterId('')
-      await loadData(selectedSeriesId)
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || 'Failed to update chapter')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDeleteChapter = async (chapterId: string) => {
-    if (!window.confirm(ui.deleteChapterConfirm)) return
-    setSaving(true)
-    try {
-      await chaptersAPI.delete(chapterId)
-      await loadData(selectedSeriesId)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSubmitChapterForReview = async (chapterId: string) => {
-    setSaving(true)
-    try {
-      await chaptersAPI.updateStatus(chapterId, 'Reviewing')
-      alert('Chapter submitted for review successfully!')
-      await loadData(selectedSeriesId)
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || 'Failed to submit chapter for review')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (loading) {
-    return <div className="flex min-h-[60vh] items-center justify-center text-sm text-neutral-500">{ui.loading}</div>
+  if (loading && seriesList.length === 0) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-neutral-500 gap-2 font-medium">
+        <div className="size-5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+        {t('common.loading', 'Loading...')}
+      </div>
+    )
   }
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-      <div className="rounded-[28px] border border-neutral-200 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 p-6 text-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      {/* Premium Dashboard Header Card */}
+      <div className="rounded-[32px] border border-neutral-200 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute right-0 top-0 -mt-16 -mr-16 size-64 bg-radial from-white/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between relative z-10">
           <div className="max-w-3xl">
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-white/60">{ui.workspaceLabel}</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{ui.title}</h1>
-            <p className="mt-3 text-sm leading-6 text-white/70">{ui.subtitle}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/55 flex items-center gap-1.5">
+              <Sparkles className="size-3.5" />
+              {t('seriesManager.workspaceLabel', 'Mangaka Workspace')}
+            </p>
+            <h1 className="mt-2.5 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              {t('seriesManager.title', 'Series Manager')}
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-white/70">
+              {t('seriesManager.subtitle', 'Create series, add chapters, and manage your production structure.')}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" className="bg-white/10 text-white hover:bg-white/15" onClick={() => loadData().catch(() => {})}>
-              <RefreshCw className="mr-2 size-4" /> {ui.refresh}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="ghost"
+              className="bg-white/10 text-white hover:bg-white/15 border-none h-10 px-4 rounded-xl text-xs font-semibold transition-all"
+              onClick={() => loadData().catch(() => {})}
+            >
+              <RefreshCw className="mr-2 size-4" /> {t('common.refresh', 'Refresh')}
             </Button>
-            <Button variant="secondary" className="bg-white hover:bg-neutral-100" onClick={() => setShowSeriesForm((v) => !v)}>
-              <Plus className="mr-2 size-4" /> {ui.newSeries}
+            <Button
+              variant="secondary"
+              className="bg-white hover:bg-neutral-100 border-none text-neutral-950 h-10 px-4 rounded-xl text-xs font-semibold shadow-md transition-all"
+              onClick={handleOpenNewSeries}
+            >
+              <Plus className="mr-2 size-4" /> {t('seriesManager.newSeries', 'New Series')}
             </Button>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{t('seriesManager.seriesCount', '{{count}} Series', { count: seriesList.length })}</div>
-            <div className="mt-2 text-2xl font-semibold">{seriesList.length}</div>
-          </div>
-          <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{t('seriesManager.chaptersCount', '{{count}} Items', { count: chapters.length })}</div>
-            <div className="mt-2 text-2xl font-semibold">{chapters.length}</div>
-          </div>
-          <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-            <div className="text-xs uppercase tracking-[0.18em] text-white/50">{ui.chapterStats}</div>
-            <div className="mt-2 text-2xl font-semibold">{selectedSeries ? selectedChapters.length : 0}</div>
           </div>
         </div>
       </div>
 
+      {/* Tabs Switcher */}
       <Tabs
         tabs={[
-          { key: 'series', label: ui.seriesTab, count: seriesList.length },
-          { key: 'chapters', label: ui.chaptersTab, count: chapters.length },
-          ...(selectedSeries?.status === 'Active' ? [{ key: 'assistants', label: t('seriesManager.assistantsTab', 'Assistants'), count: dedicatedAssistants.length }] : []),
+          { key: 'series', label: t('seriesManager.seriesTab', 'Series'), count: seriesList.length },
+          ...(selectedSeries?.status === 'Active'
+            ? [
+                {
+                  key: 'assistants',
+                  label: t('seriesManager.assistantsTab', 'Assistants'),
+                  icon: <Users className="size-3.5" />,
+                  count: dedicatedAssistants.length,
+                },
+              ]
+            : []),
         ]}
         active={tab}
-        onChange={setTab}
+        onChange={handleTabChange}
       />
 
+      {/* Tab content rendering */}
       {tab === 'series' && (
-        <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">{ui.yourSeries}</h2>
-                <p className="text-xs text-neutral-500">{ui.seriesOwnerHint}</p>
-              </div>
-            </div>
+        <div className="grid gap-6 xl:grid-cols-[360px_1fr] items-start">
+          {/* Series list */}
+          <SeriesListPanel
+            seriesList={seriesList}
+            selectedSeriesId={selectedSeriesId}
+            onSelectSeries={handleSelectSeries}
+            onNewSeriesClick={handleOpenNewSeries}
+          />
 
-            {showSeriesForm && (
-              <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200 p-4">
-                <div className="text-sm font-semibold text-neutral-900">{ui.createSeriesTitle}</div>
-                <Input value={seriesTitle} onChange={(e) => setSeriesTitle(e.target.value)} placeholder={ui.seriesTitle} />
-                <textarea value={seriesDescription} onChange={(e) => setSeriesDescription(e.target.value)} placeholder={ui.seriesDescription} className="min-h-24 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none" />
-                <Input value={seriesGenre} onChange={(e) => setSeriesGenre(e.target.value)} placeholder={ui.seriesGenres} />
-                
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] block">
-                    {t('seriesManager.earlyDesignateEditor', 'Designated Tantou Editor (Optional)')}
-                  </label>
-                  <select
-                    className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:bg-white focus:outline-none transition-all font-medium text-neutral-950 shadow-xs"
-                    value={designatedEditorId}
-                    onChange={(e) => setDesignatedEditorId(e.target.value)}
-                  >
-                    <option value="">{t('seriesManager.noEditor', 'None - Designate Later')}</option>
-                    {editorsList.map((e) => (
-                      <option key={e._id} value={e._id}>
-                        {e.displayName || e.username} ({e.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <Input value={seriesCoverUrlInput} onChange={(e) => setSeriesCoverUrlInput(e.target.value)} placeholder={ui.seriesCoverUrl} />
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-neutral-300 px-3 py-3 text-sm text-neutral-600 hover:bg-neutral-50">
-                  <Upload className="size-4" />
-                  <span>{seriesCoverFile ? seriesCoverFile.name : ui.uploadCover}</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleCoverFileChange(e.target.files?.[0])} />
-                </label>
-                {seriesCoverPreview && <img src={seriesCoverPreview} alt="Series cover preview" className="h-40 w-full rounded-xl object-cover" />}
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowSeriesForm(false)}>{ui.cancel}</Button>
-                  <Button onClick={handleCreateSeries} disabled={saving}>{ui.create}</Button>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 space-y-3">
-              {seriesList.length === 0 ? (
-                <div className="rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-500">{ui.noSeries}</div>
-              ) : (
-                seriesList.map((series) => {
-                  const isActive = selectedSeriesId === series._id
-                  return (
-                    <button
-                      key={series._id}
-                      type="button"
-                      onClick={() => setSelectedSeriesId(series._id)}
-                      className={`w-full rounded-2xl border p-4 text-left transition-all ${isActive ? 'border-neutral-900 shadow-sm' : 'border-neutral-200 hover:border-neutral-400'}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {series.coverImage ? (
-                          <img src={series.coverImage} alt={series.title} className="h-20 w-14 rounded-xl object-cover" />
-                        ) : (
-                          <div className="grid h-20 w-14 place-items-center rounded-xl bg-neutral-100 text-neutral-400">
-                            <BookOpen className="size-5" />
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate font-medium text-neutral-950">{series.title}</h3>
-                              <p className="mt-1 line-clamp-2 text-xs text-neutral-500">{series.description}</p>
-                            </div>
-                            <Badge variant="secondary" className="shrink-0">{series.status}</Badge>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-neutral-500">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1"><BookOpen className="size-3" /> {series.totalChapters || 0} chapters</span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1"><Layers3 className="size-3" /> {toGenreText(series.genre)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })
-              )}
-            </div>
-          </Card>
-
-          <Card className="overflow-hidden p-0">
-            <div className="border-b border-neutral-200 bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-800 px-5 py-4 text-white">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-white/50">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1">{ui.detailsTitle}</span>
-                  </div>
-                  <h2 className="mt-2 truncate text-xl font-semibold">{selectedSeries?.title || ui.selectSeriesHint}</h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">{ui.editSeriesHint}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="ghost" className="bg-white/10 text-white hover:bg-white/15" disabled={!selectedSeries || ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')} onClick={openEditSeries}>
-                    <Pencil className="mr-2 size-4" /> {ui.edit}
-                  </Button>
-                  <Button variant="ghost" className="bg-red-500/20 text-white hover:bg-red-500/30" disabled={!selectedSeries || ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')} onClick={handleDeleteSeries}>
-                    <Trash2 className="mr-2 size-4" /> {ui.delete}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {selectedSeries && (
-              <div className="grid gap-0 xl:grid-cols-[320px_1fr]">
-                <div className="border-b border-neutral-200 bg-neutral-50 xl:border-b-0 xl:border-r">
-                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-neutral-100">
-                    {selectedSeries.coverImage ? (
-                      <img src={seriesCoverUrl(selectedSeries.coverImage)} alt={selectedSeries.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="grid h-full place-items-center text-neutral-400">
-                        <BookOpen className="size-12" />
-                      </div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white">
-                      <div className="flex flex-wrap gap-2">
-                        <Badge className="bg-white text-neutral-950">{selectedSeries.status}</Badge>
-                        <Badge className="bg-white/15 text-white">{selectedSeries.totalChapters || 0} chapters</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex flex-wrap gap-2 text-xs text-neutral-600">
-                      <span className="rounded-full bg-neutral-100 px-2.5 py-1">{toGenreText(selectedSeries.genre)}</span>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-neutral-600">{selectedSeries.description}</p>
-
-                    {/* ── Workflow Status Timeline ─────────── */}
-                    <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                        {t('seriesManager.workflowStatus', 'Workflow Status')}
-                      </div>
-                      <div className="flex items-center gap-1 text-[9px]">
-                        {[
-                          { key: 'Draft', label: 'Draft' },
-                          { key: 'Pending_Editor', label: 'Editor' },
-                          { key: 'Pending_EB', label: 'EB Review' },
-                          { key: 'Active', label: 'Active' },
-                        ].map((step, idx, arr) => {
-                          const statuses = ['Draft', 'Pending_Editor', 'Pending_EB', 'Active']
-                          const currentIdx = statuses.indexOf(selectedSeries.status || 'Draft')
-                          const stepIdx = statuses.indexOf(step.key)
-                          const isCompleted = stepIdx < currentIdx
-                          const isCurrent = stepIdx === currentIdx
-                          return (
-                            <div key={step.key} className="flex items-center gap-1">
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 font-bold ${
-                                isCompleted ? 'bg-emerald-100 text-emerald-700' :
-                                isCurrent ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300' :
-                                'bg-neutral-100 text-neutral-400'
-                              }`}>
-                                {isCompleted ? <CheckCircle2 className="size-2.5" /> : isCurrent ? <Clock className="size-2.5 animate-pulse" /> : null}
-                                {step.label}
-                              </span>
-                              {idx < arr.length - 1 && <ArrowRight className="size-3 text-neutral-300" />}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    
-                    {/* Collaboration Handshake Status badge */}
-                    <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-3 space-y-2">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                        {t('seriesManager.tantouEditorCollaboration', 'Tantou Collaboration')}
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        {selectedSeries.editorId ? (
-                          (() => {
-                            const editorName = typeof selectedSeries.editorId === 'object'
-                              ? selectedSeries.editorId.displayName
-                              : selectedSeries.editorId
-                            
-                            if (selectedSeries.editorStatus === 'accepted') {
-                              return (
-                                <>
-                                  <span className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                                    {t('seriesManager.statusAccepted', 'Accepted')}
-                                  </span>
-                                  <span className="text-xs text-neutral-600 font-medium truncate max-w-[150px]">
-                                    {editorName}
-                                  </span>
-                                </>
-                              )
-                            } else if (selectedSeries.editorStatus === 'pending') {
-                              return (
-                                <>
-                                  <span className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                                    {t('seriesManager.statusPendingInvite', 'Pending Handshake')}
-                                  </span>
-                                  <span className="text-xs text-neutral-600 font-medium truncate max-w-[150px]">
-                                    {editorName}
-                                  </span>
-                                </>
-                              )
-                            } else if (selectedSeries.editorStatus === 'rejected') {
-                              return (
-                                <>
-                                  <span className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-red-500" />
-                                    {t('seriesManager.statusRejectedInvite', 'Declined')}
-                                  </span>
-                                  <span className="text-xs text-neutral-600 font-medium truncate max-w-[150px]">
-                                    {editorName}
-                                  </span>
-                                </>
-                              )
-                            } else {
-                              return (
-                                <span className="text-xs text-neutral-500 italic">
-                                  {t('seriesManager.noDesignatedEditor', 'No editor designated')}
-                                </span>
-                              )
-                            }
-                          })()
-                        ) : (
-                          <span className="text-xs text-neutral-500 italic">
-                            {t('seriesManager.noDesignatedEditor', 'No editor designated')}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {(!selectedSeries.editorId || selectedSeries.editorStatus === 'none' || selectedSeries.editorStatus === 'rejected') && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full text-[11px] h-8 rounded-lg font-semibold"
-                          onClick={() => {
-                            setModalMode('invite')
-                            setSubmitSeriesId(selectedSeries._id)
-                            setShowSubmitModal(true)
-                          }}
-                        >
-                          {t('seriesManager.inviteEditor', 'Invite Tantou Editor')}
-                        </Button>
-                      )}
-                    </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.totalPages}>{ui.totalPages}</div>
-                        <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.totalPages || 0), 0)}</div>
-                      </div>
-                      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.avgProgress}>{ui.avgProgress}</div>
-                        <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.length ? Math.round(selectedChapters.reduce((sum, chapter) => sum + (chapter.progress || 0), 0) / selectedChapters.length) : 0}%</div>
-                      </div>
-                      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center min-w-0">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 leading-tight truncate" title={ui.totalCollaborators}>{ui.totalCollaborators}</div>
-                        <div className="mt-1.5 text-base font-bold text-neutral-950">{selectedChapters.reduce((sum, chapter) => sum + (chapter.collaborators?.length || 0), 0)}</div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-col gap-2">
-                      <Button variant="outline" className="w-full" disabled={!selectedSeries || ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')} onClick={openEditSeries}>
-                        <Pencil className="mr-2 size-4" /> {ui.editCover}
-                      </Button>
-                      
-                      {selectedSeries.rejectionNotes && (
-                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-                          <div className="flex items-start gap-2">
-                            <span className="mt-0.5 inline-block size-2 shrink-0 rounded-full bg-red-500" />
-                            <div>
-                              <span className="font-semibold">{t('seriesManager.rejectionFeedback', 'Feedback:')} </span>
-                              {selectedSeries.rejectionNotes}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {['Draft', 'Rejected', ''].includes(selectedSeries.status || '') && (
-                        <div className="mt-2">
-                          <Button
-                            className="w-full bg-neutral-950 text-white hover:bg-neutral-900 border-none shadow-xs text-xs font-semibold rounded-xl h-10"
-                            onClick={() => {
-                              setModalMode('submit')
-                              const eId = selectedSeries.editorId && typeof selectedSeries.editorId === 'object'
-                                ? (selectedSeries.editorId as { _id: string })._id
-                                : selectedSeries.editorId || '';
-                              if (eId) {
-                                setSelectedEditorId(eId);
-                              }
-                              setSubmitSeriesId(selectedSeries._id)
-                              setShowSubmitModal(true)
-                            }}
-                          >
-                            {t('seriesManager.submitForApproval', 'Submit to Tantou Editor')}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-neutral-950">{ui.chapterListTitle}</h3>
-                      <p className="text-xs text-neutral-500">{ui.chapterListHint}</p>
-                    </div>
-                    <Button
-                      disabled={!selectedSeriesId || selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'}
-                      onClick={() => {
-                        const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c) => c.chapterNumber || 0)) + 1 : 1
-                        setChapterNumber(String(nextNum))
-                        setChapterTitle(`Chapter ${nextNum}`)
-                        setShowChapterForm(true)
-                      }}
-                    >
-                      <Plus className="mr-2 size-4" /> {ui.newChapter}
-                    </Button>
-                  </div>
-
-                  {['Pending_Editor', 'Pending_EB'].includes(selectedSeries?.status || '') && (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 leading-relaxed">
-                      {t('seriesManager.lockedWarning', 'This series is currently in the review queue. Structure updates and chapter modifications are locked.')}
-                    </div>
-                  )}
-
-                  {showChapterForm && (
-                    <div className="mt-4 grid gap-3 rounded-2xl border border-neutral-200 p-4 sm:grid-cols-2">
-                      <Input value={chapterNumber} disabled placeholder={ui.chapterNumber} className="bg-neutral-100 cursor-not-allowed" />
-                      <Input value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} placeholder={ui.chapterTitle} />
-                      <div className="sm:col-span-2 flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowChapterForm(false)}>{ui.cancel}</Button>
-                        <Button onClick={handleCreateChapter} disabled={saving}>{ui.create}</Button>
-                      </div>
-                    </div>
-                  )}
-
-                   {showEditSeriesForm && (
-                    <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-sm font-semibold text-neutral-950">{ui.editSeriesTitle}</div>
-                      <Input value={seriesTitle} onChange={(e) => setSeriesTitle(e.target.value)} placeholder={ui.seriesTitle} />
-                      <textarea value={seriesDescription} onChange={(e) => setSeriesDescription(e.target.value)} placeholder={ui.seriesDescription} className="min-h-24 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none" />
-                      <Input value={seriesGenre} onChange={(e) => setSeriesGenre(e.target.value)} placeholder={ui.seriesGenres} />
-                      
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] block">
-                          {t('seriesManager.earlyDesignateEditor', 'Designated Tantou Editor (Optional)')}
-                        </label>
-                        <select
-                          className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:bg-white focus:outline-none transition-all font-medium text-neutral-950 shadow-xs"
-                          value={designatedEditorId}
-                          onChange={(e) => setDesignatedEditorId(e.target.value)}
-                        >
-                          <option value="">{t('seriesManager.noEditor', 'None - Designate Later')}</option>
-                          {editorsList.map((e) => (
-                            <option key={e._id} value={e._id}>
-                              {e.displayName || e.username} ({e.email})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <Input value={seriesCoverUrlInput} onChange={(e) => setSeriesCoverUrlInput(e.target.value)} placeholder={ui.seriesCoverUrl} />
-                      <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-neutral-300 px-3 py-3 text-sm text-neutral-600 hover:bg-white">
-                        <Upload className="size-4" />
-                        <span>{seriesCoverFile ? seriesCoverFile.name : ui.uploadCover}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleCoverFileChange(e.target.files?.[0])} />
-                      </label>
-                      {seriesCoverPreview && <img src={seriesCoverPreview} alt="Series cover preview" className="h-40 w-full rounded-xl object-cover" />}
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowEditSeriesForm(false)}>{ui.cancel}</Button>
-                        <Button onClick={handleUpdateSeries} disabled={saving}>{ui.save}</Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {showEditChapterForm && (
-                    <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-sm font-semibold text-neutral-950">{ui.edit} {ui.chapterListTitle}</div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Input value={chapterNumber} disabled placeholder={ui.chapterNumber} className="bg-neutral-100 cursor-not-allowed" />
-                        <Input value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} placeholder={ui.chapterTitle} />
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowEditChapterForm(false)}>{ui.cancel}</Button>
-                        <Button onClick={handleUpdateChapter} disabled={saving}>{ui.save}</Button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-4 space-y-3">
-                    {selectedChapters.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 p-6 text-center text-sm text-neutral-500">
-                        {ui.noChapters}
-                      </div>
-                    ) : (
-                      selectedChapters.map((chapter) => (
-                        <div key={chapter._id} className="group rounded-2xl border border-neutral-200 bg-white p-4 transition-all hover:border-neutral-400 hover:shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-400">Ch. {chapter.chapterNumber}</p>
-                              <h4 className="mt-1 text-sm font-medium text-neutral-950">{chapter.title}</h4>
-                            </div>
-                            <Badge variant="secondary">{chapter.status}</Badge>
-                          </div>
-                          <div className="mt-3 grid gap-2 text-xs text-neutral-500 sm:grid-cols-3">
-                            <div>{ui.pages}: {chapter.totalPages || 0}</div>
-                            <div>{ui.progress}: {chapter.progress || 0}%</div>
-                            <div>{ui.collaborators}: {chapter.collaborators?.length || 0}</div>
-                          </div>
-                          <div className="mt-4 flex items-center justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                            {chapter.status === 'Draft' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
-                                disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB' || saving}
-                                onClick={() => handleSubmitChapterForReview(chapter._id)}
-                              >
-                                <Send className="mr-2 size-4" /> {t('seriesManager.submitReview', 'Submit for Review')}
-                              </Button>
-                            )}
-                            <Button variant="outline" size="sm" disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => openEditChapter(chapter)}>
-                              <Pencil className="mr-2 size-4" /> {ui.edit}
-                            </Button>
-                            <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50" disabled={selectedSeries?.status === 'Pending_Editor' || selectedSeries?.status === 'Pending_EB'} onClick={() => handleDeleteChapter(chapter._id)}>
-                              <Trash2 className="mr-2 size-4" /> {ui.delete}
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </Card>
+          {/* Series details */}
+          <SeriesDetailPanel
+            selectedSeries={selectedSeries}
+            selectedChapters={selectedChapters}
+            saving={saving}
+            onEditSeries={handleOpenEditSeries}
+            onDeleteSeries={handleDeleteSeries}
+            onInviteEditorClick={handleOpenInviteModal}
+            onSubmitForApprovalClick={handleOpenSubmitModal}
+            onNewChapterClick={handleOpenNewChapter}
+            onSubmitChapterReview={handleSubmitChapterForReview}
+            onEditChapter={handleOpenEditChapter}
+            onDeleteChapter={handleDeleteChapter}
+          />
         </div>
       )}
 
-      {tab === 'chapters' && (
-        <Card className="p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">{ui.chapterListTitle}</h2>
-              <p className="text-xs text-neutral-500">{ui.chapterListHint}</p>
-            </div>
-            <Badge variant="secondary">{t('seriesManager.chaptersCount', '{{count}} items', { count: selectedChapters.length })}</Badge>
-          </div>
-          <div className="space-y-3">
-            {selectedChapters.map((chapter) => (
-              <div key={chapter._id} className="rounded-2xl border border-neutral-200 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-neutral-400">Ch. {chapter.chapterNumber}</p>
-                    <h3 className="text-sm font-medium">{chapter.title}</h3>
-                  </div>
-                  <Badge variant="secondary">{chapter.status}</Badge>
-                </div>
-              </div>
-            ))}
-            {selectedChapters.length === 0 && <div className="rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-500">{ui.noData}</div>}
-          </div>
-        </Card>
-      )}
-
-      {/* ── Assistants Tab (only when series is Active) ────── */}
       {tab === 'assistants' && selectedSeries?.status === 'Active' && (
-        <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-          {/* Dedicated Assistants List */}
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold flex items-center gap-2">
-                  <Users className="size-4 text-blue-600" />
-                  {t('seriesManager.dedicatedAssistants', 'Dedicated Assistants')}
-                </h2>
-                <p className="text-xs text-neutral-500 mt-1">
-                  {t('seriesManager.dedicatedDesc', 'Assistants permanently tied to this series. They can see all dedicated tasks.')}
-                </p>
-              </div>
-              <Badge variant="secondary">{dedicatedAssistants.length}</Badge>
-            </div>
-
-            {loadingAssistants ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="size-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
-              </div>
-            ) : dedicatedAssistants.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 p-6 text-center">
-                <div className="grid size-10 place-items-center rounded-2xl bg-neutral-100 mx-auto mb-3">
-                  <Users className="size-4 text-neutral-400" />
-                </div>
-                <p className="text-xs text-neutral-500">{t('seriesManager.noDedicated', 'No dedicated assistants yet. Search and add below.')}</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {dedicatedAssistants.map((da) => {
-                  const assistantUser = da.userId && typeof da.userId === 'object' ? da.userId : null
-                  const userId = assistantUser?._id || (typeof da.userId === 'string' ? da.userId : '')
-                  return (
-                    <div key={userId} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3 hover:border-neutral-300 transition-all">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600 font-bold text-xs">
-                          {assistantUser?.displayName?.[0] || '?'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{assistantUser?.displayName || userId}</p>
-                          <p className="text-[10px] text-neutral-400">{assistantUser?.email}</p>
-                          {assistantUser?.skills && assistantUser.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {assistantUser.skills.slice(0, 3).map((skill: string) => (
-                                <span key={skill} className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[8px] font-semibold text-blue-600">{skill}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="size-7 p-0 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 shrink-0"
-                        onClick={() => handleRemoveDedicatedAssistant(userId)}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </Card>
-
-          {/* Add Assistants + Info */}
-          <Card className="p-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <UserPlus className="size-4 text-emerald-600" />
-                {t('seriesManager.addAssistant', 'Add Dedicated Assistant')}
-              </h3>
-              <p className="text-xs text-neutral-500 mt-1">
-                {t('seriesManager.addAssistantDesc', 'Search for an assistant by name or email to add them permanently to this series.')}
-              </p>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-neutral-400" />
-              <Input
-                value={assistantSearchQuery}
-                onChange={(e) => handleSearchAssistants(e.target.value)}
-                placeholder={t('seriesManager.searchAssistant', 'Search assistants by name...')}
-                className="pl-9"
-              />
-            </div>
-
-            {/* Search Results */}
-            {assistantSearchResults.length > 0 && (
-              <div className="space-y-2 mb-6">
-                {assistantSearchResults.map((u: UserData) => {
-                  const isAlready = dedicatedAssistants.some(da => {
-                    const aId = typeof da.userId === 'object' && da.userId ? da.userId._id : da.userId
-                    return aId === u._id
-                  })
-                  return (
-                    <div key={u._id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600 font-bold text-xs">
-                          {u.displayName?.[0] || '?'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{u.displayName}</p>
-                          <p className="text-[10px] text-neutral-400">{u.email}</p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="rounded-lg text-xs h-8 px-3"
-                        disabled={isAlready || addingAssistant}
-                        onClick={() => handleAddDedicatedAssistant(u._id)}
-                      >
-                        {isAlready ? t('seriesManager.alreadyAdded', 'Added') : (
-                          <><UserPlus className="size-3 mr-1.5" /> {t('common.add', 'Add')}</>
-                        )}
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Info Box */}
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
-              <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider">{t('seriesManager.assistantTypes', 'Types of Assistants')}</h4>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-blue-200 bg-white p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="inline-flex size-6 items-center justify-center rounded-lg bg-blue-100">
-                      <Users className="size-3 text-blue-600" />
-                    </span>
-                    <span className="text-xs font-bold text-blue-900">{t('seriesManager.dedicatedType', 'Dedicated')}</span>
-                  </div>
-                  <p className="text-[10px] text-blue-700 leading-normal">
-                    {t('seriesManager.dedicatedTypeDesc', 'Permanently assigned to your series. They see all dedicated tasks and can work across chapters.')}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-emerald-200 bg-white p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="inline-flex size-6 items-center justify-center rounded-lg bg-emerald-100">
-                      <Search className="size-3 text-emerald-600" />
-                    </span>
-                    <span className="text-xs font-bold text-emerald-900">{t('seriesManager.freelanceType', 'Freelance')}</span>
-                  </div>
-                  <p className="text-[10px] text-emerald-700 leading-normal">
-                    {t('seriesManager.freelanceTypeDesc', 'Pick up individual tasks from the marketplace. Any assistant can accept open freelance tasks.')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <AssistantsPanel
+          selectedSeriesId={selectedSeriesId}
+          selectedSeries={selectedSeries}
+          dedicatedAssistants={dedicatedAssistants}
+          assistantSearchQuery={assistantSearchQuery}
+          assistantSearchResults={assistantSearchResults}
+          addingAssistant={addingAssistant}
+          loadingAssistants={loadingAssistants}
+          onSearchAssistants={handleSearchAssistants}
+          onAddAssistant={handleAddDedicatedAssistant}
+          onRemoveAssistant={handleRemoveDedicatedAssistant}
+        />
       )}
 
+      {/* Drawer: Create/Edit Series */}
+      <SeriesFormDrawer
+        isOpen={isSeriesDrawerOpen}
+        onClose={() => setIsSeriesDrawerOpen(false)}
+        onSave={handleSaveSeries}
+        editorsList={editorsList}
+        initialSeries={editingSeries}
+        saving={saving}
+      />
 
-      {/* ── Submit to Editor Approval Modal ────────────────────── */}
-      {showSubmitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-neutral-950">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">
-                {modalMode === 'invite'
-                  ? t('seriesManager.inviteEditorTitle', 'Invite Tantou Editor')
-                  : t('seriesManager.submitForReview', 'Submit for Editor Review')}
-              </h3>
-              <p className="text-xs text-neutral-500 mt-1">
-                {modalMode === 'invite'
-                  ? t('seriesManager.inviteDesc', 'Invite a designated Tantou Editor to collaborate. They will have access to view and comment on your draft in real-time before you formally submit.')
-                  : t('seriesManager.submitDesc', 'Submit your manuscript draft to your Tantou Editor for formal review. During active review, editing will be locked.')}
-              </p>
-            </div>
+      {/* Drawer: Create/Edit Chapter */}
+      <ChapterFormDrawer
+        isOpen={isChapterDrawerOpen}
+        onClose={() => setIsChapterDrawerOpen(false)}
+        onSave={handleSaveChapter}
+        saving={saving}
+        initialChapter={editingChapter}
+        nextChapterNumber={nextChapterNumber}
+      />
 
-            {selectedSeries?.editorId && selectedSeries?.editorStatus === 'accepted' ? (
-              <div className="rounded-xl bg-neutral-50 p-3 border border-neutral-200 text-xs text-neutral-800 space-y-2">
-                <p className="font-semibold text-neutral-600">
-                  {t('seriesManager.submitToAssigned', 'Submit directly to your pre-assigned Tantou Editor:')}
-                </p>
-                <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-lg border border-neutral-100 shadow-2xs">
-                  <Avatar className="size-8 bg-neutral-200">
-                    <AvatarFallback className="text-[10px] font-bold">
-                      {(typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as EditorUserData).displayName : '')?.[0] || 'E'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-neutral-800 truncate">
-                      {typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as EditorUserData).displayName : 'Tantou Editor'}
-                    </p>
-                    <p className="text-[10px] text-neutral-400 truncate">
-                      {typeof selectedSeries.editorId === 'object' ? (selectedSeries.editorId as EditorUserData).email : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 block">
-                  {t('seriesManager.chooseEditor', 'Select designated Tantou Editor:')}
-                </label>
-                {editorsList.length === 0 ? (
-                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
-                    {t('seriesManager.noEditorsFound', 'No editors available to review at this time.')}
-                  </div>
-                ) : (
-                  <select
-                    className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-neutral-50 focus:bg-white focus:outline-none transition-all font-semibold shadow-xs"
-                    value={selectedEditorId}
-                    onChange={(e) => setSelectedEditorId(e.target.value)}
-                  >
-                    {editorsList.map((e) => (
-                      <option key={e._id} value={e._id}>
-                        {e.displayName || e.username} ({e.email})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl px-4 text-xs font-semibold border-neutral-200"
-                onClick={() => setShowSubmitModal(false)}
-                disabled={saving}
-              >
-                {ui.cancel}
-              </Button>
-              <Button
-                size="sm"
-                className="rounded-xl px-4 text-xs font-semibold bg-neutral-950 text-white hover:bg-neutral-900"
-                onClick={handleSubmitForApproval}
-                disabled={!selectedEditorId || saving || (modalMode === 'invite' && editorsList.length === 0)}
-              >
-                {saving ? ui.loading : modalMode === 'invite' ? t('seriesManager.sendInvitation', 'Send Invitation') : t('seriesManager.submitConfirm', 'Submit Draft')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal: Tantou Editor submit/invite */}
+      <EditorSubmitModal
+        isOpen={showSubmitModal}
+        onClose={() => setShowSubmitModal(false)}
+        onSubmit={handleSubmitToEditor}
+        editorsList={editorsList}
+        selectedSeries={selectedSeries}
+        modalMode={modalMode}
+        saving={saving}
+      />
     </div>
   )
 }

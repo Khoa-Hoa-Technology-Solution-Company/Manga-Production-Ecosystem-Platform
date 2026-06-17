@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowUpDown,
@@ -119,7 +119,21 @@ export function ReaderHubPage() {
     }
   }
 
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeCategory = searchParams.get('category') || 'All'
+  const setActiveCategory = (category: string) => {
+    setSearchParams(
+      (prev) => {
+        if (category && category !== 'All') {
+          prev.set('category', category)
+        } else {
+          prev.delete('category')
+        }
+        return prev
+      },
+      { replace: true }
+    )
+  }
   const [searchQuery, setSearchQuery] = useState('')
   const [seriesList, setSeriesList] = useState<SeriesData[]>([])
   const [newReleases, setNewReleases] = useState<ReleaseData[]>([])
