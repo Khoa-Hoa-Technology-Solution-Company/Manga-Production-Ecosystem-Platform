@@ -70,6 +70,7 @@ type TaskData = {
   reviewNotes?: string
   assignmentLevel?: 'chapter' | 'page'
   pageId?: any
+  submittedFile?: string
 }
 
 /* ── Canvas annotation parser ────────────────────────── */
@@ -128,7 +129,7 @@ const tools = [
 function StudioWorkspacePageContent() {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
   const [activeTool, setActiveTool] = useState('select')
@@ -137,11 +138,64 @@ function StudioWorkspacePageContent() {
 
   // ── Data state ────────────────────────────────────
   const [seriesList, setSeriesList] = useState<any[]>([])
-  const [selectedSeriesId, setSelectedSeriesId] = useState('')
   const [chapters, setChapters] = useState<any[]>([])
-  const [selectedChapterId, setSelectedChapterId] = useState('')
   const [pages, setPages] = useState<PageData[]>([])
+
+  const paramSeriesId = searchParams.get('seriesId')
+  const paramChapterId = searchParams.get('chapterId')
+  const paramPageId = searchParams.get('pageId')
+
+  const [selectedSeriesId, setSelectedSeriesId] = useState(paramSeriesId || '')
+  const [selectedChapterId, setSelectedChapterId] = useState(paramChapterId || '')
   const [currentPageIdx, setCurrentPageIdx] = useState(0)
+  const [bgLoaded, setBgLoaded] = useState(false)
+
+  const [layersConfig, setLayersConfig] = useState<Record<string, { visible: boolean; opacity: number }>>({})
+
+  const handleSelectSeries = (id: string) => {
+    setSelectedSeriesId(id)
+    setSelectedChapterId('')
+    setPages([])
+    setCurrentPageIdx(0)
+    setSearchParams(
+      (prev) => {
+        if (id) prev.set('seriesId', id)
+        else prev.delete('seriesId')
+        prev.delete('chapterId')
+        prev.delete('pageId')
+        return prev
+      },
+      { replace: true }
+    )
+  }
+
+  const handleSelectChapter = (id: string) => {
+    setSelectedChapterId(id)
+    setPages([])
+    setCurrentPageIdx(0)
+    setSearchParams(
+      (prev) => {
+        if (id) prev.set('chapterId', id)
+        else prev.delete('chapterId')
+        prev.delete('pageId')
+        return prev
+      },
+      { replace: true }
+    )
+  }
+
+  const handleSelectPageIdx = (idx: number, pagesList = pages) => {
+    setCurrentPageIdx(idx)
+    const pageId = pagesList[idx]?._id
+    setSearchParams(
+      (prev) => {
+        if (pageId) prev.set('pageId', pageId)
+        else prev.delete('pageId')
+        return prev
+      },
+      { replace: true }
+    )
+  }
   const [zones, setZones] = useState<ZoneData[]>([])
   const [pageTasks, setPageTasks] = useState<TaskData[]>([])
   const [pageAnnotations, setPageAnnotations] = useState<any[]>([])
@@ -206,6 +260,7 @@ function StudioWorkspacePageContent() {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
   const bgImageRef = useRef<FabricImage | null>(null)
+  const layerImagesRef = useRef<Record<string, FabricImage>>({})
   const isPanning = useRef(false)
   const lastPanPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const isApplyingRemoteChange = useRef(false)
@@ -435,10 +490,14 @@ function StudioWorkspacePageContent() {
 
       const activeSeriesId = targetSeriesId || selectedSeriesId
       if (activeSeriesId) {
-        setSelectedSeriesId(activeSeriesId)
-        const chaptersRes = await chaptersAPI.getBySeries(activeSeriesId)
-        const nextChapters = chaptersRes.data.chapters || []
-        setChapters(nextChapters)
+        if (targetSeriesId) {
+          handleSelectSeries(targetSeriesId)
+        } else {
+          setSelectedSeriesId(activeSeriesId)
+          const chaptersRes = await chaptersAPI.getBySeries(activeSeriesId)
+          const nextChapters = chaptersRes.data.chapters || []
+          setChapters(nextChapters)
+        }
       }
     } catch (err) {
       console.error('Failed to refresh series and chapters:', err)
@@ -448,10 +507,6 @@ function StudioWorkspacePageContent() {
   // ═══════════════════════════════════════════════════
   // DATA LOADING
   // ═══════════════════════════════════════════════════
-
-  const paramSeriesId = searchParams.get('seriesId')
-  const paramChapterId = searchParams.get('chapterId')
-  const paramPageId = searchParams.get('pageId')
 
   // Load series list, select appropriate series based on paramSeriesId or fallback
   useEffect(() => {
@@ -464,9 +519,19 @@ function StudioWorkspacePageContent() {
           ? paramSeriesId
           : list[0]._id
         setSelectedSeriesId(nextSeriesId)
+
+        if (searchParams.get('seriesId') !== nextSeriesId) {
+          setSearchParams(
+            (prev) => {
+              prev.set('seriesId', nextSeriesId)
+              return prev
+            },
+            { replace: true }
+          )
+        }
       }
     }).catch(() => { })
-  }, [paramSeriesId])
+  }, []) // Fetch once on mount
 
   // Load chapters when selectedSeriesId changes, respecting paramChapterId
   useEffect(() => {
@@ -480,11 +545,31 @@ function StudioWorkspacePageContent() {
           ? paramChapterId
           : nextChapters[0]._id
         setSelectedChapterId(nextChapterId)
+
+        if (searchParams.get('chapterId') !== nextChapterId) {
+          setSearchParams(
+            (prev) => {
+              prev.set('chapterId', nextChapterId)
+              return prev
+            },
+            { replace: true }
+          )
+        }
       } else {
         setSelectedChapterId('')
+        if (searchParams.get('chapterId')) {
+          setSearchParams(
+            (prev) => {
+              prev.delete('chapterId')
+              prev.delete('pageId')
+              return prev
+            },
+            { replace: true }
+          )
+        }
       }
     }).catch(() => { })
-  }, [selectedSeriesId, paramChapterId])
+  }, [selectedSeriesId]) // Fetch chapters when selectedSeriesId changes
 
   useEffect(() => {
     const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c: any) => c.chapterNumber || 0)) + 1 : 1
@@ -496,21 +581,46 @@ function StudioWorkspacePageContent() {
 
   // Load pages when selectedChapterId changes, respecting paramPageId
   useEffect(() => {
-    if (!selectedChapterId) return
+    if (!selectedChapterId) {
+      setPages([])
+      setCurrentPageIdx(0)
+      return
+    }
     pagesAPI.getByChapter(selectedChapterId).then(res => {
       const nextPages = res.data.pages || []
       setPages(nextPages)
 
       if (nextPages.length > 0) {
-        const nextPageIdx = paramPageId
-          ? nextPages.findIndex((p: any) => p._id === paramPageId)
-          : 0
-        setCurrentPageIdx(nextPageIdx !== -1 ? nextPageIdx : 0)
+        const nextPageId = paramPageId && nextPages.some((p: any) => p._id === paramPageId)
+          ? paramPageId
+          : nextPages[0]._id
+        const nextPageIdx = nextPages.findIndex((p: any) => p._id === nextPageId)
+        const finalIdx = nextPageIdx !== -1 ? nextPageIdx : 0
+        setCurrentPageIdx(finalIdx)
+
+        if (searchParams.get('pageId') !== nextPageId) {
+          setSearchParams(
+            (prev) => {
+              prev.set('pageId', nextPageId)
+              return prev
+            },
+            { replace: true }
+          )
+        }
       } else {
         setCurrentPageIdx(0)
+        if (searchParams.get('pageId')) {
+          setSearchParams(
+            (prev) => {
+              prev.delete('pageId')
+              return prev
+            },
+            { replace: true }
+          )
+        }
       }
     }).catch(() => { })
-  }, [selectedChapterId, paramPageId])
+  }, [selectedChapterId]) // Fetch pages when selectedChapterId changes
 
   const emitCanvasSync = useCallback((kind: 'object:added' | 'object:removed' | 'object:modified' | 'canvas:snapshot', payload: any) => {
     if (!chapterRoom) return
@@ -625,7 +735,12 @@ function StudioWorkspacePageContent() {
 
   // Initialize Fabric canvas
   useEffect(() => {
-    if (!currentPage || !canvasElRef.current || fabricRef.current) return
+    if (!currentPage || !canvasElRef.current) return
+    if (fabricRef.current) {
+      console.log('Canvas Init: fabricRef.current already exists, skipping')
+      return
+    }
+    console.log('Canvas Init: creating new FabricCanvas for page:', currentPage?._id)
     const fc = new FabricCanvas(canvasElRef.current, {
       selection: true,
       preserveObjectStacking: true,
@@ -635,8 +750,11 @@ function StudioWorkspacePageContent() {
     resizeCanvas()
 
     return () => {
+      console.log('Canvas Init: disposing FabricCanvas for page:', currentPage?._id)
       fc.dispose()
       fabricRef.current = null
+      bgImageRef.current = null // Clear background image ref
+      layerImagesRef.current = {} // Clear cached layers when canvas is disposed
     }
   }, [currentPage, resizeCanvas])
 
@@ -648,15 +766,26 @@ function StudioWorkspacePageContent() {
   // Load background image when page changes
   useEffect(() => {
     const fc = fabricRef.current
+    console.log('Bg Image Effect: running', { fcExists: !!fc, currentPageId: currentPage?._id })
     if (!fc || !currentPage) return
+
+    setBgLoaded(false) // Reset background load state on change
 
     const imgUrl = currentPage.originalImage.startsWith('http')
       ? currentPage.originalImage
       : `${apiBase}${currentPage.originalImage}`
 
+    console.log('Bg Image Effect: loading image from URL:', imgUrl)
+
     FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' }).then((img) => {
+      console.log('Bg Image Effect: image loaded successfully from URL')
+      if (fc !== fabricRef.current) {
+        console.log('Bg Image Effect: canvas was disposed while loading, ignoring')
+        return
+      }
       // Remove old background
       if (bgImageRef.current) {
+        console.log('Bg Image Effect: removing old background image object')
         fc.remove(bgImageRef.current)
       }
 
@@ -681,6 +810,7 @@ function StudioWorkspacePageContent() {
 
       bgImageRef.current = img
       fc.insertAt(0, img)
+      console.log('Bg Image Effect: inserted background image at index 0')
 
       // Reset viewport and history
       fc.setViewportTransform([1, 0, 0, 1, 0, 0])
@@ -688,9 +818,11 @@ function StudioWorkspacePageContent() {
       historyStack.current = []
       redoStack.current = []
       currentManualState.current = '[]'
+      setBgLoaded(true) // Mark as loaded
       fc.requestRenderAll()
     }).catch((err) => {
-      console.error('Failed to load image:', err)
+      console.error('Bg Image Effect: failed to load image:', err)
+      setBgLoaded(false)
     })
   }, [currentPage?._id, currentPage?.originalImage, apiBase])
 
@@ -999,6 +1131,134 @@ function StudioWorkspacePageContent() {
 
     fc.requestRenderAll()
   }, [pageAnnotations, showFeedbackPins, annotationVisibility, wasRejected, currentPage?._id, activeTool, rightTab, selectedAnnotationId])
+
+  // Render assistant layer overlays on the canvas
+  useEffect(() => {
+    const fc = fabricRef.current
+    if (!fc) {
+      console.log('Layers Effect: canvas not ready')
+      return
+    }
+
+    const bg = bgImageRef.current
+    if (!bgLoaded || !bg) {
+      console.log('Layers Effect: background image not loaded yet')
+      return // Wait until background image is loaded and scaled
+    }
+
+    // 1. Find all tasks with submitted files for this page
+    const layerTasks = pageTasks.filter(
+      (t) =>
+        t.submittedFile &&
+        (t.status === 'review' || t.status === 'done') &&
+        (t.assignmentLevel === 'chapter' ||
+          t.pageId?._id === currentPage?._id ||
+          t.pageId === currentPage?._id)
+    )
+
+    console.log('Layers Effect: active layer tasks:', layerTasks.length, layerTasks)
+
+    // 2. Remove any layer images on the canvas that are no longer in layerTasks
+    const activeTaskIds = new Set(layerTasks.map((t) => t._id))
+    Object.keys(layerImagesRef.current).forEach((taskId) => {
+      if (!activeTaskIds.has(taskId)) {
+        console.log('Layers Effect: removing obsolete layer object for task:', taskId)
+        fc.remove(layerImagesRef.current[taskId])
+        delete layerImagesRef.current[taskId]
+      }
+    })
+
+    // Get position and scaling of the background image
+    const bgLeft = bg.left || 0
+    const bgTop = bg.top || 0
+    const bgScaleX = bg.scaleX || 1
+    const bgScaleY = bg.scaleY || 1
+
+    console.log('Layers Effect: background dimensions:', { bgLeft, bgTop, bgScaleX, bgScaleY })
+    console.log('Layers Effect: canvas objects:', fc.getObjects().map((o: any) => ({
+      type: o.type,
+      left: o.left,
+      top: o.top,
+      scaleX: o.scaleX,
+      scaleY: o.scaleY,
+      width: o.width,
+      height: o.height,
+      visible: o.visible,
+      opacity: o.opacity,
+      layerTaskId: o._layerTaskId
+    })))
+
+    // 3. For each active task with a submitted file, load or update its FabricImage
+    layerTasks.forEach((task) => {
+      const taskId = task._id
+      const config = layersConfig[taskId] || { visible: true, opacity: 100 }
+      const isVisible = config.visible !== false
+      const opacity = (config.opacity ?? 100) / 100
+
+      console.log(`Layers Effect: processing task ${taskId} (${task.title}):`, { isVisible, opacity })
+
+      const existingImg = layerImagesRef.current[taskId]
+      if (existingImg) {
+        console.log(`Layers Effect: updating existing layer for task ${taskId}:`, { isVisible, opacity })
+        // Just update properties
+        existingImg.set({
+          left: bgLeft,
+          top: bgTop,
+          scaleX: bgScaleX,
+          scaleY: bgScaleY,
+          opacity: opacity,
+          visible: isVisible,
+        })
+        existingImg.dirty = true
+        fc.requestRenderAll()
+      } else {
+        // Load new image
+        const imgUrl = task.submittedFile!.startsWith('http')
+          ? task.submittedFile!
+          : `${apiBase}${task.submittedFile}`
+
+        console.log(`Layers Effect: loading new layer image from URL for task ${taskId}:`, imgUrl)
+
+        FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' })
+          .then((img) => {
+            console.log(`Layers Effect: successfully loaded layer image for task ${taskId}`)
+            // Check if this task is still active and hasn't been removed while loading
+            if (fc !== fabricRef.current) {
+              console.log('Layers Effect: canvas was disposed while loading layer, ignoring')
+              return
+            }
+            
+            img.set({
+              originX: 'left',
+              originY: 'top',
+              left: bgLeft,
+              top: bgTop,
+              scaleX: bgScaleX,
+              scaleY: bgScaleY,
+              opacity: opacity,
+              visible: isVisible,
+              selectable: false,
+              evented: false,
+              hoverCursor: 'default',
+            })
+            // Tag object so we can recognize it
+            ;(img as any)._layerTaskId = taskId
+
+            layerImagesRef.current[taskId] = img
+            
+            // Insert it on top of the background image (index 1 + any other layer)
+            const bgIdx = fc.getObjects().indexOf(bg)
+            const insertIdx = bgIdx !== -1 ? bgIdx + 1 : 1
+            console.log(`Layers Effect: inserting layer for task ${taskId} at index ${insertIdx}`)
+            fc.insertAt(insertIdx, img)
+            fc.requestRenderAll()
+          })
+          .catch((err) => {
+            console.error(`Layers Effect: failed to load layer image for task ${taskId}:`, err)
+          })
+      }
+    })
+  }, [pageTasks, layersConfig, currentPage?._id, apiBase, bgLoaded])
 
   // ── Tool mode handling ────────────────────────────
   useEffect(() => {
@@ -1629,8 +1889,9 @@ function StudioWorkspacePageContent() {
     try {
       await pagesAPI.upload(selectedChapterId, formData)
       const res = await pagesAPI.getByChapter(selectedChapterId)
-      setPages(res.data.pages || [])
-      setCurrentPageIdx(res.data.pages.length - 1)
+      const updatedPages = res.data.pages || []
+      setPages(updatedPages)
+      handleSelectPageIdx(updatedPages.length - 1, updatedPages)
     } catch { }
   }
 
@@ -1642,7 +1903,7 @@ function StudioWorkspacePageContent() {
       const newPages = res.data.pages || []
       setPages(newPages)
       if (currentPageIdx >= newPages.length) {
-        setCurrentPageIdx(Math.max(0, newPages.length - 1))
+        handleSelectPageIdx(Math.max(0, newPages.length - 1), newPages)
       }
       if (selectedChapterId) {
         const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
@@ -1888,14 +2149,16 @@ function StudioWorkspacePageContent() {
           <select
             className="h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white"
             value={selectedSeriesId}
-            onChange={e => setSelectedSeriesId(e.target.value)}
+            onChange={e => handleSelectSeries(e.target.value)}
+            aria-label="Select manga series"
           >
             {seriesList.map(s => <option key={s._id} value={s._id}>{s.title}</option>)}
           </select>
           <select
             className="h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white"
             value={selectedChapterId}
-            onChange={e => setSelectedChapterId(e.target.value)}
+            onChange={e => handleSelectChapter(e.target.value)}
+            aria-label="Select chapter"
           >
             {chapters.map(c => <option key={c._id} value={c._id}>Ch. {c.chapterNumber}</option>)}
           </select>
@@ -1911,13 +2174,13 @@ function StudioWorkspacePageContent() {
 
         {/* Page navigation */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="size-10 p-0 rounded-lg" onClick={() => setCurrentPageIdx(Math.max(0, currentPageIdx - 1))} disabled={currentPageIdx === 0}>
+          <Button variant="ghost" size="sm" className="size-10 p-0 rounded-lg" onClick={() => handleSelectPageIdx(Math.max(0, currentPageIdx - 1))} disabled={currentPageIdx === 0} aria-label="Previous page">
             <ChevronLeft className="size-4" />
           </Button>
           <span className="text-xs font-medium text-neutral-700">
             {pages.length > 0 ? `Page ${currentPageIdx + 1} / ${pages.length}` : 'No pages'}
           </span>
-          <Button variant="ghost" size="sm" className="size-10 p-0 rounded-lg" onClick={() => setCurrentPageIdx(Math.min(pages.length - 1, currentPageIdx + 1))} disabled={currentPageIdx >= pages.length - 1}>
+          <Button variant="ghost" size="sm" className="size-10 p-0 rounded-lg" onClick={() => handleSelectPageIdx(Math.min(pages.length - 1, currentPageIdx + 1))} disabled={currentPageIdx >= pages.length - 1} aria-label="Next page">
             <ChevronRight className="size-4" />
           </Button>
         </div>
@@ -2076,6 +2339,7 @@ function StudioWorkspacePageContent() {
               tabs={[
                 { key: 'zones', label: t('studio.zones', 'Zones') },
                 { key: 'tasks', label: t('studio.tasks', 'Tasks'), count: pageTasks.filter(t => t.status !== 'done').length },
+                { key: 'layers', label: t('studio.layers', 'Layers'), count: pageTasks.filter(t => t.submittedFile && (t.status === 'review' || t.status === 'done') && (t.assignmentLevel === 'chapter' || t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id)).length },
                 { key: 'annotations', label: t('studio.editorFeedback', 'Feedback'), count: pageAnnotations.filter(a => a.pageId === currentPage?._id && a.status === 'open').length },
                 { key: 'pages', label: t('studio.pages', 'Pages') },
                 { key: 'access', label: 'Access' },
@@ -2628,7 +2892,7 @@ function StudioWorkspacePageContent() {
                       key={p._id}
                       className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer group ${idx === currentPageIdx ? 'border-neutral-900 shadow-md scale-105' : 'border-transparent opacity-70 hover:opacity-100'
                         }`}
-                      onClick={() => setCurrentPageIdx(idx)}
+                      onClick={() => handleSelectPageIdx(idx)}
                     >
                       <img
                         src={p.originalImage.startsWith('http') ? p.originalImage : `${apiBase}${p.originalImage}`}
@@ -2653,6 +2917,136 @@ function StudioWorkspacePageContent() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Layers tab ──────────────────────────── */}
+            {rightTab === 'layers' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+                  <span className="text-xs font-semibold text-neutral-700">{t('studio.pageLayers', 'Page Layers')}</span>
+                  <span className="text-[10px] text-neutral-500">
+                    {pageTasks.filter(t => t.submittedFile && (t.status === 'review' || t.status === 'done') && (t.assignmentLevel === 'chapter' || t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id)).length} layers
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Background Layer (Original Draft) */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="size-8 rounded bg-neutral-200 overflow-hidden shrink-0 border border-neutral-300">
+                        {currentPage && (
+                          <img
+                            src={currentPage.originalImage.startsWith('http') ? currentPage.originalImage : `${apiBase}${currentPage.originalImage}`}
+                            alt="Background draft"
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">Original Draft (Background)</p>
+                        <p className="text-[9px] text-neutral-400">Locked Bottom Layer</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-200/50">Base</span>
+                  </div>
+
+                  {/* Assistant Uploaded Layers */}
+                  {(() => {
+                    const layers = pageTasks.filter(
+                      (t) =>
+                        t.submittedFile &&
+                        (t.status === 'review' || t.status === 'done') &&
+                        (t.assignmentLevel === 'chapter' ||
+                          t.pageId?._id === currentPage?._id ||
+                          t.pageId === currentPage?._id)
+                    )
+
+                    if (layers.length === 0) {
+                      return (
+                        <div className="text-center py-6 text-xs text-neutral-500 bg-neutral-50/50 border border-dashed border-neutral-200 rounded-xl">
+                          No assistant layers uploaded for this page yet.
+                        </div>
+                      )
+                    }
+
+                    return layers.map((task) => {
+                      const taskId = task._id
+                      const config = layersConfig[taskId] || { visible: true, opacity: 100 }
+                      const isVisible = config.visible !== false
+                      const opacity = config.opacity ?? 100
+
+                      return (
+                        <div
+                          key={taskId}
+                          className="space-y-2 rounded-xl border border-neutral-200 p-2.5 hover:border-neutral-300 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="size-8 rounded bg-neutral-100 overflow-hidden shrink-0 border border-neutral-200 flex items-center justify-center">
+                                <img
+                                  src={task.submittedFile?.startsWith('http') ? task.submittedFile : `${apiBase}${task.submittedFile || ''}`}
+                                  alt={task.title}
+                                  className="h-full w-full object-contain bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22 viewBox=%220 0 8 8%22><rect width=%224%22 height=%224%22 fill=%22%23eee%22/><rect x=%224%22 y=%224%22 width=%224%22 height=%224%22 fill=%22%23eee%22/></svg>')] bg-[size:8px_8px]"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold truncate">{task.title}</p>
+                                <p className="text-[9px] text-neutral-400 capitalize">
+                                  {task.type} Layer · {task.assignedTo?.displayName || 'Assistant'}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLayersConfig((prev) => ({
+                                  ...prev,
+                                  [taskId]: { ...config, visible: !isVisible },
+                                }))
+                              }}
+                              className={`p-1.5 rounded-lg border transition-all ${
+                                isVisible
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-400 border-neutral-200 hover:text-neutral-600 hover:bg-neutral-50'
+                              }`}
+                              title={isVisible ? 'Hide Layer' : 'Show Layer'}
+                              aria-label={isVisible ? 'Hide Layer' : 'Show Layer'}
+                              aria-pressed={isVisible}
+                            >
+                              {isVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                            </button>
+                          </div>
+
+                          {/* Opacity slider */}
+                          <div className="flex items-center gap-3 border-t border-neutral-50 pt-2 text-[10px]">
+                            <span className="text-neutral-500 w-12 shrink-0">Opacity:</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={opacity}
+                              onChange={(e) => {
+                                const newOpacity = Number(e.target.value)
+                                setLayersConfig((prev) => ({
+                                  ...prev,
+                                  [taskId]: { ...config, opacity: newOpacity },
+                                }))
+                              }}
+                              className="flex-1 h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                              disabled={!isVisible}
+                              aria-label={`${task.title} Opacity`}
+                            />
+                            <span className="font-medium text-neutral-800 w-8 text-right shrink-0">
+                              {opacity}%
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  })()}
                 </div>
               </div>
             )}
