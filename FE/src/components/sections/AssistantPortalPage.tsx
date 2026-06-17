@@ -12,6 +12,7 @@ import {
   Search,
   Upload,
   AlertCircle,
+  Download,
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -179,6 +180,25 @@ export function AssistantPortalPage() {
       await tasksAPI.updateStatus(taskId, 'in_progress')
       await loadTasks()
     } catch {}
+  }
+
+  // ── Download draft helper ─────────────────────────
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      console.error('Failed to download image:', err)
+      window.open(url, '_blank')
+    }
   }
 
   // ── Filter + search ───────────────────────────────
@@ -479,6 +499,20 @@ export function AssistantPortalPage() {
                                   {page.processedImage && (
                                     <span className="text-[9px] text-emerald-600 bg-emerald-50 px-1 rounded font-medium">Uploaded</span>
                                   )}
+                                  <button
+                                    title={t('assistant.downloadDraft', 'Download Draft')}
+                                    onClick={() => {
+                                      const url = page.originalImage.startsWith('http')
+                                        ? page.originalImage
+                                        : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`;
+                                      const ext = page.originalImage.split('.').pop() || 'png';
+                                      const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${page.pageNumber}.${ext}`;
+                                      handleDownload(url, filename);
+                                    }}
+                                    className="flex items-center justify-center size-6 rounded bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                                  >
+                                    <Download className="size-3" />
+                                  </button>
                                   <label className="flex items-center justify-center size-6 rounded bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
                                     <Upload className="size-3" />
                                     <input
@@ -504,19 +538,39 @@ export function AssistantPortalPage() {
                           </Button>
                         </div>
                       ) : (
-                        <label className="flex items-center justify-center gap-1.5 w-full h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
-                          <Upload className="size-3" />
-                          {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit Work')}
-                          <input
-                            type="file"
-                            accept="image/*,.psd,.ai"
-                            className="hidden"
-                            onChange={(e) => {
-                              if (e.target.files?.[0]) handleSubmit(task._id, e.target.files[0])
-                            }}
-                            disabled={submitting === task._id}
-                          />
-                        </label>
+                        <div className="flex gap-2 w-full">
+                          {task.pageId?.originalImage && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const url = task.pageId.originalImage.startsWith('http')
+                                  ? task.pageId.originalImage
+                                  : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${task.pageId.originalImage}`;
+                                const ext = task.pageId.originalImage.split('.').pop() || 'png';
+                                const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${task.pageId.pageNumber || 'X'}.${ext}`;
+                                handleDownload(url, filename);
+                              }}
+                              className="flex-1 h-7 text-xs rounded-lg border-neutral-200 text-neutral-700 hover:bg-neutral-50 flex items-center justify-center gap-1.5"
+                            >
+                              <Download className="size-3" />
+                              {t('assistant.downloadDraft', 'Download')}
+                            </Button>
+                          )}
+                          <label className="flex-1 flex items-center justify-center gap-1.5 h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
+                            <Upload className="size-3" />
+                            {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit')}
+                            <input
+                              type="file"
+                              accept="image/*,.psd,.ai"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) handleSubmit(task._id, e.target.files[0])
+                              }}
+                              disabled={submitting === task._id}
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
                   )}

@@ -174,7 +174,8 @@
     "totalEarned": "Tổng đã nhận",
     "revisionNotesFromMangaka": "Yêu cầu sửa đổi từ Mangaka:",
     "declineTask": "Từ chối",
-    "confirmDecline": "Bạn có chắc chắn muốn từ chối công việc được giao này không?"
+    "confirmDecline": "Bạn có chắc chắn muốn từ chối công việc được giao này không?",
+    "downloadDraft": "Tải bản nháp"
   },
   "discover": {
     "title": "Khám phá",
