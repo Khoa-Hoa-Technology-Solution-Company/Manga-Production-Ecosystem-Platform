@@ -270,7 +270,7 @@ export function EditorialBoardPortalPage() {
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])
@@ -735,7 +735,7 @@ export function EditorialBoardPortalPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <div className="flex items-center gap-0.5">
-                          {[1,2,3,4,5].map(s => (
+                          {[1, 2, 3, 4, 5].map(s => (
                             <span key={s} className={`text-sm ${s <= Math.round(item.avgRating) ? 'text-amber-400' : 'text-neutral-200'}`}>★</span>
                           ))}
                           <span className="ml-1 text-xs font-bold text-amber-600">{item.avgRating}/5</span>
@@ -824,7 +824,7 @@ export function EditorialBoardPortalPage() {
                             <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
                               Submitted Chapters & Storyboard
                             </span>
-                            
+
                             {loadingChapters ? (
                               <div className="flex items-center gap-2 text-xs text-neutral-500 py-2 justify-center">
                                 <Loader2 className="size-4 animate-spin text-neutral-800" />
@@ -938,11 +938,10 @@ export function EditorialBoardPortalPage() {
                               </Button>
                               <Button
                                 size="sm"
-                                className={`flex-1 gap-1.5 rounded-xl text-white font-semibold transition-all duration-300 ${
-                                  autoDecision === 'approved'
+                                className={`flex-1 gap-1.5 rounded-xl text-white font-semibold transition-all duration-300 ${autoDecision === 'approved'
                                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-100'
                                     : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-md shadow-red-100'
-                                }`}
+                                  }`}
                                 onClick={() => handleVote(series._id, autoDecision)}
                                 disabled={submittingVote}
                               >
@@ -974,7 +973,7 @@ export function EditorialBoardPortalPage() {
                               <Gavel className="size-3.5" />
                               {t('editorialBoard.castVote')}
                             </Button>
-                            
+
                             {user?.isEbHead && (
                               <Button
                                 size="sm"
@@ -1135,8 +1134,8 @@ export function EditorialBoardPortalPage() {
                                         key={s}
                                         onClick={() => setDecisionSchedule(s)}
                                         className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${decisionSchedule === s
-                                            ? 'bg-indigo-600 text-white shadow-sm'
-                                            : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
+                                          ? 'bg-indigo-600 text-white shadow-sm'
+                                          : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
                                           }`}
                                       >
                                         {t(`editorialBoard.${s}`)}
@@ -1332,11 +1331,10 @@ export function EditorialBoardPortalPage() {
                           <div
                             key={rev._id}
                             onClick={() => handleToggleParticipant(rev._id)}
-                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs ${
-                              isSelected
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs ${isSelected
                                 ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-semibold'
                                 : 'border-neutral-100 hover:bg-neutral-50 text-neutral-700'
-                            }`}
+                              }`}
                           >
                             <div className="grid size-5 shrink-0 place-items-center rounded-full bg-neutral-100 text-[9px] font-bold">
                               {rev.displayName?.[0] || '?'}
@@ -1588,8 +1586,8 @@ export function EditorialBoardPortalPage() {
                                     key={s}
                                     onClick={() => setSelectedSchedule(s)}
                                     className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${selectedSchedule === s
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                                       }`}
                                   >
                                     {t(`editorialBoard.${s}`)}

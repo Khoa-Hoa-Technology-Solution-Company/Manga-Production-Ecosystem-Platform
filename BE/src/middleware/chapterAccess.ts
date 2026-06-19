@@ -47,6 +47,14 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
       
       let can = hasAccess(chapter, userId, userRole, mode);
 
+      // Grant read/comment access to assistant if they are assigned to any task in this chapter
+      if (!can && userId && userRole === 'assistant' && (mode === 'read' || mode === 'comment')) {
+        const hasTask = await Task.exists({ chapterId, assignedTo: userId });
+        if (hasTask) {
+          can = true;
+        }
+      }
+
       // Grant read/comment access to anyone if the chapter is published
       if (!can && chapter.status === 'Published' && (mode === 'read' || mode === 'comment')) {
         can = true;
