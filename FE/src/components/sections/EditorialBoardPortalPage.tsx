@@ -270,7 +270,7 @@ export function EditorialBoardPortalPage() {
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])

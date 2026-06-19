@@ -716,7 +716,6 @@ export function AssistantPortalPage() {
         loading={viewerLoading}
         selectedZoneId={selectedZoneId}
         setSelectedZoneId={setSelectedZoneId}
-        t={t}
       />
     </div>
   )
@@ -732,7 +731,6 @@ type ViewerModalProps = {
   loading: boolean
   selectedZoneId: string | null
   setSelectedZoneId: (id: string | null) => void
-  t: (key: string, defaultValue?: string) => string
 }
 
 function ManuscriptViewerModal({
@@ -744,8 +742,8 @@ function ManuscriptViewerModal({
   loading,
   selectedZoneId,
   setSelectedZoneId,
-  t,
 }: ViewerModalProps) {
+  const { t } = useTranslation()
   const imgRef = useRef<HTMLImageElement>(null)
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 })
   const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 })
