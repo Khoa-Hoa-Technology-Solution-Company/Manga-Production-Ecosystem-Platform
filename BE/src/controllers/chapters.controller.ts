@@ -28,11 +28,16 @@ export async function getBySeriesId(req: Request, res: Response): Promise<void> 
       // They can only see:
       // 1. Published chapters
       // 2. Chapters where they are a collaborator
+      // 3. Chapters where they have assigned tasks (for assistants)
+      const { Task } = await import('../models/Task');
+      const assignedChapterIds = await Task.find({ assignedTo: req.user?._id }).distinct('chapterId');
+
       filter = {
         seriesId: req.params.seriesId,
         $or: [
           { status: 'Published' },
-          { 'collaborators.userId': req.user?._id }
+          { 'collaborators.userId': req.user?._id },
+          { _id: { $in: assignedChapterIds } }
         ]
       };
     }

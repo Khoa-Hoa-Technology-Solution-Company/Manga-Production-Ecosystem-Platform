@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Banknote,
@@ -13,10 +13,13 @@ import {
   Upload,
   AlertCircle,
   Download,
+  Eye,
+  X,
+  ChevronLeft,
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
-import { tasksAPI, pagesAPI } from '../../lib/api'
+import { tasksAPI, pagesAPI, zonesAPI } from '../../lib/api'
 import { formatCurrency } from '../../i18n'
 
 /* ── Type colors ────────────────────────────────────── */
@@ -51,6 +54,31 @@ export function AssistantPortalPage() {
   const [accepting, setAccepting] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
   const [chapterPages, setChapterPages] = useState<Record<string, any[]>>({})
+
+  // ── Viewer Modal States ────────────────────────────
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerPage, setViewerPage] = useState<any>(null)
+  const [viewerTask, setViewerTask] = useState<any>(null)
+  const [viewerZones, setViewerZones] = useState<any[]>([])
+  const [viewerLoading, setViewerLoading] = useState(false)
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
+
+  const openViewer = async (page: any, task: any) => {
+    setViewerPage(page)
+    setViewerTask(task)
+    setViewerOpen(true)
+    setViewerLoading(true)
+    setSelectedZoneId(null)
+    try {
+      const res = await zonesAPI.getByPage(page._id)
+      setViewerZones(res.data.zones || [])
+    } catch (err) {
+      console.error('Failed to load zones for page', err)
+      setViewerZones([])
+    } finally {
+      setViewerLoading(false)
+    }
+  }
 
   // Automatically fetch pages for any chapter tasks that are in progress
   useEffect(() => {
@@ -131,7 +159,7 @@ export function AssistantPortalPage() {
     try {
       await tasksAPI.decline(taskId)
       await loadTasks()
-    } catch {}
+    } catch { }
   }
 
   // ── Submit task ───────────────────────────────────
@@ -159,7 +187,7 @@ export function AssistantPortalPage() {
       formData.append('file', file)
       formData.append('pageId', pageId)
       await tasksAPI.submit(taskId, formData)
-      
+
       const task = tasks.find(t => t._id === taskId)
       const cid = task?.chapterId?._id || task?.chapterId
       if (cid) {
@@ -179,7 +207,7 @@ export function AssistantPortalPage() {
     try {
       await tasksAPI.updateStatus(taskId, 'in_progress')
       await loadTasks()
-    } catch {}
+    } catch { }
   }
 
   // ── Download draft helper ─────────────────────────
@@ -242,17 +270,15 @@ export function AssistantPortalPage() {
       <div className="border-b border-neutral-200 px-4 sm:px-6 lg:px-8">
         <div className="flex gap-6 -mb-px">
           <button
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-              mainTab === 'tasks' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
-            }`}
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === 'tasks' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
             onClick={() => setMainTab('tasks')}
           >
             My Tasks
           </button>
           <button
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-              mainTab === 'earnings' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
-            }`}
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === 'earnings' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
             onClick={() => setMainTab('earnings')}
           >
             My Earnings
@@ -264,335 +290,350 @@ export function AssistantPortalPage() {
         {mainTab === 'tasks' && (
           <>
             {/* ── Stats Row ──────────────────────────────── */}
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {stats.map((item) => {
-            const Icon = item.icon
-            return (
-              <Card key={item.label} className="gap-2 p-4 shadow-sm">
-                <CardHeader className="flex-row items-center justify-between gap-2 p-0">
-                  <span className="text-xs leading-4 text-neutral-500">{item.label}</span>
-                  <div className={`flex size-8 items-center justify-center rounded-lg ${item.bgIcon}`}>
-                    <Icon className="size-4" />
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-semibold leading-8">{item.value}</span>
-                  </div>
-                  {item.sparkline && (
-                    <div className="mt-2 flex h-8 items-end gap-0.5">
-                      {[3, 5, 2, 6, 4, 7, 8].map((h, i) => (
-                        <div key={i} className="rounded-xs bg-purple-500/60" style={{ height: `${h * 4}px`, width: '4px' }} />
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </section>
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {stats.map((item) => {
+                const Icon = item.icon
+                return (
+                  <Card key={item.label} className="gap-2 p-4 shadow-sm">
+                    <CardHeader className="flex-row items-center justify-between gap-2 p-0">
+                      <span className="text-xs leading-4 text-neutral-500">{item.label}</span>
+                      <div className={`flex size-8 items-center justify-center rounded-lg ${item.bgIcon}`}>
+                        <Icon className="size-4" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-semibold leading-8">{item.value}</span>
+                      </div>
+                      {item.sparkline && (
+                        <div className="mt-2 flex h-8 items-end gap-0.5">
+                          {[3, 5, 2, 6, 4, 7, 8].map((h, i) => (
+                            <div key={i} className="rounded-xs bg-purple-500/60" style={{ height: `${h * 4}px`, width: '4px' }} />
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </section>
 
-        {/* ── Filter + Search ────────────────────────── */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Tabs
-            tabs={[
-              { key: 'all', label: t('common.all', 'All'), count: tasks.length },
-              { key: 'available', label: t('assistant.available', 'Available'), count: tasks.filter(t => t.status === 'open').length },
-              { key: 'progress', label: t('assistant.inProgress', 'In Progress'), count: tasks.filter(t => ['assigned', 'in_progress'].includes(t.status)).length },
-              { key: 'review', label: t('assistant.review', 'Review'), count: tasks.filter(t => t.status === 'review').length },
-              { key: 'completed', label: t('assistant.completed', 'Completed'), count: tasks.filter(t => t.status === 'done').length },
-            ]}
-            active={activeFilter}
-            onChange={setActiveFilter}
-          />
-
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-500" />
-              <Input
-                placeholder={t('common.search', 'Search tasks...')}
-                className="h-8 w-56 pl-8 text-xs"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+            {/* ── Filter + Search ────────────────────────── */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Tabs
+                tabs={[
+                  { key: 'all', label: t('common.all', 'All'), count: tasks.length },
+                  { key: 'available', label: t('assistant.available', 'Available'), count: tasks.filter(t => t.status === 'open').length },
+                  { key: 'progress', label: t('assistant.inProgress', 'In Progress'), count: tasks.filter(t => ['assigned', 'in_progress'].includes(t.status)).length },
+                  { key: 'review', label: t('assistant.review', 'Review'), count: tasks.filter(t => t.status === 'review').length },
+                  { key: 'completed', label: t('assistant.completed', 'Completed'), count: tasks.filter(t => t.status === 'done').length },
+                ]}
+                active={activeFilter}
+                onChange={setActiveFilter}
               />
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Assistant Type Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Type:</span>
-              {(['all', 'dedicated', 'freelance'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setAssistantTypeFilter(type)}
-                  className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${
-                    assistantTypeFilter === type
-                      ? type === 'dedicated' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : type === 'freelance' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-neutral-100 text-neutral-800 border-neutral-300'
-                      : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
-                  }`}
-                >
-                  {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
-                </button>
-              ))}
-            </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-500" />
+                  <Input
+                    placeholder={t('common.search', 'Search tasks...')}
+                    className="h-8 w-56 pl-8 text-xs"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            {/* Assignment Level Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Level:</span>
-              {(['all', 'chapter', 'page'] as const).map(lvl => (
-                <button
-                  key={lvl}
-                  onClick={() => setAssignmentLevelFilter(lvl)}
-                  className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${
-                    assignmentLevelFilter === lvl
-                      ? 'bg-neutral-900 text-white border-neutral-900'
-                      : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
-                  }`}
-                >
-                  {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? '📖 Chapter' : '📄 Page'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Task Grid ──────────────────────────────── */}
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
-          </div>
-        ) : filteredTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 space-y-3">
-            <div className="grid size-16 place-items-center rounded-2xl bg-neutral-100">
-              <ListTodo className="size-6 text-neutral-400" />
-            </div>
-            <h3 className="text-sm font-semibold">{t('assistant.noTasks', 'No tasks found')}</h3>
-            <p className="text-xs text-neutral-500">{t('assistant.noTasksHint', 'Try adjusting your filters or check back later.')}</p>
-          </div>
-        ) : (
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {filteredTasks.map((task) => (
-              <Card key={task._id} className="overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                {/* Cover image */}
-                <div className="relative h-28 overflow-hidden bg-gradient-to-br from-neutral-200 to-neutral-100">
-                  {task.seriesId?.coverImage && (
-                    <img src={task.seriesId.coverImage} alt={task.seriesId.title} className="h-full w-full object-cover" />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-xs font-semibold text-white truncate">{task.seriesId?.title || 'Unknown'}</p>
-                    <p className="text-[10px] text-white/70">
-                      {task.chapterId ? `Ch. ${task.chapterId.chapterNumber}` : ''}
-                    </p>
-                  </div>
-                  {task.deadline && new Date(task.deadline) <= new Date(Date.now() + 86400000) && task.status !== 'done' && (
-                    <Badge variant="destructive" className="absolute top-2 right-2 text-[9px] px-1.5 py-0 h-4">
-                      {t('assistant.urgent', 'Urgent')}
-                    </Badge>
-                  )}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Assistant Type Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Type:</span>
+                  {(['all', 'dedicated', 'freelance'] as const).map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setAssistantTypeFilter(type)}
+                      className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${assistantTypeFilter === type
+                          ? type === 'dedicated' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : type === 'freelance' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-neutral-100 text-neutral-800 border-neutral-300'
+                          : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                        }`}
+                    >
+                      {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
+                    </button>
+                  ))}
                 </div>
 
-                <CardContent className="p-3 space-y-2.5">
-                  <div>
-                    <p className="text-xs font-medium truncate">{task.title}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-semibold">
-                        {task.assignmentLevel === 'chapter' ? '📖 Chapter' : '📄 Page'}
-                      </Badge>
-                      {task.assignmentLevel === 'page' && task.pageId && (
-                        <span className="text-[10px] text-neutral-500 font-medium">Page {task.pageId.pageNumber || task.pageId}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant="secondary" className={`text-[10px] px-2 py-0.5 capitalize ${typeColors[task.type] || ''}`}>
-                        {task.type}
-                      </Badge>
-                      <Badge variant="secondary" className={`text-[10px] px-1.5 py-0.5 ${
-                        task.assistantType === 'dedicated'
-                          ? 'bg-blue-50 text-blue-600 border-blue-200'
-                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                      }`}>
-                        {task.assistantType === 'dedicated' ? '★ Dedicated' : '◇ Freelance'}
-                      </Badge>
-                    </div>
-                    <Badge variant="default" className={`text-[10px] px-2 py-0.5 capitalize ${statusColors[task.status] || ''}`}>
-                      {task.status.replace('_', ' ')}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-neutral-500">
-                    {task.deadline && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="size-3" /> {new Date(task.deadline).toLocaleDateString()}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 font-semibold text-neutral-900">
-                      <Banknote className="size-3" /> {formatCurrency(task.wage || 0)}
-                    </span>
-                  </div>
-
-                  {/* Action buttons based on status */}
-                  {task.status === 'open' && (
-                    <Button
-                      size="sm"
-                      className="w-full h-7 text-xs rounded-lg"
-                      onClick={() => handleAccept(task._id)}
-                      disabled={accepting === task._id}
+                {/* Assignment Level Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Level:</span>
+                  {(['all', 'chapter', 'page'] as const).map(lvl => (
+                    <button
+                      key={lvl}
+                      onClick={() => setAssignmentLevelFilter(lvl)}
+                      className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${assignmentLevelFilter === lvl
+                          ? 'bg-neutral-900 text-white border-neutral-900'
+                          : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                        }`}
                     >
-                      {accepting === task._id ? t('common.loading', 'Loading...') : t('assistant.acceptTask', 'Accept Task')}
-                    </Button>
-                  )}
+                      {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? '📖 Chapter' : '📄 Page'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-                  {task.status === 'assigned' && task.assignedTo?._id === user?._id && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 h-7 text-xs rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                        onClick={() => handleDecline(task._id)}
-                      >
-                        {t('assistant.declineTask', 'Decline')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1 h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800"
-                        onClick={() => handleStart(task._id)}
-                      >
-                        {t('assistant.startWork', 'Start Work')}
-                      </Button>
+            {/* ── Task Grid ──────────────────────────────── */}
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+              </div>
+            ) : filteredTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 space-y-3">
+                <div className="grid size-16 place-items-center rounded-2xl bg-neutral-100">
+                  <ListTodo className="size-6 text-neutral-400" />
+                </div>
+                <h3 className="text-sm font-semibold">{t('assistant.noTasks', 'No tasks found')}</h3>
+                <p className="text-xs text-neutral-500">{t('assistant.noTasksHint', 'Try adjusting your filters or check back later.')}</p>
+              </div>
+            ) : (
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {filteredTasks.map((task) => (
+                  <Card key={task._id} className="overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    {/* Cover image */}
+                    <div className="relative h-28 overflow-hidden bg-gradient-to-br from-neutral-200 to-neutral-100">
+                      {task.seriesId?.coverImage && (
+                        <img src={task.seriesId.coverImage} alt={task.seriesId.title} className="h-full w-full object-cover" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <p className="text-xs font-semibold text-white truncate">{task.seriesId?.title || 'Unknown'}</p>
+                        <p className="text-[10px] text-white/70">
+                          {task.chapterId ? `Ch. ${task.chapterId.chapterNumber}` : ''}
+                        </p>
+                      </div>
+                      {task.deadline && new Date(task.deadline) <= new Date(Date.now() + 86400000) && task.status !== 'done' && (
+                        <Badge variant="destructive" className="absolute top-2 right-2 text-[9px] px-1.5 py-0 h-4">
+                          {t('assistant.urgent', 'Urgent')}
+                        </Badge>
+                      )}
                     </div>
-                  )}
 
-                  {task.status === 'in_progress' && task.assignedTo?._id === user?._id && (
-                    <div className="space-y-2.5">
-                      {task.reviewNotes && (
-                        <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
-                          <div className="font-semibold flex items-center gap-1">
-                            <AlertCircle className="size-3 text-rose-500 shrink-0" />
-                            <span>{t('assistant.revisionNotesFromMangaka', 'Revision Notes from Mangaka:')}</span>
-                          </div>
-                          <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
-                            {task.reviewNotes}
-                          </p>
+                    <CardContent className="p-3 space-y-2.5">
+                      <div>
+                        <p className="text-xs font-medium truncate">{task.title}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-semibold">
+                            {task.assignmentLevel === 'chapter' ? '📖 Chapter' : '📄 Page'}
+                          </Badge>
+                          {task.assignmentLevel === 'page' && task.pageId && (
+                            <span className="text-[10px] text-neutral-500 font-medium">Page {task.pageId.pageNumber || task.pageId}</span>
+                          )}
                         </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className={`text-[10px] px-2 py-0.5 capitalize ${typeColors[task.type] || ''}`}>
+                            {task.type}
+                          </Badge>
+                          <Badge variant="secondary" className={`text-[10px] px-1.5 py-0.5 ${task.assistantType === 'dedicated'
+                              ? 'bg-blue-50 text-blue-600 border-blue-200'
+                              : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                            }`}>
+                            {task.assistantType === 'dedicated' ? '★ Dedicated' : '◇ Freelance'}
+                          </Badge>
+                        </div>
+                        <Badge variant="default" className={`text-[10px] px-2 py-0.5 capitalize ${statusColors[task.status] || ''}`}>
+                          {task.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-neutral-500">
+                        {task.deadline && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="size-3" /> {new Date(task.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 font-semibold text-neutral-900">
+                          <Banknote className="size-3" /> {formatCurrency(task.wage || 0)}
+                        </span>
+                      </div>
+
+                      {/* Action buttons based on status */}
+                      {task.status === 'open' && (
+                        <Button
+                          size="sm"
+                          className="w-full h-7 text-xs rounded-lg"
+                          onClick={() => handleAccept(task._id)}
+                          disabled={accepting === task._id}
+                        >
+                          {accepting === task._id ? t('common.loading', 'Loading...') : t('assistant.acceptTask', 'Accept Task')}
+                        </Button>
                       )}
 
-                      {task.assignmentLevel === 'chapter' ? (
-                        <div className="space-y-2 border-t border-neutral-100 pt-2">
-                          <p className="text-[10px] font-semibold text-neutral-500 mb-1">Upload files for pages:</p>
-                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                            {(chapterPages[task.chapterId?._id || task.chapterId] || []).map((page: any) => (
-                              <div key={page._id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-neutral-100 bg-neutral-50/50 text-[10px]">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <div className="size-6 rounded overflow-hidden bg-neutral-200 shrink-0">
-                                    <img src={page.originalImage.startsWith('http') ? page.originalImage : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`} className="h-full w-full object-cover" />
-                                  </div>
-                                  <span className="truncate">Page {page.pageNumber}</span>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  {page.processedImage && (
-                                    <span className="text-[9px] text-emerald-600 bg-emerald-50 px-1 rounded font-medium">Uploaded</span>
-                                  )}
-                                  <button
-                                    title={t('assistant.downloadDraft', 'Download Draft')}
-                                    onClick={() => {
-                                      const url = page.originalImage.startsWith('http')
-                                        ? page.originalImage
-                                        : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`;
-                                      const ext = page.originalImage.split('.').pop() || 'png';
-                                      const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${page.pageNumber}.${ext}`;
-                                      handleDownload(url, filename);
-                                    }}
-                                    className="flex items-center justify-center size-6 rounded bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
-                                  >
-                                    <Download className="size-3" />
-                                  </button>
-                                  <label className="flex items-center justify-center size-6 rounded bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
-                                    <Upload className="size-3" />
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        if (e.target.files?.[0]) handleChapterPageSubmit(task._id, page._id, e.target.files[0])
-                                      }}
-                                    />
-                                  </label>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                      {task.status === 'assigned' && task.assignedTo?._id === user?._id && (
+                        <div className="flex gap-2">
                           <Button
                             size="sm"
-                            className="w-full h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 mt-2"
-                            onClick={() => handleSubmit(task._id)}
-                            disabled={submitting === task._id}
+                            variant="outline"
+                            className="flex-1 h-7 text-xs rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                            onClick={() => handleDecline(task._id)}
                           >
-                            {submitting === task._id ? t('common.loading', 'Loading...') : 'Submit Chapter for Review'}
+                            {t('assistant.declineTask', 'Decline')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800"
+                            onClick={() => handleStart(task._id)}
+                          >
+                            {t('assistant.startWork', 'Start Work')}
                           </Button>
                         </div>
-                      ) : (
-                        <div className="flex gap-2 w-full">
-                          {task.pageId?.originalImage && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const url = task.pageId.originalImage.startsWith('http')
-                                  ? task.pageId.originalImage
-                                  : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${task.pageId.originalImage}`;
-                                const ext = task.pageId.originalImage.split('.').pop() || 'png';
-                                const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${task.pageId.pageNumber || 'X'}.${ext}`;
-                                handleDownload(url, filename);
-                              }}
-                              className="flex-1 h-7 text-xs rounded-lg border-neutral-200 text-neutral-700 hover:bg-neutral-50 flex items-center justify-center gap-1.5"
-                            >
-                              <Download className="size-3" />
-                              {t('assistant.downloadDraft', 'Download')}
-                            </Button>
+                      )}
+
+                      {task.status === 'in_progress' && task.assignedTo?._id === user?._id && (
+                        <div className="space-y-2.5">
+                          {task.reviewNotes && (
+                            <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
+                              <div className="font-semibold flex items-center gap-1">
+                                <AlertCircle className="size-3 text-rose-500 shrink-0" />
+                                <span>{t('assistant.revisionNotesFromMangaka', 'Revision Notes from Mangaka:')}</span>
+                              </div>
+                              <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
+                                {task.reviewNotes}
+                              </p>
+                            </div>
                           )}
-                          <label className="flex-1 flex items-center justify-center gap-1.5 h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
-                            <Upload className="size-3" />
-                            {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit')}
-                            <input
-                              type="file"
-                              accept="image/*,.psd,.ai"
-                              className="hidden"
-                              onChange={(e) => {
-                                if (e.target.files?.[0]) handleSubmit(task._id, e.target.files[0])
-                              }}
-                              disabled={submitting === task._id}
-                            />
-                          </label>
+
+                          {task.assignmentLevel === 'chapter' ? (
+                            <div className="space-y-2 border-t border-neutral-100 pt-2">
+                              <p className="text-[10px] font-semibold text-neutral-500 mb-1">Upload files for pages:</p>
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                {(chapterPages[task.chapterId?._id || task.chapterId] || []).map((page: any) => (
+                                  <div key={page._id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-neutral-100 bg-neutral-50/50 text-[10px]">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <div className="size-6 rounded overflow-hidden bg-neutral-200 shrink-0">
+                                        <img src={page.originalImage.startsWith('http') ? page.originalImage : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`} className="h-full w-full object-cover" />
+                                      </div>
+                                      <span className="truncate">Page {page.pageNumber}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {page.processedImage && (
+                                        <span className="text-[9px] text-emerald-600 bg-emerald-50 px-1 rounded font-medium">Uploaded</span>
+                                      )}
+                                      <button
+                                        title={t('assistant.viewManuscript', 'View Manuscript')}
+                                        onClick={() => openViewer(page, task)}
+                                        className="flex items-center justify-center size-6 rounded bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                                      >
+                                        <Eye className="size-3" />
+                                      </button>
+                                      <button
+                                        title={t('assistant.downloadDraft', 'Download Draft')}
+                                        onClick={() => {
+                                          const url = page.originalImage.startsWith('http')
+                                            ? page.originalImage
+                                            : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`;
+                                          const ext = page.originalImage.split('.').pop() || 'png';
+                                          const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${page.pageNumber}.${ext}`;
+                                          handleDownload(url, filename);
+                                        }}
+                                        className="flex items-center justify-center size-6 rounded bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                                      >
+                                        <Download className="size-3" />
+                                      </button>
+                                      <label className="flex items-center justify-center size-6 rounded bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
+                                        <Upload className="size-3" />
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            if (e.target.files?.[0]) handleChapterPageSubmit(task._id, page._id, e.target.files[0])
+                                          }}
+                                        />
+                                      </label>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <Button
+                                size="sm"
+                                className="w-full h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 mt-2"
+                                onClick={() => handleSubmit(task._id)}
+                                disabled={submitting === task._id}
+                              >
+                                {submitting === task._id ? t('common.loading', 'Loading...') : 'Submit Chapter for Review'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2 w-full">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openViewer(task.pageId, task)}
+                                className="w-full h-7 text-xs rounded-lg border-neutral-200 text-neutral-700 hover:bg-neutral-50 flex items-center justify-center gap-1.5"
+                              >
+                                <Eye className="size-3" />
+                                {t('assistant.viewManuscript', 'View Manuscript')}
+                              </Button>
+                              <div className="flex gap-2 w-full">
+                                {task.pageId?.originalImage && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      const url = task.pageId.originalImage.startsWith('http')
+                                        ? task.pageId.originalImage
+                                        : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${task.pageId.originalImage}`;
+                                      const ext = task.pageId.originalImage.split('.').pop() || 'png';
+                                      const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${task.pageId.pageNumber || 'X'}.${ext}`;
+                                      handleDownload(url, filename);
+                                    }}
+                                    className="flex-1 h-7 text-xs rounded-lg border-neutral-200 text-neutral-700 hover:bg-neutral-50 flex items-center justify-center gap-1.5"
+                                  >
+                                    <Download className="size-3" />
+                                    {t('assistant.downloadDraft', 'Download')}
+                                  </Button>
+                                )}
+                                <label className="flex-1 flex items-center justify-center gap-1.5 h-7 text-xs rounded-lg bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
+                                  <Upload className="size-3" />
+                                  {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitWork', 'Submit')}
+                                  <input
+                                    type="file"
+                                    accept="image/*,.psd,.ai"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      if (e.target.files?.[0]) handleSubmit(task._id, e.target.files[0])
+                                    }}
+                                    disabled={submitting === task._id}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  {task.status === 'review' && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5">
-                      <Clock className="size-3 text-amber-600" />
-                      <span className="text-[10px] text-amber-600 font-medium">{t('assistant.awaitingReview', 'Awaiting Review')}</span>
-                    </div>
-                  )}
+                      {task.status === 'review' && (
+                        <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5">
+                          <Clock className="size-3 text-amber-600" />
+                          <span className="text-[10px] text-amber-600 font-medium">{t('assistant.awaitingReview', 'Awaiting Review')}</span>
+                        </div>
+                      )}
 
-                  {task.status === 'done' && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-1.5">
-                      <CheckCircle2 className="size-3 text-emerald-600" />
-                      <span className="text-[10px] text-emerald-600 font-medium">{t('assistant.completed', 'Completed')}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </section>
-        )}
+                      {task.status === 'done' && (
+                        <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-1.5">
+                          <CheckCircle2 className="size-3 text-emerald-600" />
+                          <span className="text-[10px] text-emerald-600 font-medium">{t('assistant.completed', 'Completed')}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </section>
+            )}
           </>
         )}
 
@@ -600,70 +641,372 @@ export function AssistantPortalPage() {
         {mainTab === 'earnings' && (
           <>
             <Card className="p-6 shadow-sm">
-          <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
-            <div>
-              <CardTitle className="text-base">{t('assistant.earningsOverview', 'Earnings Overview')}</CardTitle>
-              <span className="text-xs text-neutral-500">{t('assistant.earningsHint', 'Your earnings from completed tasks')}</span>
-            </div>
-          </CardHeader>
+              <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
+                <div>
+                  <CardTitle className="text-base">{t('assistant.earningsOverview', 'Earnings Overview')}</CardTitle>
+                  <span className="text-xs text-neutral-500">{t('assistant.earningsHint', 'Your earnings from completed tasks')}</span>
+                </div>
+              </CardHeader>
 
-          <CardContent className="p-0">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-xl bg-neutral-50 p-3">
-                <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.totalEarned', 'Total Earned')}</p>
-                <p className="text-lg font-semibold mt-1">
-                  {formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0))}
-                </p>
-              </div>
-              <div className="rounded-xl bg-neutral-50 p-3">
-                <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.pending', 'Pending')}</p>
-                <p className="text-lg font-semibold mt-1">
-                  {formatCurrency(tasks.filter(t => ['in_progress', 'review', 'assigned'].includes(t.status)).reduce((sum, t) => sum + (t.wage || 0), 0))}
-                </p>
-              </div>
-              <div className="rounded-xl bg-neutral-50 p-3">
-                <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.avgPerTask', 'Avg. per Task')}</p>
-                <p className="text-lg font-semibold mt-1">
-                  {(() => {
-                    const done = tasks.filter(t => t.status === 'done')
-                    return done.length > 0 ? formatCurrency(done.reduce((sum, t) => sum + (t.wage || 0), 0) / done.length) : formatCurrency(0)
-                  })()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Monthly Breakdown (Mocked for visual) ── */}
-        <Card className="p-6 shadow-sm">
-          <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
-            <CardTitle className="text-base">Monthly Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-100 bg-neutral-50/80">
-                    <th className="px-4 py-3 text-left font-medium text-neutral-500">Month</th>
-                    <th className="px-4 py-3 text-right font-medium text-neutral-500">Pages Completed</th>
-                    <th className="px-4 py-3 text-right font-medium text-neutral-500">Total Earnings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-neutral-50">
-                    <td className="px-4 py-3 font-medium">May 2026</td>
-                    <td className="px-4 py-3 text-right">{tasks.filter(t => t.status === 'done').length} pages</td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">
+              <CardContent className="p-0">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-xl bg-neutral-50 p-3">
+                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.totalEarned', 'Total Earned')}</p>
+                    <p className="text-lg font-semibold mt-1">
                       {formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0))}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-neutral-50 p-3">
+                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.pending', 'Pending')}</p>
+                    <p className="text-lg font-semibold mt-1">
+                      {formatCurrency(tasks.filter(t => ['in_progress', 'review', 'assigned'].includes(t.status)).reduce((sum, t) => sum + (t.wage || 0), 0))}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-neutral-50 p-3">
+                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.avgPerTask', 'Avg. per Task')}</p>
+                    <p className="text-lg font-semibold mt-1">
+                      {(() => {
+                        const done = tasks.filter(t => t.status === 'done')
+                        return done.length > 0 ? formatCurrency(done.reduce((sum, t) => sum + (t.wage || 0), 0) / done.length) : formatCurrency(0)
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ── Monthly Breakdown (Mocked for visual) ── */}
+            <Card className="p-6 shadow-sm">
+              <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
+                <CardTitle className="text-base">Monthly Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-100 bg-neutral-50/80">
+                        <th className="px-4 py-3 text-left font-medium text-neutral-500">Month</th>
+                        <th className="px-4 py-3 text-right font-medium text-neutral-500">Pages Completed</th>
+                        <th className="px-4 py-3 text-right font-medium text-neutral-500">Total Earnings</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-neutral-50">
+                        <td className="px-4 py-3 font-medium">May 2026</td>
+                        <td className="px-4 py-3 text-right">{tasks.filter(t => t.status === 'done').length} pages</td>
+                        <td className="px-4 py-3 text-right font-semibold text-emerald-600">
+                          {formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0))}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </>
         )}
+      </div>
+      {/* ── Manuscript Viewer Modal ────────────────── */}
+      <ManuscriptViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        page={viewerPage}
+        task={viewerTask}
+        zones={viewerZones}
+        loading={viewerLoading}
+        selectedZoneId={selectedZoneId}
+        setSelectedZoneId={setSelectedZoneId}
+        t={t}
+      />
+    </div>
+  )
+}
+
+/* ── Viewer Modal Component ────────────────────────── */
+type ViewerModalProps = {
+  isOpen: boolean
+  onClose: () => void
+  page: any
+  task: any
+  zones: any[]
+  loading: boolean
+  selectedZoneId: string | null
+  setSelectedZoneId: (id: string | null) => void
+  t: (key: string, defaultValue?: string) => string
+}
+
+function ManuscriptViewerModal({
+  isOpen,
+  onClose,
+  page,
+  task,
+  zones,
+  loading,
+  selectedZoneId,
+  setSelectedZoneId,
+  t,
+}: ViewerModalProps) {
+  const imgRef = useRef<HTMLImageElement>(null)
+  const [imgSize, setImgSize] = useState({ width: 0, height: 0 })
+  const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 })
+
+  const handleImgLoad = () => {
+    if (imgRef.current) {
+      setImgSize({
+        width: imgRef.current.clientWidth,
+        height: imgRef.current.clientHeight,
+      })
+      setNaturalSize({
+        width: imgRef.current.naturalWidth || 1,
+        height: imgRef.current.naturalHeight || 1,
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleResize = () => {
+      if (imgRef.current) {
+        setImgSize({
+          width: imgRef.current.clientWidth,
+          height: imgRef.current.clientHeight,
+        })
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isOpen, page])
+
+  if (!isOpen || !page) return null
+
+  const scaleX = imgSize.width / (naturalSize.width || 1)
+  const scaleY = imgSize.height / (naturalSize.height || 1)
+
+  const selectedZone = zones.find(z => z._id === selectedZoneId)
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+  const imgUrl = page.originalImage.startsWith('http')
+    ? page.originalImage
+    : `${apiBase}${page.originalImage}`
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-900/50">
+          <div>
+            <h2 className="text-base font-semibold text-neutral-900 dark:text-white">
+              {task?.seriesId?.title || 'Series'}
+            </h2>
+            <p className="text-xs text-neutral-500">
+              {task?.chapterId ? `Ch. ${task.chapterId.chapterNumber || task.chapterId} - ` : ''}Page {page.pageNumber}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors text-neutral-500 dark:text-neutral-400"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 flex overflow-hidden bg-neutral-50 dark:bg-neutral-900">
+
+          {/* Left Panel - Image Viewer */}
+          <div className="flex-1 bg-neutral-100 dark:bg-neutral-950 p-6 flex items-center justify-center overflow-auto relative">
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <div className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-950" />
+              </div>
+            ) : (
+              <div className="relative inline-block shadow-md border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden bg-white dark:bg-neutral-900">
+                <img
+                  ref={imgRef}
+                  src={imgUrl}
+                  alt={`Page ${page.pageNumber}`}
+                  onLoad={handleImgLoad}
+                  className="max-h-[60vh] w-auto object-contain select-none"
+                  draggable={false}
+                />
+
+                {/* Zone Overlays */}
+                {zones.map((zone) => {
+                  const left = zone.boundingBox.x * scaleX
+                  const top = zone.boundingBox.y * scaleY
+                  const width = zone.boundingBox.width * scaleX
+                  const height = zone.boundingBox.height * scaleY
+                  const isSelected = selectedZoneId === zone._id
+
+                  return (
+                    <div
+                      key={zone._id}
+                      onClick={() => setSelectedZoneId(zone._id)}
+                      className={`absolute border-2 transition-all cursor-pointer flex flex-col justify-between p-1 select-none ${isSelected
+                          ? 'ring-2 ring-white z-10 shadow-lg'
+                          : 'hover:border-neutral-950/60 hover:bg-neutral-950/5'
+                        }`}
+                      style={{
+                        left,
+                        top,
+                        width,
+                        height,
+                        borderColor: zone.color,
+                        backgroundColor: isSelected ? `${zone.color}35` : `${zone.color}15`,
+                      }}
+                      title={`${zone.name} (${zone.type})`}
+                    >
+                      <span
+                        className="text-[9px] font-semibold text-white px-1 py-0.5 rounded self-start truncate max-w-full"
+                        style={{ backgroundColor: zone.color }}
+                      >
+                        {zone.name}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel - Zones & Task details */}
+          <div className="w-80 border-l border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col overflow-hidden">
+
+            {/* Zones list header */}
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
+                {t('studio.pageZones', 'Page Zones')}
+              </h3>
+            </div>
+
+            {/* Content area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {selectedZone ? (
+                <div className="space-y-4">
+                  {/* Back button/zone header */}
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <button
+                      onClick={() => setSelectedZoneId(null)}
+                      className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    >
+                      <ChevronLeft className="size-4 text-neutral-600 dark:text-neutral-400" />
+                    </button>
+                    <div>
+                      <h4 className="text-xs font-semibold text-neutral-700 dark:text-neutral-350 flex items-center gap-1.5">
+                        <span className="size-2 rounded-full" style={{ backgroundColor: selectedZone.color }} />
+                        {selectedZone.name}
+                      </h4>
+                      <p className="text-[10px] text-neutral-400">Zone Details</p>
+                    </div>
+                  </div>
+
+                  {/* Zone Meta Info */}
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/50 dark:bg-neutral-900/50 space-y-2.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-neutral-500">Zone Type:</span>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">
+                        {selectedZone.type}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-neutral-500">Status:</span>
+                      <Badge
+                        variant="default"
+                        className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${selectedZone.status === 'done'
+                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : selectedZone.status === 'review'
+                              ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                              : selectedZone.status === 'in_progress'
+                                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
+                          }`}
+                      >
+                        {selectedZone.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-neutral-500">
+                        <span>Progress:</span>
+                        <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                          {selectedZone.progress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-neutral-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-neutral-900 dark:bg-white h-full transition-all duration-300"
+                          style={{ width: `${selectedZone.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Task detail card */}
+                  {task && (
+                    <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                      <h5 className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Task Instructions
+                      </h5>
+                      <Card className="p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-2.5 rounded-xl">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-250 truncate">{task.title}</p>
+                            <p className="text-[10px] text-neutral-500 mt-0.5">{task.description || 'No description provided.'}</p>
+                          </div>
+                        </div>
+
+                        {task.reviewNotes && task.status === 'in_progress' && (
+                          <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
+                            <div className="font-semibold flex items-center gap-1">
+                              <AlertCircle className="size-3 text-rose-500 shrink-0" />
+                              <span>Revision Required:</span>
+                            </div>
+                            <p className="text-neutral-600 dark:text-neutral-400 leading-normal font-normal bg-white/75 dark:bg-neutral-950 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
+                              {task.reviewNotes}
+                            </p>
+                          </div>
+                        )}
+                      </Card>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {zones.length === 0 ? (
+                    <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 p-4 text-center">
+                      <p className="text-xs text-neutral-500">No zones yet.</p>
+                    </div>
+                  ) : (
+                    zones.map((zone) => (
+                      <div
+                        key={zone._id}
+                        onClick={() => setSelectedZoneId(zone._id)}
+                        className="rounded-xl border border-neutral-200 hover:border-neutral-400 dark:border-neutral-800 dark:hover:border-neutral-650 p-2.5 cursor-pointer transition-all space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2.5 rounded-sm" style={{ backgroundColor: zone.color }} />
+                            <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200">{zone.name}</span>
+                          </div>
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 capitalize">
+                            {zone.type}
+                          </Badge>
+                        </div>
+                        <div className="w-full bg-neutral-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-neutral-900 dark:bg-white h-full transition-all duration-300"
+                            style={{ width: `${zone.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   )

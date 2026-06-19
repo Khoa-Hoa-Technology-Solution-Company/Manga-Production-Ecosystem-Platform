@@ -175,7 +175,8 @@
     "revisionNotesFromMangaka": "Revision Notes from Mangaka:",
     "declineTask": "Decline",
     "confirmDecline": "Are you sure you want to decline this assigned task?",
-    "downloadDraft": "Download Draft"
+    "downloadDraft": "Download Draft",
+    "viewManuscript": "View Manuscript"
   },
   "discover": {
     "title": "Discover",
