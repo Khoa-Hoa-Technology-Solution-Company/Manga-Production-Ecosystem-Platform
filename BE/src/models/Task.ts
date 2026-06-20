@@ -17,7 +17,7 @@ export interface ITask extends Document {
   assignedBy: mongoose.Types.ObjectId;
   status: TaskStatus;
   assistantType: AssistantType;
-  wage: number;
+  wage?: number;
   deadline: Date;
   submittedFile?: string;
   reviewNotes?: string;
@@ -38,7 +38,7 @@ const taskSchema = new Schema<ITask>(
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     status: { type: String, enum: ['open', 'assigned', 'in_progress', 'review', 'done'], default: 'open' },
     assistantType: { type: String, enum: ['dedicated', 'freelance'], default: 'freelance' },
-    wage: { type: Number, required: true, default: 0 },
+    wage: { type: Number, default: 0 },
     deadline: { type: Date, required: true },
     submittedFile: { type: String },
     reviewNotes: { type: String },

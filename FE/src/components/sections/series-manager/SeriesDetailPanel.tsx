@@ -5,6 +5,7 @@ import { Button, Avatar, AvatarFallback, Card } from '../../ui'
 import { toGenreText, seriesCoverUrl, type SeriesData, type ChapterData, type EditorUserData } from './utils'
 import { WorkflowTimeline } from './WorkflowTimeline'
 import { ChapterCard } from './ChapterCard'
+import { ProposalDetailView } from './ProposalDetailView'
 
 interface SeriesDetailPanelProps {
   selectedSeries: SeriesData | null
@@ -279,6 +280,18 @@ export function SeriesDetailPanel({
           <p className="mt-2 text-2xl font-bold text-neutral-900">{totalCollaborators}</p>
         </div>
       </div>
+
+      {/* Proposal Details (Script & Character Designs) */}
+      <Card className="p-6 border border-neutral-100 shadow-md rounded-3xl space-y-4">
+        <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+          Series Script & Character Concepts
+        </h4>
+        <ProposalDetailView
+          script={selectedSeries.script}
+          scriptFile={selectedSeries.scriptFile}
+          characterDesigns={selectedSeries.characterDesigns}
+        />
+      </Card>
 
       {/* Chapter List Card */}
       <Card className="p-6 border border-neutral-100 shadow-md rounded-3xl space-y-4">

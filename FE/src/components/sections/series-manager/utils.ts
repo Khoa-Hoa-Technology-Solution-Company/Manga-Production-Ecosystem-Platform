@@ -61,6 +61,14 @@ export interface SeriesData {
   rejectionNotes?: string
   editorId?: string | { _id: string; displayName?: string }
   editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none'
+  script?: string
+  scriptFile?: string
+  characterDesigns?: {
+    name: string
+    role: string
+    description?: string
+    image?: string
+  }[]
 }
 
 export interface ChapterData {

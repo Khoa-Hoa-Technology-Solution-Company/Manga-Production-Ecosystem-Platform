@@ -21,20 +21,15 @@ export async function getStats(req: Request, res: Response): Promise<void> {
       ]);
       stats = { activeSeries, totalChapters, pendingTasks, publishedChapters };
     } else if (role === 'assistant') {
-      const [availableTasks, inProgress, completed, earnings] = await Promise.all([
+      const [availableTasks, inProgress, completed] = await Promise.all([
         Task.countDocuments({ status: 'open' }),
         Task.countDocuments({ assignedTo: userId, status: 'in_progress' }),
         Task.countDocuments({ assignedTo: userId, status: 'done' }),
-        Task.aggregate([
-          { $match: { assignedTo: userId, status: 'done' } },
-          { $group: { _id: null, total: { $sum: '$wage' } } },
-        ]),
       ]);
       stats = {
         availableTasks,
         inProgress,
         completed,
-        totalEarnings: earnings[0]?.total || 0,
       };
     } else if (role === 'editor' || role === 'editorial_board') {
       const [reviewing, approved, published, totalSeries] = await Promise.all([

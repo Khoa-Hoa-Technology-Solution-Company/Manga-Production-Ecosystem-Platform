@@ -304,14 +304,7 @@ export const notificationsAPI = {
     apiFetch('/notifications/read-all', { method: 'PATCH' }),
 };
 
-// ── Earnings API (Assistant) ────────────────────────
-export const earningsAPI = {
-  getMonthly: (params?: Record<string, string>) => {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return apiFetch<{ earnings: any[] }>(`/tasks/earnings/monthly${qs}`);
-  },
-  getSummary: () => apiFetch<{ totalEarnings: number }>('/tasks/earnings/summary'),
-};
+
 
 // ── Annotations API ─────────────────────────────────
 export const annotationsAPI = {

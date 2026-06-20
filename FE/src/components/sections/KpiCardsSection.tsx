@@ -1,4 +1,4 @@
-import { ArrowUp, BookOpen, CheckSquare, DollarSign, Heart } from 'lucide-react'
+import { ArrowUp, BookOpen, CheckSquare, Heart } from 'lucide-react'
 import { Card, CardContent, CardHeader, Badge } from '../ui'
 
 const metrics = [
@@ -18,13 +18,6 @@ const metrics = [
     badgeVariant: 'destructive' as const,
   },
   {
-    label: 'Total Wages Paid',
-    value: '¥4.82M',
-    note: 'This quarter',
-    icon: DollarSign,
-    sparkline: true,
-  },
-  {
     label: 'Reader Votes',
     value: '184.2K',
     note: 'This week',
@@ -36,7 +29,7 @@ const metrics = [
 
 export function KpiCardsSection() {
   return (
-    <section className="grid gap-4 xl:grid-cols-4">
+    <section className="grid gap-4 xl:grid-cols-3">
       {metrics.map((item) => {
         const Icon = item.icon
 
@@ -65,18 +58,6 @@ export function KpiCardsSection() {
                 ) : null}
               </div>
               <span className="text-xs leading-4 text-neutral-500">{item.note}</span>
-
-              {item.sparkline ? (
-                <div className="mt-2 flex h-8 items-end gap-0.5">
-                  <div className="h-3 w-1 rounded-xs bg-neutral-900/40" />
-                  <div className="h-5 w-1 rounded-xs bg-neutral-900/60" />
-                  <div className="h-2 w-1 rounded-xs bg-neutral-900/40" />
-                  <div className="h-6 w-1 rounded-xs bg-neutral-900/70" />
-                  <div className="h-4 w-1 rounded-xs bg-neutral-900/50" />
-                  <div className="h-7 w-1 rounded-xs bg-neutral-900/80" />
-                  <div className="h-8 w-1 rounded-xs bg-neutral-900" />
-                </div>
-              ) : null}
             </CardContent>
           </Card>
         )

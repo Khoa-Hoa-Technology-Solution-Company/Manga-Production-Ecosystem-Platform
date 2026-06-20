@@ -7,6 +7,7 @@ import {
   Calendar, Ban, Loader2, TrendingUp, TrendingDown,
   LayoutDashboard, Activity, ChevronRight
 } from 'lucide-react'
+import { ProposalDetailView } from './series-manager/ProposalDetailView'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
 import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
@@ -30,6 +31,14 @@ type SeriesItem = {
   createdAt: string
   updatedAt?: string
   rejectionNotes?: string
+  script?: string
+  scriptFile?: string
+  characterDesigns?: {
+    name: string
+    role: string
+    description?: string
+    image?: string
+  }[]
   // Vote aggregation
   votesFor?: number
   votesAgainst?: number
@@ -820,10 +829,21 @@ export function EditorialBoardPortalPage() {
                         </Button>
 
                         {inspectSeriesId === series._id && (
-                          <div className="border-t border-neutral-100 pt-3 mt-2 space-y-2 w-full text-left">
-                            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
-                              Submitted Chapters & Storyboard
-                            </span>
+                          <div className="border-t border-neutral-100 pt-3 mt-2 space-y-4 w-full text-left">
+                            {/* Interactive Script & Character Designs Inspection */}
+                            <div className="p-1.5 bg-neutral-50/20 border border-neutral-100 rounded-2xl">
+                              <ProposalDetailView
+                                script={series.script}
+                                scriptFile={series.scriptFile}
+                                characterDesigns={series.characterDesigns}
+                              />
+                            </div>
+
+                            {/* Submitted Chapters */}
+                            <div className="space-y-2 border-t border-neutral-100 pt-3">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
+                                Submitted Chapters & Storyboard
+                              </span>
 
                             {loadingChapters ? (
                               <div className="flex items-center gap-2 text-xs text-neutral-500 py-2 justify-center">
@@ -861,8 +881,9 @@ export function EditorialBoardPortalPage() {
                               </div>
                             )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
+                    </div>
 
                       {votingSeriesId === series._id ? (() => {
                         const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5;

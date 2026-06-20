@@ -8,7 +8,6 @@ import {
   View,
   Dimensions,
   GestureResponderEvent,
-  TextInput,
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,14 +39,9 @@ import {
   Briefcase,
   Layers,
   ArrowUpRight,
-  TrendingUp,
-  Wallet,
-  DollarSign,
   AlertCircle,
   UploadCloud,
-  Check,
   Activity,
-  X,
 } from 'lucide-react-native';
 
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -131,12 +125,6 @@ function StudioScreen() {
 
   // Freelance Assistant states & task list
   const [assistantTab, setAssistantTab] = useState<'all' | 'available' | 'progress' | 'review' | 'completed'>('all');
-  const [showPayoutModal, setShowPayoutModal] = useState(false);
-  const [payoutMethod, setPayoutMethod] = useState<'bank' | 'momo' | 'paypal'>('bank');
-  const [payoutAmount, setPayoutAmount] = useState('1500000'); // 1,500,000 VND
-  const [payoutSuccess, setPayoutSuccess] = useState(false);
-  const [payoutLoading, setPayoutLoading] = useState(false);
-  const [totalEarnings, setTotalEarnings] = useState(user?.totalEarnings || 0);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
   const [freelanceTasks, setFreelanceTasks] = useState<any[]>([]);
@@ -153,8 +141,6 @@ function StudioScreen() {
           id: t._id,
           title: t.title || `${t.type || 'Nhiệm vụ'} Manga`,
           series: t.seriesId?.title || 'Tác phẩm',
-          reward: (t.wage || 0).toLocaleString('vi-VN'),
-          rewardNum: t.wage || 0,
           deadline: t.deadline ? new Date(t.deadline).toLocaleDateString('vi-VN') : '1 ngày',
           status: t.status === 'open' 
             ? 'available' 
@@ -262,16 +248,6 @@ function StudioScreen() {
         console.log('Studio fetch editor cascade info:', err.message);
       });
 
-    // 4. Fetch Stats for total earnings
-    dashboardAPI.getStats()
-      .then((data) => {
-        if (data.stats && data.stats.totalEarnings !== undefined) {
-          setTotalEarnings(data.stats.totalEarnings);
-        }
-      })
-      .catch((err) => {
-        console.error('Studio fetch stats error:', err);
-      });
   };
 
   useEffect(() => {
@@ -354,19 +330,7 @@ function StudioScreen() {
     }, 120);
   };
 
-  const handleWithdraw = () => {
-    if (Number(payoutAmount) <= 0 || Number(payoutAmount) > totalEarnings) return;
-    setPayoutLoading(true);
-    setTimeout(() => {
-      setPayoutLoading(false);
-      setPayoutSuccess(true);
-      setTimeout(() => {
-        setTotalEarnings((prev: number) => prev - Number(payoutAmount));
-        setPayoutSuccess(false);
-        setShowPayoutModal(false);
-      }, 1600);
-    }, 1500);
-  };
+
 
   const selectedZone = zones.find((z) => z.id === selectedZoneId);
 
@@ -987,67 +951,7 @@ function StudioScreen() {
                 </View>
               </View>
 
-              {/* Earnings Gradient Card */}
-              <LinearGradient
-                colors={['#e11d48', '#881337']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.earningsCard}
-              >
-                <View style={styles.earningsTopRow}>
-                  <View style={styles.earningsInfoCol}>
-                    <View style={styles.walletHeadingRow}>
-                      <Wallet size={14} color="#fecdd3" />
-                      <ThemedText style={styles.earningsLabelText}>Ví Thu Nhập Khả Dụng</ThemedText>
-                    </View>
-                    <ThemedText style={styles.earningsValueText}>
-                      {totalEarnings.toLocaleString()} đ
-                    </ThemedText>
-                  </View>
-                  <Pressable
-                    onPress={() => {
-                      setPayoutAmount(totalEarnings.toString());
-                      setShowPayoutModal(true);
-                    }}
-                    style={styles.payoutCtaBtn}
-                  >
-                    <DollarSign size={14} color="#e11d48" />
-                    <ThemedText style={styles.payoutCtaText}>Rút Tiền</ThemedText>
-                  </Pressable>
-                </View>
 
-                {/* Micro trend chart showing weekly earnings */}
-                <View style={styles.chartContainer}>
-                  <View style={styles.chartHeader}>
-                    <TrendingUp size={12} color="#fecdd3" />
-                    <ThemedText style={styles.chartHeaderText}>Biểu đồ doanh thu tuần này</ThemedText>
-                  </View>
-                  <View style={styles.barsRow}>
-                    {[
-                      { day: 'T2', amount: '200k', height: '35%' },
-                      { day: 'T3', amount: '350k', height: '55%' },
-                      { day: 'T4', amount: '150k', height: '25%' },
-                      { day: 'T5', amount: '500k', height: '80%' },
-                      { day: 'T6', amount: '600k', height: '95%' },
-                      { day: 'T7', amount: '450k', height: '70%' },
-                      { day: 'CN', amount: '600k', height: '95%', active: true },
-                    ].map((item, idx) => (
-                      <View key={idx} style={styles.barCol}>
-                        <View style={styles.barTrack}>
-                          <View
-                            style={[
-                              styles.barFill,
-                              { height: item.height as any },
-                              item.active && { backgroundColor: '#fff' },
-                            ]}
-                          />
-                        </View>
-                        <ThemedText style={styles.barLabel}>{item.day}</ThemedText>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </LinearGradient>
 
               {/* Tasks Tab Filter Bar */}
               <View>
@@ -1128,11 +1032,6 @@ function StudioScreen() {
 
                         <View style={styles.taskCardMetaRow}>
                           <View style={styles.metaCol}>
-                            <ThemedText style={styles.metaLabel}>Thù lao</ThemedText>
-                            <ThemedText style={styles.metaValueReward}>+{task.reward} đ</ThemedText>
-                          </View>
-
-                          <View style={styles.metaCol}>
                             <ThemedText style={styles.metaLabel}>Hạn chót</ThemedText>
                             <ThemedText style={styles.metaValueDeadline}>{task.deadline}</ThemedText>
                           </View>
@@ -1190,7 +1089,7 @@ function StudioScreen() {
                             <View style={styles.taskCompletedRow}>
                               <CheckCircle size={14} color="#22c55e" />
                               <ThemedText style={styles.taskCompletedText}>
-                                Nhiệm vụ đã hoàn thành xuất sắc! Thù lao đã cộng vào ví.
+                                Nhiệm vụ đã hoàn thành xuất sắc!
                               </ThemedText>
                             </View>
                           )}
@@ -1235,161 +1134,7 @@ function StudioScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Glassmorphic payout sheet for secure withdrawal */}
-      {showPayoutModal && (
-        <View style={styles.payoutOverlay}>
-          <Pressable style={styles.payoutDismissHotspot} onPress={() => !payoutLoading && !payoutSuccess && setShowPayoutModal(false)} />
-          <View style={styles.payoutSheetContainer}>
-            {payoutSuccess ? (
-              <View style={styles.successContainer}>
-                <View style={styles.successTickWrapper}>
-                  <Check size={40} color="#22c55e" />
-                </View>
-                <ThemedText style={styles.successTitleText}>Rút Tiền Thành Công!</ThemedText>
-                <ThemedText style={styles.successAmountText}>
-                  -{Number(payoutAmount).toLocaleString()} đ
-                </ThemedText>
-                <ThemedText style={styles.successSubText}>
-                  Giao dịch đang được xử lý an toàn. Tiền sẽ khả dụng trong ví của bạn sau vài phút.
-                </ThemedText>
-              </View>
-            ) : (
-              <View style={styles.payoutFormContainer}>
-                <View style={styles.payoutFormHeader}>
-                  <ThemedText style={styles.payoutFormTitle}>RÚT TIỀN TIỆN LỢI</ThemedText>
-                  <Pressable
-                    disabled={payoutLoading}
-                    onPress={() => setShowPayoutModal(false)}
-                    style={styles.payoutCloseBtn}
-                  >
-                    <X size={18} color="#fff" />
-                  </Pressable>
-                </View>
 
-                {/* Method selectors */}
-                <View style={styles.paymentMethodsRow}>
-                  {[
-                    { key: 'bank', label: 'Ngân Hàng' },
-                    { key: 'momo', label: 'Ví MoMo' },
-                    { key: 'paypal', label: 'PayPal' },
-                  ].map((m) => {
-                    const active = payoutMethod === m.key;
-                    return (
-                      <Pressable
-                        key={m.key}
-                        disabled={payoutLoading}
-                        onPress={() => setPayoutMethod(m.key as any)}
-                        style={[styles.paymentMethodChip, active && styles.paymentMethodChipActive]}
-                      >
-                        <ThemedText style={[styles.paymentMethodLabel, active && { color: '#0a051d' }]}>
-                          {m.label}
-                        </ThemedText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {/* Amount input */}
-                <View style={styles.amountInputGroup}>
-                  <ThemedText style={styles.inputGroupLabel}>Số tiền cần rút (đ):</ThemedText>
-                  <View style={styles.currencyInputRow}>
-                    <TextInput
-                      style={styles.payoutTextInput}
-                      value={payoutAmount}
-                      onChangeText={setPayoutAmount}
-                      keyboardType="numeric"
-                      editable={!payoutLoading}
-                      placeholder="Nhập số tiền..."
-                      placeholderTextColor="#64748b"
-                    />
-                    <ThemedText style={styles.payoutCurrencyLabel}>đ</ThemedText>
-                  </View>
-                </View>
-
-                {/* Suggestions chips */}
-                <View style={styles.suggestionAmountChips}>
-                  {[200000, 500000, 1000000, 2000000].map((amt) => (
-                    <Pressable
-                      key={amt}
-                      disabled={payoutLoading || amt > totalEarnings}
-                      onPress={() => setPayoutAmount(amt.toString())}
-                      style={[
-                        styles.suggestionAmountChip,
-                        amt > totalEarnings && { opacity: 0.4 },
-                      ]}
-                    >
-                      <ThemedText style={styles.suggestionAmountText}>
-                        {(amt / 1000).toString()}k
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                  <Pressable
-                    disabled={payoutLoading}
-                    onPress={() => setPayoutAmount(totalEarnings.toString())}
-                    style={styles.suggestionAmountChip}
-                  >
-                    <ThemedText style={styles.suggestionAmountText}>Tất cả</ThemedText>
-                  </Pressable>
-                </View>
-
-                {/* Account Details */}
-                <View style={styles.amountInputGroup}>
-                  <ThemedText style={styles.inputGroupLabel}>
-                    {payoutMethod === 'bank'
-                      ? 'Số tài khoản & Tên ngân hàng:'
-                      : payoutMethod === 'momo'
-                      ? 'Số điện thoại đăng ký MoMo:'
-                      : 'Địa chỉ Email PayPal:'}
-                  </ThemedText>
-                  <TextInput
-                    style={styles.accountTextInput}
-                    placeholder={
-                      payoutMethod === 'bank'
-                        ? '1903... - Techcombank'
-                        : payoutMethod === 'momo'
-                        ? '09xx xxx xxx'
-                        : 'your-email@paypal.com'
-                    }
-                    placeholderTextColor="#64748b"
-                    editable={!payoutLoading}
-                  />
-                </View>
-
-                {/* Warnings or balances */}
-                <View style={styles.balanceInfoRow}>
-                  <ThemedText style={styles.balanceInfoText}>
-                    Số dư khả dụng: {totalEarnings.toLocaleString()} đ
-                  </ThemedText>
-                  {Number(payoutAmount) > totalEarnings && (
-                    <ThemedText style={styles.insufficientText}>Không đủ số dư</ThemedText>
-                  )}
-                </View>
-
-                {/* Withdraw CTA */}
-                <Pressable
-                  disabled={
-                    payoutLoading ||
-                    Number(payoutAmount) <= 0 ||
-                    Number(payoutAmount) > totalEarnings
-                  }
-                  onPress={handleWithdraw}
-                  style={[
-                    styles.confirmWithdrawBtn,
-                    (payoutLoading ||
-                      Number(payoutAmount) <= 0 ||
-                      Number(payoutAmount) > totalEarnings) &&
-                      styles.confirmWithdrawBtnDisabled,
-                  ]}
-                >
-                  <ThemedText style={styles.confirmWithdrawText}>
-                    {payoutLoading ? 'Đang giao dịch...' : 'Xác Nhận Rút Tiền'}
-                  </ThemedText>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        </View>
-      )}
     </ThemedView>
   );
 }
@@ -1503,22 +1248,7 @@ const styles = StyleSheet.create({
   statIconCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   statBoxLabel: { color: '#64748b', fontSize: 9, fontWeight: '700' },
   statBoxVal: { color: '#fff', fontSize: 14, fontWeight: '900', marginTop: 2 },
-  earningsCard: { borderRadius: 20, padding: 14, gap: 14 },
-  earningsTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  earningsInfoCol: { gap: 4 },
-  walletHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  earningsLabelText: { color: '#fecdd3', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  earningsValueText: { color: '#fff', fontSize: 24, fontWeight: '900' },
-  payoutCtaBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  payoutCtaText: { color: '#e11d48', fontSize: 11, fontWeight: '900' },
-  chartContainer: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 14, padding: 10, gap: 8 },
-  chartHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chartHeaderText: { color: '#fecdd3', fontSize: 9, fontWeight: '700' },
-  barsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 75, paddingTop: 10 },
-  barCol: { alignItems: 'center', width: 28 },
-  barTrack: { height: 50, width: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { width: '100%', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 4 },
-  barLabel: { color: '#fecdd3', fontSize: 8, marginTop: 4, fontWeight: '700' },
+
   filterChipRow: { gap: 6, paddingVertical: 2 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
   filterChipActive: { backgroundColor: '#f43f5e', borderColor: '#f43f5e' },
@@ -1537,7 +1267,7 @@ const styles = StyleSheet.create({
   taskCardMetaRow: { flexDirection: 'row', gap: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 10 },
   metaCol: { gap: 2 },
   metaLabel: { color: '#64748b', fontSize: 9, fontWeight: '700' },
-  metaValueReward: { color: '#f43f5e', fontSize: 12, fontWeight: '800' },
+
   metaValueDeadline: { color: '#cbd5e1', fontSize: 11, fontWeight: '800' },
   taskActionsWrap: { marginTop: 4 },
   taskAcceptBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#f43f5e', paddingVertical: 10, borderRadius: 10 },
@@ -1555,38 +1285,7 @@ const styles = StyleSheet.create({
   taskCompletedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(34,197,94,0.08)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.12)', padding: 10, borderRadius: 10 },
   taskCompletedText: { color: '#4ade80', fontSize: 10, fontWeight: '800', flex: 1, lineHeight: 14 },
   
-  // Payout Dialog Modal styles
-  payoutOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end', zIndex: 1000 },
-  payoutDismissHotspot: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  payoutSheetContainer: { backgroundColor: '#0e0921', borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 20 },
-  payoutFormContainer: { gap: 16 },
-  payoutFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 10 },
-  payoutFormTitle: { color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 1 },
-  payoutCloseBtn: { padding: 4 },
-  paymentMethodsRow: { flexDirection: 'row', gap: 8 },
-  paymentMethodChip: { flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)', alignItems: 'center' },
-  paymentMethodChipActive: { backgroundColor: '#fff', borderColor: '#fff' },
-  paymentMethodLabel: { color: '#94a3b8', fontSize: 11, fontWeight: '800' },
-  amountInputGroup: { gap: 6 },
-  inputGroupLabel: { color: '#cbd5e1', fontSize: 11, fontWeight: '700' },
-  currencyInputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 12 },
-  payoutTextInput: { flex: 1, color: '#fff', fontSize: 16, fontWeight: '800', height: 48 },
-  payoutCurrencyLabel: { color: '#64748b', fontSize: 14, fontWeight: '800' },
-  suggestionAmountChips: { flexDirection: 'row', gap: 6 },
-  suggestionAmountChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)' },
-  suggestionAmountText: { color: '#cbd5e1', fontSize: 10, fontWeight: '800' },
-  accountTextInput: { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 12, color: '#fff', fontSize: 13, fontWeight: '700', height: 44 },
-  balanceInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  balanceInfoText: { color: '#64748b', fontSize: 10, fontWeight: '700' },
-  insufficientText: { color: '#ef4444', fontSize: 10, fontWeight: '800' },
-  confirmWithdrawBtn: { backgroundColor: '#f43f5e', paddingVertical: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  confirmWithdrawBtnDisabled: { backgroundColor: 'rgba(244,63,94,0.3)', opacity: 0.6 },
-  confirmWithdrawText: { color: '#fff', fontSize: 13, fontWeight: '900' },
-  successContainer: { alignItems: 'center', paddingVertical: 20, gap: 12 },
-  successTickWrapper: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(34,197,94,0.1)', borderWidth: 1.5, borderColor: 'rgba(34,197,94,0.3)', alignItems: 'center', justifyContent: 'center' },
-  successTitleText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  successAmountText: { color: '#22c55e', fontSize: 24, fontWeight: '900' },
-  successSubText: { color: '#94a3b8', fontSize: 11, textAlign: 'center', lineHeight: 16 },
+
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',

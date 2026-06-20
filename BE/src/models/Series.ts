@@ -5,6 +5,13 @@ export interface IDedicatedAssistant {
   addedAt: Date;
 }
 
+export interface ICharacterDesign {
+  name: string;
+  role: string;
+  description?: string;
+  image?: string;
+}
+
 export interface ISeries extends Document {
   title: string;
   description: string;
@@ -26,6 +33,9 @@ export interface ISeries extends Document {
   editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none';
   dedicatedAssistants: IDedicatedAssistant[];
   subscribers?: mongoose.Types.ObjectId[];
+  script?: string;
+  scriptFile?: string;
+  characterDesigns: ICharacterDesign[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +67,16 @@ const seriesSchema = new Schema<ISeries>(
       },
     ],
     subscribers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    script: { type: String },
+    scriptFile: { type: String },
+    characterDesigns: [
+      {
+        name: { type: String, required: true },
+        role: { type: String },
+        description: { type: String },
+        image: { type: String },
+      },
+    ],
   },
   { timestamps: true }
 );
