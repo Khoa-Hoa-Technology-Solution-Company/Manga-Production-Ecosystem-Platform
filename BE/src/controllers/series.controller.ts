@@ -93,7 +93,7 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description, editorId } = req.body;
+    const { title, description, editorId, script, scriptFile, characterDesigns } = req.body;
     const genre = Array.isArray(req.body.genre)
       ? req.body.genre
       : String(req.body.genre || '')
@@ -107,6 +107,19 @@ export async function create(req: Request, res: Response): Promise<void> {
       coverImage = await uploadToR2(req.file, 'series');
     }
 
+    let parsedCharacterDesigns = [];
+    if (characterDesigns) {
+      if (typeof characterDesigns === 'string') {
+        try {
+          parsedCharacterDesigns = JSON.parse(characterDesigns);
+        } catch (e) {
+          parsedCharacterDesigns = [];
+        }
+      } else if (Array.isArray(characterDesigns)) {
+        parsedCharacterDesigns = characterDesigns;
+      }
+    }
+
     const series = await Series.create({
       title,
       description,
@@ -115,6 +128,9 @@ export async function create(req: Request, res: Response): Promise<void> {
       mangakaId: req.user?._id,
       editorId: editorId || undefined,
       editorStatus: editorId ? 'pending' : 'none',
+      script,
+      scriptFile,
+      characterDesigns: parsedCharacterDesigns,
     });
 
     if (editorId) {
@@ -141,7 +157,7 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function update(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description, status, editorId, deadline } = req.body;
+    const { title, description, status, editorId, deadline, script, scriptFile, characterDesigns } = req.body;
     const genre = Array.isArray(req.body.genre)
       ? req.body.genre
       : typeof req.body.genre === 'string'
@@ -160,6 +176,21 @@ export async function update(req: Request, res: Response): Promise<void> {
     if (req.file) updateData.coverImage = await uploadToR2(req.file, 'series');
     if (deadline !== undefined) {
       updateData.deadline = deadline ? new Date(deadline) : null;
+    }
+    if (script !== undefined) updateData.script = script;
+    if (scriptFile !== undefined) updateData.scriptFile = scriptFile;
+    if (characterDesigns !== undefined) {
+      let parsedCharacterDesigns = [];
+      if (typeof characterDesigns === 'string') {
+        try {
+          parsedCharacterDesigns = JSON.parse(characterDesigns);
+        } catch (e) {
+          parsedCharacterDesigns = [];
+        }
+      } else if (Array.isArray(characterDesigns)) {
+        parsedCharacterDesigns = characterDesigns;
+      }
+      updateData.characterDesigns = parsedCharacterDesigns;
     }
 
     // Automatically manage editor Status handshake when editorId changes

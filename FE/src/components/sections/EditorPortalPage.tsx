@@ -32,6 +32,7 @@ import {
   Settings,
   Loader2
 } from 'lucide-react'
+import { ProposalDetailView } from './series-manager/ProposalDetailView'
 
 interface SeriesData {
   _id: string
@@ -45,6 +46,14 @@ interface SeriesData {
   rejectionNotes?: string
   totalChapters: number
   deadline?: string
+  script?: string
+  scriptFile?: string
+  characterDesigns?: {
+    name: string
+    role: string
+    description?: string
+    image?: string
+  }[]
 }
 
 interface ChapterData {
@@ -1588,10 +1597,21 @@ export function EditorPortalPage() {
                     </Button>
 
                     {expandedSeriesId === series._id && (
-                      <div className="border-t border-neutral-100 pt-3 mt-2 space-y-2 w-full">
-                        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
-                          {t('editor.submittedChapters', 'Submitted Chapters & Pages')}
-                        </span>
+                      <div className="border-t border-neutral-100 pt-3 mt-2 space-y-4 w-full text-left">
+                        {/* Interactive Script & Character Designs Inspection */}
+                        <div className="p-1.5 bg-neutral-50/20 border border-neutral-100 rounded-2xl">
+                          <ProposalDetailView
+                            script={series.script}
+                            scriptFile={series.scriptFile}
+                            characterDesigns={series.characterDesigns}
+                          />
+                        </div>
+
+                        {/* Submitted Chapters */}
+                        <div className="space-y-2 border-t border-neutral-100 pt-3">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
+                            {t('editor.submittedChapters', 'Submitted Chapters & Pages')}
+                          </span>
                         
                         {loadingChaptersForSeries ? (
                           <div className="flex items-center gap-2 text-xs text-neutral-500 py-2 justify-center">
@@ -1642,7 +1662,8 @@ export function EditorPortalPage() {
                           </div>
                         )}
                       </div>
-                    )}
+                    </div>
+                  )}
                   </div>
                 </Card>
               ))}

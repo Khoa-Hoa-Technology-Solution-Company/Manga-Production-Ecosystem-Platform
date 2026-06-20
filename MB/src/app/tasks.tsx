@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, Alert, TextInput } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, Clock, FileText, UploadCloud, DollarSign, Wallet, X, AlertCircle } from 'lucide-react-native';
+import { CheckCircle, Clock, FileText, UploadCloud, X } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { tasksAPI, earningsAPI } from '@/lib/api';
+import { tasksAPI } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { withProtectedReaderRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
@@ -22,7 +22,6 @@ function TasksScreen() {
   const [error, setError] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'all' | 'open' | 'progress' | 'review' | 'completed'>('all');
-  const [totalEarnings, setTotalEarnings] = useState(0);
 
   // Submit Task Modal
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -32,7 +31,6 @@ function TasksScreen() {
 
   useEffect(() => {
     loadTasks();
-    loadEarnings();
   }, [user?._id]);
 
   const loadTasks = () => {
@@ -51,12 +49,6 @@ function TasksScreen() {
         setError(err.message || 'Không thể tải danh sách công việc.');
       })
       .finally(() => setLoading(false));
-  };
-
-  const loadEarnings = () => {
-    earningsAPI.getSummary()
-      .then(res => setTotalEarnings(res.totalEarnings || 0))
-      .catch(() => setTotalEarnings(0));
   };
 
   const handleAcceptTask = (id: string) => {
@@ -135,17 +127,6 @@ function TasksScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + Spacing.four }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Earnings Card */}
-          <View style={styles.earningsCard}>
-            <View style={styles.earningsInfo}>
-              <ThemedText style={styles.earningsLabel}>Tổng thu nhập</ThemedText>
-              <ThemedText style={styles.earningsValue}>{totalEarnings.toLocaleString('vi-VN')} đ</ThemedText>
-            </View>
-            <View style={styles.earningsIconWrap}>
-              <Wallet size={24} color="#f43f5e" />
-            </View>
-          </View>
-
           {/* Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
             {[
@@ -183,10 +164,6 @@ function TasksScreen() {
               <View key={task._id} style={styles.taskCard}>
                 <View style={styles.taskHeader}>
                   <ThemedText style={styles.taskTitle}>{task.title || 'Untitled Task'}</ThemedText>
-                  <View style={styles.wageBadge}>
-                    <DollarSign size={12} color="#fbbf24" />
-                    <ThemedText style={styles.wageText}>{(task.wage || 0).toLocaleString()}đ</ThemedText>
-                  </View>
                 </View>
                 
                 <ThemedText style={styles.taskDesc} numberOfLines={3}>{task.description || 'Không có mô tả'}</ThemedText>
@@ -232,7 +209,7 @@ function TasksScreen() {
                 {(task.status === 'completed' || task.status === 'approved') && (
                   <View style={[styles.actionBtn, { backgroundColor: '#22c55e', opacity: 0.8 }]}>
                     <CheckCircle size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <ThemedText style={styles.actionBtnText}>Đã thanh toán</ThemedText>
+                    <ThemedText style={styles.actionBtnText}>Đã hoàn thành</ThemedText>
                   </View>
                 )}
               </View>
@@ -287,11 +264,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 60, gap: 10 },
   emptyText: { color: '#94a3b8', fontSize: 14 },
   
-  earningsCard: { flexDirection: 'row', backgroundColor: 'rgba(244,63,94,0.1)', borderRadius: 16, padding: 20, alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(244,63,94,0.2)' },
-  earningsInfo: { flex: 1 },
-  earningsLabel: { color: '#fb7185', fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase' },
-  earningsValue: { color: '#fff', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  earningsIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(244,63,94,0.2)', alignItems: 'center', justifyContent: 'center' },
+
 
   tabScroll: { marginBottom: 16, maxHeight: 40 },
   tabBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', marginRight: 8 },
@@ -302,8 +275,6 @@ const styles = StyleSheet.create({
   taskCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', marginBottom: 12 },
   taskHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   taskTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', flex: 1, paddingRight: 10 },
-  wageBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251,191,36,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  wageText: { color: '#fbbf24', fontSize: 12, fontWeight: 'bold', marginLeft: 4 },
   taskDesc: { color: '#cbd5e1', fontSize: 13, marginBottom: 12, lineHeight: 20 },
   metaRow: { flexDirection: 'row', gap: 16, marginBottom: 16 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

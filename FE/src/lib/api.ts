@@ -185,11 +185,7 @@ export const notificationsAPI = {
   markAllRead: () => api.patch('/notifications/read-all'),
 };
 
-// ── Earnings API (Assistant) ────────────────────────
-export const earningsAPI = {
-  getMonthly: (params?: Record<string, unknown>) => api.get('/tasks/earnings/monthly', { params }),
-  getSummary: () => api.get('/tasks/earnings/summary'),
-};
+
 
 // ── Annotations API ─────────────────────────────────
 export const annotationsAPI = {
@@ -208,6 +204,18 @@ export const editorAPI = {
   getMilestones: (seriesId: string) => api.get(`/editor/milestones/${seriesId}`),
   getWarnings: () => api.get('/editor/warnings'),
   getAnalytics: (mangakaId: string) => api.get(`/editor/analytics/${mangakaId}`),
+};
+
+// ── Upload API ──────────────────────────────────────
+export const uploadAPI = {
+  uploadFile: (file: File, folder?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (folder) formData.append('folder', folder);
+    return api.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 

@@ -247,7 +247,6 @@ function StudioWorkspacePageContent() {
   const [createTaskForm, setCreateTaskForm] = useState({
     title: '',
     description: '',
-    wage: 30000,
     deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
     type: 'background',
     assignedTo: '',
@@ -1711,7 +1710,6 @@ function StudioWorkspacePageContent() {
       description: level === 'chapter'
         ? `Thực hiện gia công toàn bộ Chapter ${currentChapter?.chapterNumber || 1}.`
         : `Thực hiện gia công Trang ${currentPage?.pageNumber || 1}.`,
-      wage: level === 'chapter' ? 150000 : 35000,
       deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
       type: 'background',
       assignedTo: '',
@@ -1728,7 +1726,6 @@ function StudioWorkspacePageContent() {
     setCreateTaskForm({
       title: task.title,
       description: task.description || '',
-      wage: task.wage || 35000,
       deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
       type: task.type,
       assignedTo: task.assignedTo?._id || task.assignedTo || '',
@@ -1750,7 +1747,7 @@ function StudioWorkspacePageContent() {
           status: createTaskForm.assignedTo ? 'assigned' : 'open',
           title: createTaskForm.title,
           description: createTaskForm.description,
-          wage: Number(createTaskForm.wage),
+          wage: 0,
           deadline: new Date(createTaskForm.deadline),
           assistantType: createTaskForm.assistantType,
         })
@@ -1761,7 +1758,7 @@ function StudioWorkspacePageContent() {
           chapterId: selectedChapterId,
           title: createTaskForm.title,
           description: createTaskForm.description,
-          wage: Number(createTaskForm.wage),
+          wage: 0,
           deadline: new Date(createTaskForm.deadline),
           type: createTaskForm.type,
           assignedTo: createTaskForm.assignedTo || undefined,
@@ -2445,7 +2442,6 @@ function StudioWorkspacePageContent() {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                   <p className="text-xs font-semibold text-neutral-800 truncate">{associatedTask.title}</p>
-                                  <p className="text-[10px] text-neutral-400 mt-0.5">{t('studio.wageLabel', 'Wage:')} {Number(associatedTask.wage).toLocaleString()} đ</p>
                                 </div>
                                 <Badge
                                   variant="secondary"
@@ -3393,24 +3389,13 @@ function StudioWorkspacePageContent() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.wageLabel', 'Wage (VND)')}</label>
-                  <Input
-                    type="number"
-                    value={createTaskForm.wage}
-                    onChange={(e) => setCreateTaskForm(prev => ({ ...prev, wage: Number(e.target.value) }))}
-                    placeholder="35000"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.deadlineLabel', 'Deadline')}</label>
-                  <Input
-                    type="date"
-                    value={createTaskForm.deadline}
-                    onChange={(e) => setCreateTaskForm(prev => ({ ...prev, deadline: e.target.value }))}
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.deadlineLabel', 'Deadline')}</label>
+                <Input
+                  type="date"
+                  value={createTaskForm.deadline}
+                  onChange={(e) => setCreateTaskForm(prev => ({ ...prev, deadline: e.target.value }))}
+                />
               </div>
 
               <div>
@@ -3633,10 +3618,6 @@ function StudioWorkspacePageContent() {
                 <div className="flex justify-between">
                   <span className="text-neutral-500">{t('studio.assigneeLabel', 'Assignee')}:</span>
                   <span className="font-semibold text-neutral-800">{selectedReviewTask.assignedTo?.displayName || 'Assistant'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">{t('studio.wageLabel', 'Wage')}:</span>
-                  <span className="font-bold text-neutral-900">{Number(selectedReviewTask.wage).toLocaleString()} đ</span>
                 </div>
               </div>
 

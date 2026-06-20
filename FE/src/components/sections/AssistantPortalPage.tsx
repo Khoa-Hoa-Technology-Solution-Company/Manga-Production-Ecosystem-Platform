@@ -2,12 +2,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Banknote,
   Briefcase,
   Calendar,
   CheckCircle2,
   Clock,
-  DollarSign,
   ListTodo,
   Search,
   Upload,
@@ -17,10 +15,9 @@ import {
   X,
   ChevronLeft,
 } from 'lucide-react'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Tabs } from '../ui'
+import { Badge, Button, Card, CardContent, CardHeader, Input, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
 import { tasksAPI, pagesAPI, zonesAPI } from '../../lib/api'
-import { formatCurrency } from '../../i18n'
 
 /* ── Type colors ────────────────────────────────────── */
 const typeColors: Record<string, string> = {
@@ -44,7 +41,7 @@ export function AssistantPortalPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
 
-  const [mainTab, setMainTab] = useState('tasks')
+  const mainTab = 'tasks'
   const [activeFilter, setActiveFilter] = useState('all')
   const [assistantTypeFilter, setAssistantTypeFilter] = useState<'all' | 'dedicated' | 'freelance'>('all')
   const [assignmentLevelFilter, setAssignmentLevelFilter] = useState<'all' | 'chapter' | 'page'>('all')
@@ -115,13 +112,6 @@ export function AssistantPortalPage() {
       value: tasks.filter(t => t.status === 'done').length.toString(),
       icon: CheckCircle2,
       bgIcon: 'bg-emerald-50',
-    },
-    {
-      label: t('assistant.earnings', 'Total Earnings'),
-      value: formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0)),
-      icon: DollarSign,
-      bgIcon: 'bg-purple-50',
-      sparkline: true,
     },
   ]
 
@@ -270,18 +260,9 @@ export function AssistantPortalPage() {
       <div className="border-b border-neutral-200 px-4 sm:px-6 lg:px-8">
         <div className="flex gap-6 -mb-px">
           <button
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === 'tasks' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
-              }`}
-            onClick={() => setMainTab('tasks')}
+            className="py-3 text-sm font-semibold border-b-2 border-neutral-900 text-neutral-900"
           >
             My Tasks
-          </button>
-          <button
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === 'earnings' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
-              }`}
-            onClick={() => setMainTab('earnings')}
-          >
-            My Earnings
           </button>
         </div>
       </div>
@@ -289,8 +270,7 @@ export function AssistantPortalPage() {
       <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
         {mainTab === 'tasks' && (
           <>
-            {/* ── Stats Row ──────────────────────────────── */}
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-4 sm:grid-cols-3">
               {stats.map((item) => {
                 const Icon = item.icon
                 return (
@@ -305,13 +285,6 @@ export function AssistantPortalPage() {
                       <div className="flex items-baseline gap-2">
                         <span className="text-2xl font-semibold leading-8">{item.value}</span>
                       </div>
-                      {item.sparkline && (
-                        <div className="mt-2 flex h-8 items-end gap-0.5">
-                          {[3, 5, 2, 6, 4, 7, 8].map((h, i) => (
-                            <div key={i} className="rounded-xs bg-purple-500/60" style={{ height: `${h * 4}px`, width: '4px' }} />
-                          ))}
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 )
@@ -455,9 +428,6 @@ export function AssistantPortalPage() {
                             <Calendar className="size-3" /> {new Date(task.deadline).toLocaleDateString()}
                           </span>
                         )}
-                        <span className="flex items-center gap-1 font-semibold text-neutral-900">
-                          <Banknote className="size-3" /> {formatCurrency(task.wage || 0)}
-                        </span>
                       </div>
 
                       {/* Action buttons based on status */}
@@ -634,75 +604,6 @@ export function AssistantPortalPage() {
                 ))}
               </section>
             )}
-          </>
-        )}
-
-        {/* ── Earnings Section ───────────────────────── */}
-        {mainTab === 'earnings' && (
-          <>
-            <Card className="p-6 shadow-sm">
-              <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
-                <div>
-                  <CardTitle className="text-base">{t('assistant.earningsOverview', 'Earnings Overview')}</CardTitle>
-                  <span className="text-xs text-neutral-500">{t('assistant.earningsHint', 'Your earnings from completed tasks')}</span>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-0">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-xl bg-neutral-50 p-3">
-                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.totalEarned', 'Total Earned')}</p>
-                    <p className="text-lg font-semibold mt-1">
-                      {formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0))}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-neutral-50 p-3">
-                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.pending', 'Pending')}</p>
-                    <p className="text-lg font-semibold mt-1">
-                      {formatCurrency(tasks.filter(t => ['in_progress', 'review', 'assigned'].includes(t.status)).reduce((sum, t) => sum + (t.wage || 0), 0))}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-neutral-50 p-3">
-                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">{t('assistant.avgPerTask', 'Avg. per Task')}</p>
-                    <p className="text-lg font-semibold mt-1">
-                      {(() => {
-                        const done = tasks.filter(t => t.status === 'done')
-                        return done.length > 0 ? formatCurrency(done.reduce((sum, t) => sum + (t.wage || 0), 0) / done.length) : formatCurrency(0)
-                      })()}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ── Monthly Breakdown (Mocked for visual) ── */}
-            <Card className="p-6 shadow-sm">
-              <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
-                <CardTitle className="text-base">Monthly Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-100 bg-neutral-50/80">
-                        <th className="px-4 py-3 text-left font-medium text-neutral-500">Month</th>
-                        <th className="px-4 py-3 text-right font-medium text-neutral-500">Pages Completed</th>
-                        <th className="px-4 py-3 text-right font-medium text-neutral-500">Total Earnings</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b border-neutral-50">
-                        <td className="px-4 py-3 font-medium">May 2026</td>
-                        <td className="px-4 py-3 text-right">{tasks.filter(t => t.status === 'done').length} pages</td>
-                        <td className="px-4 py-3 text-right font-semibold text-emerald-600">
-                          {formatCurrency(tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.wage || 0), 0))}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
           </>
         )}
       </div>

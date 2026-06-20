@@ -202,6 +202,14 @@ export function MangakaSeriesManagerPage() {
     coverFile: File | null
     coverUrl: string
     editorId: string
+    script?: string
+    scriptFile?: string
+    characterDesigns?: {
+      name: string
+      role: string
+      description?: string
+      image?: string
+    }[]
   }) => {
     setSaving(true)
     try {
@@ -212,6 +220,11 @@ export function MangakaSeriesManagerPage() {
       formData.append('genre', genreArray.join(', '))
       if (data.coverFile) formData.append('coverImageFile', data.coverFile)
       if (data.coverUrl) formData.append('coverImage', data.coverUrl)
+      if (data.script !== undefined) formData.append('script', data.script)
+      if (data.scriptFile !== undefined) formData.append('scriptFile', data.scriptFile)
+      if (data.characterDesigns !== undefined) {
+        formData.append('characterDesigns', JSON.stringify(data.characterDesigns))
+      }
 
       if (editingSeries) {
         formData.append('editorId', data.editorId || 'none')

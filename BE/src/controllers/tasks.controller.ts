@@ -382,13 +382,6 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
     );
     if (!task) { res.status(404).json({ error: 'Task not found.' }); return; }
 
-    // If task is done, update assistant earnings
-    if (status === 'done' && task.assignedTo) {
-      await User.findByIdAndUpdate(task.assignedTo, {
-        $inc: { totalEarnings: task.wage },
-      });
-    }
-
     // Cascade zone status update
     let zoneProgress = 0;
     if (status === 'assigned') zoneProgress = 20;
@@ -420,7 +413,7 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
 export async function update(req: Request, res: Response): Promise<void> {
   try {
     const updateData: any = {};
-    const allowed = ['title', 'description', 'type', 'wage', 'deadline', 'reviewNotes', 'assignedTo', 'status'];
+    const allowed = ['title', 'description', 'type', 'deadline', 'reviewNotes', 'assignedTo', 'status'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) updateData[key] = req.body[key];
     }

@@ -142,14 +142,13 @@ const options: swaggerJsdoc.Options = {
             assignedTo: { type: 'string', nullable: true },
             assignedBy: { type: 'string' },
             status: { type: 'string', enum: ['open', 'assigned', 'in_progress', 'review', 'done'] },
-            wage: { type: 'number', description: 'Payment amount (displayed as USD or VND based on locale)' },
             deadline: { type: 'string', format: 'date-time' },
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
         CreateTaskBody: {
           type: 'object',
-          required: ['chapterId', 'seriesId', 'type', 'title', 'wage', 'deadline'],
+          required: ['chapterId', 'seriesId', 'type', 'title', 'deadline'],
           properties: {
             chapterId: { type: 'string' },
             seriesId: { type: 'string' },
@@ -158,7 +157,6 @@ const options: swaggerJsdoc.Options = {
             type: { type: 'string', enum: ['inking', 'background', 'tone', 'lettering', 'effects'] },
             title: { type: 'string', example: 'Ink character outlines' },
             description: { type: 'string' },
-            wage: { type: 'number', example: 45000 },
             deadline: { type: 'string', format: 'date-time' },
           },
         },

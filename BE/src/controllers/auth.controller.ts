@@ -150,7 +150,7 @@ export async function recommendAssistants(req: Request, res: Response): Promise<
     const assistants = await User.find({
       role: 'assistant',
       isActive: true,
-    }).select('_id email displayName avatar skills rating totalEarnings');
+    }).select('_id email displayName avatar skills rating');
 
     // For each assistant, get their count of active tasks
     const recommended = await Promise.all(
