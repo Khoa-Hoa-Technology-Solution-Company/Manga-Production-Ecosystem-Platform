@@ -9,5 +9,8 @@ router.use(authenticate);
 router.get('/stats', ctrl.getStats);
 router.get('/workflow', ctrl.getWorkflow);
 router.get('/rankings', ctrl.getRankings);
+router.get('/activity', ctrl.getRecentActivity);
+router.get('/team', ctrl.getTeamOverview);
+router.get('/reader', ctrl.getReaderDashboard);
 
 export default router;

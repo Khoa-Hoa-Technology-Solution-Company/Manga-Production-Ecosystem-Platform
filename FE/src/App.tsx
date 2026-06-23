@@ -108,12 +108,12 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
               <Route path="/" element={<StudioPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/discover" element={<ReaderHubPage />} />
               <Route path="/read/:chapterId" element={<ReadingViewPage />} />
               <Route path="/settings" element={<SettingsPage />} />
 
               <Route element={<ProtectedReaderRoute />}>
-                <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/studio" element={<StudioWorkspacePage />} />
                 <Route path="/tasks" element={<AssistantPortalPage />} />
               </Route>

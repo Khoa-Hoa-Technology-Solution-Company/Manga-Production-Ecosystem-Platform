@@ -132,7 +132,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           {sections.map((section) => {
             const userRole = user?.role?.toLowerCase() || 'reader'
             const isReader = userRole === 'reader'
-            const restrictedForReader = ['dashboard', 'studio', 'series-manager', 'tasks', 'editor-portal', 'editorial-board']
+            const restrictedForReader = ['studio', 'series-manager', 'tasks', 'editor-portal', 'editorial-board']
             
             const sectionItems = navigation.filter((n) => {
               if (n.section !== section.key) return false

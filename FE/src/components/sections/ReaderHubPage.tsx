@@ -11,6 +11,12 @@ import {
   Play,
   Search,
   TrendingUp,
+  Trophy,
+  Sword,
+  BookOpen,
+  Moon,
+  Crown,
+  User
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Tabs, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui'
 import { seriesAPI, chaptersAPI, dashboardAPI, authAPI } from '../../lib/api'
@@ -66,13 +72,33 @@ interface RawLeaderboardItem {
 
 /* ── Leaderboard (Mock data preserved) ──────────────── */
 const leaderboard = [
-  { rank: 1, username: 'MangaHunter_99', votes: '12,847', seriesRead: 89, badge: '🏆 Champion', level: 'Diamond' },
-  { rank: 2, username: 'OtakuSenpai', votes: '11,204', seriesRead: 76, badge: '⚔️ Warrior', level: 'Platinum' },
-  { rank: 3, username: 'InkDrinker', votes: '9,856', seriesRead: 64, badge: '🔥 Fire', level: 'Gold' },
-  { rank: 4, username: 'PageTurner_X', votes: '8,392', seriesRead: 58, badge: '📖 Scholar', level: 'Gold' },
-  { rank: 5, username: 'MoonlitReader', votes: '7,105', seriesRead: 51, badge: '🌙 Mystic', level: 'Silver' },
-  { rank: 6, username: 'DragonScroll', votes: '6,230', seriesRead: 45, badge: '🐉 Dragon', level: 'Silver' },
+  { rank: 1, username: 'MangaHunter_99', votes: '12,847', seriesRead: 89, badge: 'Champion', level: 'Diamond' },
+  { rank: 2, username: 'OtakuSenpai', votes: '11,204', seriesRead: 76, badge: 'Warrior', level: 'Platinum' },
+  { rank: 3, username: 'InkDrinker', votes: '9,856', seriesRead: 64, badge: 'Fire', level: 'Gold' },
+  { rank: 4, username: 'PageTurner_X', votes: '8,392', seriesRead: 58, badge: 'Scholar', level: 'Gold' },
+  { rank: 5, username: 'MoonlitReader', votes: '7,105', seriesRead: 51, badge: 'Mystic', level: 'Silver' },
+  { rank: 6, username: 'DragonScroll', votes: '6,230', seriesRead: 45, badge: 'Dragon', level: 'Silver' },
 ]
+
+const getBadgeIcon = (badge: string) => {
+  switch (badge) {
+    case 'Champion':
+      return <Trophy className="size-3.5 text-amber-500 fill-amber-100 shrink-0" />
+    case 'Warrior':
+      return <Sword className="size-3.5 text-rose-500 shrink-0" />
+    case 'Fire':
+      return <Flame className="size-3.5 text-orange-500 shrink-0" />
+    case 'Scholar':
+      return <BookOpen className="size-3.5 text-indigo-500 shrink-0" />
+    case 'Mystic':
+      return <Moon className="size-3.5 text-purple-500 fill-purple-100 shrink-0" />
+    case 'Dragon':
+      return <Crown className="size-3.5 text-emerald-500 shrink-0" />
+    default:
+      return <User className="size-3.5 text-neutral-400 shrink-0" />
+  }
+}
+
 
 const categories = ['All', 'Action', 'Romance', 'Sci-Fi', 'Fantasy', 'Horror', 'Comedy']
 
@@ -167,19 +193,19 @@ export function ReaderHubPage() {
       .then((res) => {
         if (res.data.readerLeaderboard && res.data.readerLeaderboard.length > 0) {
           const formatted = res.data.readerLeaderboard.map((item: RawLeaderboardItem, idx: number) => {
-            let badge = '📖 Reader'
+            let badge = 'Reader'
             let level = 'Bronze'
             if (idx === 0) {
-              badge = '🏆 Champion'
+              badge = 'Champion'
               level = 'Diamond'
             } else if (idx === 1) {
-              badge = '⚔️ Warrior'
+              badge = 'Warrior'
               level = 'Platinum'
             } else if (idx === 2) {
-              badge = '🔥 Fire'
+              badge = 'Fire'
               level = 'Gold'
             } else if (idx < 5) {
-              badge = '📖 Scholar'
+              badge = 'Scholar'
               level = 'Silver'
             }
             return {
@@ -518,7 +544,12 @@ export function ReaderHubPage() {
                     </TableCell>
                     <TableCell className="font-semibold">{row.votes}</TableCell>
                     <TableCell className="text-neutral-500">{row.seriesRead}</TableCell>
-                    <TableCell>{row.badge}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        {getBadgeIcon(row.badge)}
+                        <span className="text-xs font-semibold text-neutral-700">{row.badge}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={`text-[10px] ${
                         row.level === 'Diamond' ? 'text-blue-600 border-blue-100 bg-blue-50' : row.level === 'Platinum' ? 'text-purple-600 border-purple-100 bg-purple-50' :
