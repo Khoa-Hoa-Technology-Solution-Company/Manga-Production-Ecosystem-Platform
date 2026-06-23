@@ -838,9 +838,9 @@ export function EditorPortalPage() {
                 onChange={(e) => setHealthFilter(e.target.value as 'all' | 'green' | 'yellow' | 'red')}
               >
                 <option value="all">All Statuses</option>
-                <option value="green">🟢 On Track</option>
-                <option value="yellow">🟡 At Risk</option>
-                <option value="red">🔴 Critical Delay</option>
+                <option value="green">On Track</option>
+                <option value="yellow">At Risk</option>
+                <option value="red">Critical Delay</option>
               </select>
             </div>
 
@@ -851,9 +851,9 @@ export function EditorPortalPage() {
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as 'deadline' | 'progress' | 'chapters')}
               >
-                <option value="deadline">📅 EB Deadline</option>
-                <option value="progress">📈 Chapter Progress</option>
-                <option value="chapters">📚 Total Chapters</option>
+                <option value="deadline">EB Deadline</option>
+                <option value="progress">Chapter Progress</option>
+                <option value="chapters">Total Chapters</option>
               </select>
             </div>
           </div>
@@ -1799,8 +1799,9 @@ export function EditorPortalPage() {
                   </div>
                 </div>
 
-                <div className="text-[10px] text-neutral-400 font-medium pl-1">
-                  ⚠️ Note: Velocity reflects only approved manuscript chapters completed by the mangaka.
+                <div className="text-[10px] text-neutral-400 font-medium pl-1 flex items-center gap-1.5">
+                  <AlertTriangle className="size-3.5 text-neutral-450 shrink-0" />
+                  <span>Note: Velocity reflects only approved manuscript chapters completed by the mangaka.</span>
                 </div>
               </Card>
 

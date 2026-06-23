@@ -14,6 +14,10 @@ import {
   Eye,
   X,
   ChevronLeft,
+  BookOpen,
+  FileText,
+  Star,
+  Sparkles,
 } from 'lucide-react'
 import { Badge, Button, Card, CardContent, CardHeader, Input, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -349,7 +353,11 @@ export function AssistantPortalPage() {
                           : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
                         }`}
                     >
-                      {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? '📖 Chapter' : '📄 Page'}
+                      {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? (
+                        <span className="flex items-center gap-1"><BookOpen className="size-3" /> {t('common.chapter', 'Chapter')}</span>
+                      ) : (
+                        <span className="flex items-center gap-1"><FileText className="size-3" /> {t('common.page', 'Page')}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -396,8 +404,18 @@ export function AssistantPortalPage() {
                       <div>
                         <p className="text-xs font-medium truncate">{task.title}</p>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-semibold">
-                            {task.assignmentLevel === 'chapter' ? '📖 Chapter' : '📄 Page'}
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-semibold flex items-center gap-1 shrink-0">
+                            {task.assignmentLevel === 'chapter' ? (
+                              <>
+                                <BookOpen className="size-2.5" />
+                                <span>Chapter</span>
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="size-2.5" />
+                                <span>Page</span>
+                              </>
+                            )}
                           </Badge>
                           {task.assignmentLevel === 'page' && task.pageId && (
                             <span className="text-[10px] text-neutral-500 font-medium">Page {task.pageId.pageNumber || task.pageId}</span>
@@ -410,11 +428,21 @@ export function AssistantPortalPage() {
                           <Badge variant="secondary" className={`text-[10px] px-2 py-0.5 capitalize ${typeColors[task.type] || ''}`}>
                             {task.type}
                           </Badge>
-                          <Badge variant="secondary" className={`text-[10px] px-1.5 py-0.5 ${task.assistantType === 'dedicated'
+                          <Badge variant="secondary" className={`text-[10px] px-1.5 py-0.5 flex items-center gap-1 ${task.assistantType === 'dedicated'
                               ? 'bg-blue-50 text-blue-600 border-blue-200'
                               : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                             }`}>
-                            {task.assistantType === 'dedicated' ? '★ Dedicated' : '◇ Freelance'}
+                            {task.assistantType === 'dedicated' ? (
+                              <>
+                                <Star className="size-2.5 fill-blue-650 text-blue-600" />
+                                <span>Dedicated</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="size-2.5 text-emerald-600" />
+                                <span>Freelance</span>
+                              </>
+                            )}
                           </Badge>
                         </div>
                         <Badge variant="default" className={`text-[10px] px-2 py-0.5 capitalize ${statusColors[task.status] || ''}`}>

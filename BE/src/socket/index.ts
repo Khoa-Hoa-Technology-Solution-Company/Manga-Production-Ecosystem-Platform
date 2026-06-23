@@ -38,10 +38,18 @@ export function initSocket(httpServer: HttpServer): Server {
 
   io.on('connection', (socket: Socket) => {
     const userId = (socket as any).userId;
+    const userRoom = `user:${userId}`;
+    const wasOnline = io.sockets.adapter.rooms.has(userRoom) && io.sockets.adapter.rooms.get(userRoom)!.size > 0;
+
     console.log(`🔌 Socket connected: ${userId}`);
 
     // Join user-specific room for targeted notifications
-    socket.join(`user:${userId}`);
+    socket.join(userRoom);
+
+    // If this was the first connection, broadcast online status
+    if (!wasOnline) {
+      socket.broadcast.emit('user:status', { userId, status: 'online' });
+    }
 
     // Join role-based room
     const role = (socket as any).userRole;
@@ -132,6 +140,13 @@ export function initSocket(httpServer: HttpServer): Server {
           });
         }
       }
+      
+      // If no sockets left in the user-specific room, they are offline
+      const activeRoom = io.sockets.adapter.rooms.get(userRoom);
+      if (!activeRoom || activeRoom.size === 0) {
+        socket.broadcast.emit('user:status', { userId, status: 'offline' });
+      }
+
       console.log(`🔌 Socket disconnected: ${userId}`);
     });
   });
@@ -142,6 +157,12 @@ export function initSocket(httpServer: HttpServer): Server {
 export function getIO(): Server {
   if (!io) throw new Error('Socket.io not initialized');
   return io;
+}
+
+export function isUserOnline(userId: string): boolean {
+  if (!io) return false;
+  const room = io.sockets.adapter.rooms.get(`user:${userId}`);
+  return !!(room && room.size > 0);
 }
 
 /**

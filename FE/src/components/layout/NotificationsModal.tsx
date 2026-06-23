@@ -166,7 +166,7 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
             onClick={onClose}
             className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
           >
-            ✕
+            <X className="size-4" />
           </button>
         </div>
 

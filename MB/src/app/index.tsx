@@ -188,7 +188,7 @@ export default function HomeScreen() {
       (rankings || []).map((s, idx) => ({
         rank: idx + 1,
         name: s.title,
-        votes: s.averageRating ? `${s.averageRating.toFixed(1)} ⭐` : '0.0 ⭐',
+        rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
         badge: s.mangakaId?.displayName || 'Unknown Author',
         level: idx === 0 ? 'Diamond' : idx === 1 ? 'Platinum' : idx <= 3 ? 'Gold' : 'Silver',
         color: idx === 0 ? '#38bdf8' : idx === 1 ? '#a855f7' : idx <= 3 ? '#f59e0b' : '#94a3b8',
@@ -472,7 +472,10 @@ export default function HomeScreen() {
                     <View style={[styles.levelDot, { backgroundColor: row.color }]} />
                     <ThemedText style={[styles.levelText, { color: row.color }]}>{row.level}</ThemedText>
                   </LinearGradient>
-                  <ThemedText style={styles.votesText}>{row.votes} votes</ThemedText>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
+                    <ThemedText style={styles.votesText}>{row.rating}</ThemedText>
+                    <Star size={10} color="#fbbf24" fill="#fbbf24" />
+                  </View>
                 </View>
               </View>
             ))}

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ArrowDown, Search, BookOpen } from 'lucide-react'
+import { ArrowDown, Search, BookOpen, Star } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui'
 import { dashboardAPI } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 
 type RankingItem = {
   _id: string
@@ -15,6 +16,7 @@ type RankingItem = {
 }
 
 export function SeriesRankingSection() {
+  const { user } = useAuth()
   const [sortBy, setSortBy] = useState<'votes' | 'rating'>('votes')
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,7 +51,14 @@ export function SeriesRankingSection() {
       <CardHeader className="flex-row items-center justify-between gap-2 p-0">
         <div className="flex flex-col gap-1">
           <CardTitle className="text-base leading-6">Series Ranking & Ratings</CardTitle>
-          <span className="text-xs leading-4 text-neutral-500">Top performing active and completed series</span>
+          <span className="text-xs leading-4 text-neutral-500">
+            {user?.role === 'mangaka' && 'Top performing active and completed series in your studio'}
+            {user?.role === 'editor' && 'Top performing active and completed series you manage'}
+            {user?.role === 'assistant' && 'Performance of series you are assisting with'}
+            {user?.role === 'editorial_board' && 'Top performing active and completed series on the platform'}
+            {user?.role === 'reader' && 'Top performing active and completed series on the platform'}
+            {!['mangaka', 'editor', 'assistant', 'editorial_board', 'reader'].includes(user?.role || '') && 'Top performing active and completed series'}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -132,7 +141,8 @@ export function SeriesRankingSection() {
                     </TableCell>
                     <TableCell className="text-neutral-500">{row.genre.join(', ')}</TableCell>
                     <TableCell className="font-semibold text-amber-500">
-                      ⭐ {row.averageRating !== undefined ? row.averageRating.toFixed(1) : '0.0'}
+                      <Star className="size-3.5 fill-amber-400 text-amber-400 inline mr-1 align-middle" />
+                      {row.averageRating !== undefined ? row.averageRating.toFixed(1) : '0.0'}
                       <span className="text-[10px] text-neutral-400 font-normal ml-1">
                         ({row.ratingCount || 0})
                       </span>

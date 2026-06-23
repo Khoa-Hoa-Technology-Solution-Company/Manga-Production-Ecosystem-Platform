@@ -32,6 +32,8 @@ import {
   Globe,
   BookOpen,
   FileText,
+  AlertTriangle,
+  X,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -2208,8 +2210,8 @@ function StudioWorkspacePageContent() {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-amber-800">
               {seriesStatus === 'Pending_Editor'
-                ? t('studio.reviewLockedTantou', '📝 Series is pending Tantou Editor review — Studio editing temporarily locked')
-                : t('studio.reviewLockedEB', '📝 Series is pending Editorial Board review — Studio editing temporarily locked')}
+                ? t('studio.reviewLockedTantou', 'Series is pending Tantou Editor review — Studio editing temporarily locked')
+                : t('studio.reviewLockedEB', 'Series is pending Editorial Board review — Studio editing temporarily locked')}
             </p>
             <p className="text-[10px] text-amber-600 mt-0.5">
               {t('studio.reviewLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit until the review is complete or draft is returned.')}
@@ -2225,11 +2227,12 @@ function StudioWorkspacePageContent() {
             <AlertCircle className="size-3.5 text-red-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-red-800">
-              {t('studio.rejectedWarning', '⚠️ Manuscript rejected — Please revise based on the corrections below')}
-            </p>
+            <div className="text-xs font-semibold text-red-800 flex items-center gap-1.5">
+              <AlertTriangle className="size-3.5 text-red-600 shrink-0" />
+              <span>{t('studio.rejectedWarning', 'Manuscript rejected — Please revise based on the corrections below')}</span>
+            </div>
             {currentSeries?.rejectionNotes && (
-              <p className="text-[10px] text-red-600 mt-0.5 line-clamp-2">
+              <p className="text-[10px] text-red-600 mt-0.5 line-clamp-2 pl-5">
                 {t('studio.rejectionReason', 'Reason: {{notes}}', { notes: currentSeries.rejectionNotes })}
               </p>
             )}
@@ -3277,7 +3280,7 @@ function StudioWorkspacePageContent() {
                 onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}
                 className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
               >
-                ✕
+                <X className="size-4" />
               </button>
             </div>
 
@@ -3605,7 +3608,7 @@ function StudioWorkspacePageContent() {
                 onClick={() => { setShowReviewDialog(false); setSelectedReviewTask(null) }}
                 className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
               >
-                ✕
+                <X className="size-4" />
               </button>
             </div>
 
@@ -3688,7 +3691,7 @@ function StudioWorkspacePageContent() {
                 onClick={() => { setShowCancelTaskDialog(false); setTaskToCancel(null) }}
                 className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
               >
-                ✕
+                <X className="size-4" />
               </button>
             </div>
 

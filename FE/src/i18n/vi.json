@@ -133,12 +133,12 @@
     "submittedProduct": "Sản phẩm đã nộp",
     "openNewTab": "Mở tab mới ↗",
     "confirmDeletePage": "Bạn có chắc chắn muốn xóa trang này không? Các zone và công việc trên trang này sẽ bị mất.",
-    "reviewLockedTantou": "📝 Series đang chờ Tantou Editor duyệt — Studio tạm khóa chỉnh sửa",
-    "reviewLockedEB": "📝 Series đang chờ Editorial Board duyệt — Studio tạm khóa chỉnh sửa",
+    "reviewLockedTantou": "Series đang chờ Tantou Editor duyệt — Studio tạm khóa chỉnh sửa",
+    "reviewLockedEB": "Series đang chờ Editorial Board duyệt — Studio tạm khóa chỉnh sửa",
     "reviewLockedDescription": "Bạn chỉ có thể xem. Không thể upload trang, tạo zone, giao task, hay chỉnh sửa cho đến khi bản thảo được duyệt hoặc trả về.",
-    "rejectedWarning": "⚠️ Bản thảo đã bị từ chối — Vui lòng sửa lại theo feedback bên dưới",
+    "rejectedWarning": "Bản thảo đã bị từ chối — Vui lòng sửa lại theo feedback bên dưới",
     "rejectionReason": "Lý do: {{notes}}",
-    "reviewWarning": "⚠️ Feedback pin này sẽ chỉ hiển thị cho Mangaka sau khi bạn Reject bản thảo từ Editor Portal. Nếu bạn Approve thì pin sẽ không hiển thị."
+    "reviewWarning": "Feedback pin này sẽ chỉ hiển thị cho Mangaka sau khi bạn Reject bản thảo từ Editor Portal. Nếu bạn Approve thì pin sẽ không hiển thị."
   },
   "assistant": {
     "title": "Cổng trợ lý",

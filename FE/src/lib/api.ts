@@ -143,8 +143,11 @@ export const tasksAPI = {
 // ── Dashboard API ───────────────────────────────────
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
-  getWorkflow: () => api.get('/dashboard/workflow'),
+  getWorkflow: (page?: number, limit?: number) => api.get('/dashboard/workflow', { params: { page, limit } }),
   getRankings: (sortBy?: string) => api.get('/dashboard/rankings', { params: { sortBy } }),
+  getActivity: () => api.get('/dashboard/activity'),
+  getTeamOverview: () => api.get('/dashboard/team'),
+  getReaderData: () => api.get('/dashboard/reader'),
 };
 
 // ── Pages API ───────────────────────────────────────

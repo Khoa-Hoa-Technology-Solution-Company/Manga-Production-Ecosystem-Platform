@@ -5,7 +5,8 @@ import {
   Gavel, Clock, Trophy, BarChart3, ThumbsUp, ThumbsDown,
   BookOpen, ChevronDown, ChevronUp, AlertTriangle, Send,
   Calendar, Ban, Loader2, TrendingUp, TrendingDown,
-  LayoutDashboard, Activity, ChevronRight
+  LayoutDashboard, Activity, ChevronRight, User, Tag,
+  Palette, Coins, Medal, Star, CheckCircle2, X
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
@@ -443,10 +444,10 @@ export function EditorialBoardPortalPage() {
 
   /* ── helpers ── */
   const getRankBadge = (rank: number) => {
-    if (rank === 1) return <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-500">🥇 #1</span>
-    if (rank === 2) return <span className="inline-flex items-center gap-1 text-sm font-bold text-neutral-400">🥈 #2</span>
-    if (rank === 3) return <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-700">🥉 #3</span>
-    return <span className="text-sm font-bold text-neutral-500">#{rank}</span>
+    if (rank === 1) return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 shadow-3xs"><Medal className="size-3.5 text-amber-500 shrink-0 fill-amber-100" /> Top 1</span>
+    if (rank === 2) return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 shadow-3xs"><Medal className="size-3.5 text-slate-500 shrink-0 fill-slate-100" /> Top 2</span>
+    if (rank === 3) return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-amber-800 bg-amber-100/50 border border-amber-200 shadow-3xs"><Medal className="size-3.5 text-amber-700 shrink-0 fill-amber-50" /> Top 3</span>
+    return <span className="inline-flex items-center justify-center size-6 rounded-full text-xs font-bold text-neutral-500 bg-neutral-100 border border-neutral-200/50">#{rank}</span>
   }
 
   const getStatusBadge = (status: string) => {
@@ -745,7 +746,7 @@ export function EditorialBoardPortalPage() {
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <div className="flex items-center gap-0.5">
                           {[1, 2, 3, 4, 5].map(s => (
-                            <span key={s} className={`text-sm ${s <= Math.round(item.avgRating) ? 'text-amber-400' : 'text-neutral-200'}`}>★</span>
+                            <Star key={s} className={`size-3.5 ${s <= Math.round(item.avgRating) ? 'text-amber-400 fill-amber-400' : 'text-neutral-200'}`} />
                           ))}
                           <span className="ml-1 text-xs font-bold text-amber-600">{item.avgRating}/5</span>
                         </div>
@@ -762,50 +763,73 @@ export function EditorialBoardPortalPage() {
 
       {/* ────── PENDING VOTES TAB ────── */}
       {activeTab === 'votes' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {pendingSeries.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="mb-4 grid size-16 place-items-center rounded-full bg-neutral-100">
-                  <Gavel className="size-7 text-neutral-400" />
+            <Card className="rounded-2xl border border-neutral-100 bg-white">
+              <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-neutral-50 border border-neutral-100 text-neutral-400">
+                  <Gavel className="size-8" />
                 </div>
-                <p className="text-sm font-medium text-neutral-700">{t('editorialBoard.noPending')}</p>
-                <p className="mt-1 text-xs text-neutral-400">{t('editorialBoard.noPendingHint')}</p>
+                <p className="text-sm font-bold text-neutral-800">{t('editorialBoard.noPending')}</p>
+                <p className="mt-1 text-xs text-neutral-400 max-w-sm">{t('editorialBoard.noPendingHint')}</p>
               </CardContent>
             </Card>
           ) : (
             pendingSeries.map((series) => (
-              <Card key={series._id} className="overflow-hidden transition-all hover:shadow-md">
+              <Card key={series._id} className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-xs transition-all hover:shadow-md">
                 <CardContent className="p-0">
-                  <div className="flex flex-col sm:flex-row">
-                    {/* Cover */}
-                    <div className="relative h-40 w-full shrink-0 overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 sm:h-auto sm:w-44">
-                      {series.coverImage ? (
-                        <img src={series.coverImage} alt={series.title} className="size-full object-cover" />
-                      ) : (
-                        <div className="flex size-full items-center justify-center">
-                          <BookOpen className="size-10 text-indigo-200" />
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex flex-col lg:flex-row">
+                    {/* Cover & General Metadata */}
+                    <div className="flex flex-col sm:flex-row flex-1 p-6 gap-6">
+                      {/* Cover Card */}
+                      <div className="relative h-60 w-full sm:w-44 shrink-0 overflow-hidden rounded-2xl border border-neutral-150 bg-neutral-50 shadow-sm transition-transform duration-300 hover:scale-[1.02]">
+                        {series.coverImage ? (
+                          <img src={series.coverImage} alt={series.title} className="size-full object-cover" />
+                        ) : (
+                          <div className="flex size-full items-center justify-center">
+                            <BookOpen className="size-12 text-neutral-300" />
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Info */}
-                    <div className="flex flex-1 flex-col justify-between p-5">
-                      <div>
-                        <div className="mb-2 flex items-center gap-2">
-                          <h3 className="text-base font-semibold text-neutral-950">{series.title}</h3>
-                          <Badge className="bg-amber-50 text-amber-700 border-amber-200">Awaiting Vote</Badge>
-                          {series.userVote && (
-                            <Badge className={series.userVote === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}>
-                              {series.userVote === 'approved' ? '✓ Voted Approve' : '✗ Voted Reject'}
+                      {/* Info & Details */}
+                      <div className="flex flex-1 flex-col justify-between text-left">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-bold text-neutral-900 leading-tight">{series.title}</h3>
+                            <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                              {t('editorialBoard.awaitingVote', 'Awaiting Vote')}
                             </Badge>
-                          )}
-                        </div>
-                        <p className="mb-3 line-clamp-2 text-sm text-neutral-500">{series.description}</p>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-400">
-                          <span>by {series.mangakaId?.displayName}</span>
-                          <span>{series.genre?.join(', ')}</span>
-                          <span>{series.totalChapters} chapters</span>
+                            {series.userVote && (
+                              <Badge className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                                series.userVote === 'approved' 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-250' 
+                                  : 'bg-rose-50 text-rose-600 border-rose-200'
+                              }`}>
+                                  {series.userVote === 'approved' ? (
+                                    <span className="flex items-center gap-1">
+                                      <CheckCircle2 className="size-3" />
+                                      <span>Voted Approve</span>
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-1">
+                                      <X className="size-3" />
+                                      <span>Voted Reject</span>
+                                    </span>
+                                  )}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-neutral-505 leading-relaxed max-w-2xl">{series.description}</p>
+                          
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-neutral-500 font-semibold">
+                            <span className="flex items-center gap-1.5"><User className="size-3.5 text-neutral-400 shrink-0" /> by {series.mangakaId?.displayName}</span>
+                            <span className="text-neutral-300">•</span>
+                            <span className="flex items-center gap-1.5"><Tag className="size-3.5 text-neutral-400 shrink-0" /> {series.genre?.join(', ')}</span>
+                            <span className="text-neutral-300">•</span>
+                            <span className="flex items-center gap-1.5"><BookOpen className="size-3.5 text-neutral-400 shrink-0" /> {series.totalChapters} chapters</span>
+                          </div>
                         </div>
 
                         {/* Inspect details button */}
@@ -827,75 +851,24 @@ export function EditorialBoardPortalPage() {
                             </>
                           )}
                         </Button>
-
-                        {inspectSeriesId === series._id && (
-                          <div className="border-t border-neutral-100 pt-3 mt-2 space-y-4 w-full text-left">
-                            {/* Interactive Script & Character Designs Inspection */}
-                            <div className="p-1.5 bg-neutral-50/20 border border-neutral-100 rounded-2xl">
-                              <ProposalDetailView
-                                script={series.script}
-                                scriptFile={series.scriptFile}
-                                characterDesigns={series.characterDesigns}
-                              />
-                            </div>
-
-                            {/* Submitted Chapters */}
-                            <div className="space-y-2 border-t border-neutral-100 pt-3">
-                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1">
-                                Submitted Chapters & Storyboard
-                              </span>
-
-                            {loadingChapters ? (
-                              <div className="flex items-center gap-2 text-xs text-neutral-500 py-2 justify-center">
-                                <Loader2 className="size-4 animate-spin text-neutral-800" />
-                                <span>Loading details...</span>
-                              </div>
-                            ) : inspectChapters.length === 0 ? (
-                              <p className="text-xs text-neutral-500 py-2 text-center">
-                                No chapters uploaded for this series draft yet.
-                              </p>
-                            ) : (
-                              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                {inspectChapters.map((chapter) => (
-                                  <div key={chapter._id} className="flex items-center justify-between gap-3 p-2 rounded-xl bg-neutral-50 border border-neutral-100 text-xs">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="font-semibold text-neutral-800 truncate">
-                                        Ch. {chapter.chapterNumber}: {chapter.title}
-                                      </p>
-                                      <p className="text-[10px] text-neutral-400">
-                                        {chapter.totalPages || 0} Pages · {chapter.progress || 0}% Done · Status: <span className="font-bold">{chapter.status}</span>
-                                      </p>
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <Button
-                                        size="sm"
-                                        className="h-7 px-2 bg-neutral-900 text-white hover:bg-neutral-800 text-[10px] font-semibold rounded-lg gap-1"
-                                        onClick={() => navigate(`/editor/review/${chapter._id}`)}
-                                      >
-                                        Audit
-                                        <ChevronRight className="size-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
 
+                    {/* Action Block & Interactive Evaluation (Right Side or Collapsed) */}
+                    <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-neutral-100 bg-neutral-50/40 p-6 flex flex-col justify-between">
                       {votingSeriesId === series._id ? (() => {
                         const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5;
                         const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected';
 
                         return (
-                          <div className="mt-4 space-y-3 rounded-xl bg-neutral-50 p-4 text-left">
+                          <div className="space-y-4 text-left animate-in fade-in duration-200">
                             {/* Rubric sliders */}
-                            <div className="space-y-3 bg-white p-3 rounded-xl border border-neutral-100 my-2">
-                              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
-                                {t('editorialBoard.rubricScores', 'Rubric Scores')}
+                            <div className="space-y-3.5 bg-white p-4 rounded-2xl border border-neutral-150 shadow-2xs">
+                              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center justify-between">
+                                <span>{t('editorialBoard.rubricScores', 'Rubric Scores')}</span>
+                                <span className="text-[10px] text-neutral-400 font-semibold bg-neutral-50 px-2 py-0.5 rounded border border-neutral-200">Max 10</span>
                               </h4>
+                              
                               <div className="space-y-3">
                                 {[
                                   { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
@@ -905,9 +878,9 @@ export function EditorialBoardPortalPage() {
                                   { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
                                 ].map(({ key, label, val, setVal }) => (
                                   <div key={key} className="space-y-1">
-                                    <div className="flex justify-between text-xs">
-                                      <span className="font-medium text-neutral-700">{label}</span>
-                                      <span className="font-bold text-indigo-600">{val}/10</span>
+                                    <div className="flex justify-between text-xs font-bold">
+                                      <span className="text-neutral-700">{label}</span>
+                                      <span className="text-indigo-600">{val}/10</span>
                                     </div>
                                     <input
                                       type="range"
@@ -915,7 +888,10 @@ export function EditorialBoardPortalPage() {
                                       max="10"
                                       value={val}
                                       onChange={(e) => setVal(parseInt(e.target.value))}
-                                      className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-neutral-200 rounded-lg appearance-none"
+                                      className="w-full cursor-pointer h-2 bg-neutral-250 rounded-lg appearance-none accent-indigo-600 focus:outline-none"
+                                      style={{
+                                        background: `linear-gradient(to right, var(--color-indigo-500) 0%, var(--color-indigo-500) ${val * 10}%, var(--color-neutral-200) ${val * 10}%, var(--color-neutral-200) 100%)`
+                                      }}
                                     />
                                   </div>
                                 ))}
@@ -925,23 +901,23 @@ export function EditorialBoardPortalPage() {
                             <Textarea
                               value={voteComments}
                               onChange={(e) => setVoteComments(e.target.value)}
-                              placeholder="Optional comments..."
-                              className="min-h-[60px] rounded-xl text-sm bg-white"
+                              placeholder={t('editorialBoard.commentPlaceholder', 'Write a review/feedback comment (optional)...')}
+                              className="min-h-[70px] rounded-xl text-xs bg-white border-neutral-200 focus:border-indigo-500"
                             />
 
                             {/* Average & Auto Decision Indicator */}
-                            <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-neutral-100">
-                              <div className="text-xs font-semibold text-neutral-700">
-                                {t('editorialBoard.averageScore', 'Average Score')}: <span className="text-indigo-600 text-sm font-bold">{currentAverage.toFixed(1)}/10</span>
+                            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border border-neutral-150 shadow-2xs">
+                              <div className="text-xs font-bold text-neutral-800">
+                                {t('editorialBoard.averageScore', 'Average')}: <span className="text-indigo-600 text-sm font-extrabold">{currentAverage.toFixed(1)}/10</span>
                               </div>
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Decision:</span>
+                                <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Decision:</span>
                                 {autoDecision === 'approved' ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-250">
                                     <ThumbsUp className="size-3" /> {t('editorialBoard.voteApprove', 'Approve')}
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
                                     <ThumbsDown className="size-3" /> {t('editorialBoard.voteReject', 'Reject')}
                                   </span>
                                 )}
@@ -952,16 +928,16 @@ export function EditorialBoardPortalPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="gap-1.5 rounded-xl"
+                                className="gap-1.5 rounded-xl border border-neutral-200 hover:bg-neutral-100 text-xs px-3"
                                 onClick={() => setVotingSeriesId(null)}
                               >
                                 {t('common.cancel')}
                               </Button>
                               <Button
                                 size="sm"
-                                className={`flex-1 gap-1.5 rounded-xl text-white font-semibold transition-all duration-300 ${autoDecision === 'approved'
-                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-100'
-                                    : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-md shadow-red-100'
+                                className={`flex-1 gap-1.5 rounded-xl text-white font-bold transition-all duration-300 text-xs ${autoDecision === 'approved'
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200'
+                                    : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-rose-700 shadow-md shadow-rose-200'
                                   }`}
                                 onClick={() => handleVote(series._id, autoDecision)}
                                 disabled={submittingVote}
@@ -982,89 +958,103 @@ export function EditorialBoardPortalPage() {
                           </div>
                         );
                       })() : (
-                        <div className="mt-4 space-y-2">
+                        <div className="space-y-3.5">
+                          {/* Invitation or Warnings */}
+                          {!series.meeting ? (
+                            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 p-3.5 rounded-2xl text-center font-semibold leading-relaxed flex items-center justify-center gap-1.5">
+                              <AlertTriangle className="size-3.5 text-amber-600 shrink-0" />
+                              <span>{t('editorialBoard.awaitingMeetingAlert', 'Awaiting scheduled review meeting before voting can start.')}</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 bg-indigo-50/30 border border-indigo-100 p-3.5 rounded-2xl text-xs text-left shadow-2xs">
+                              <div className="flex justify-between text-indigo-955 font-bold items-center">
+                                <span className="truncate max-w-[200px] flex items-center gap-1.5">
+                                  <Calendar className="size-3.5 text-indigo-600 shrink-0" />
+                                  Meeting: {series.meeting.title}
+                                </span>
+                                <span className="shrink-0">{new Date(series.meeting.dateTime).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-neutral-500 font-semibold mt-1">
+                                <span className="flex items-center gap-1.5">
+                                  <Gavel className="size-3.5 text-indigo-500 shrink-0" />
+                                  Cast: {series.meeting.votesCount} / {series.meeting.participantsCount} ({Math.round((series.meeting.votesCount / series.meeting.participantsCount) * 100)}%)
+                                </span>
+                                {series.meeting.isParticipant ? (
+                                  <span className="text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 text-[10px] font-bold flex items-center gap-1">
+                                    <CheckCircle2 className="size-2.5" />
+                                    <span>Invited</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100 text-[10px] font-bold flex items-center gap-1">
+                                    <X className="size-2.5" />
+                                    <span>Not invited</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
                           <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant="outline"
-                              className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1 disabled:opacity-40"
+                              className="gap-1.5 rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-1 disabled:opacity-40 font-bold h-10 text-xs shadow-2xs"
                               onClick={() => handleOpenVote(series)}
                               disabled={!series.meeting || !series.meeting.isParticipant}
                             >
-                              <Gavel className="size-3.5" />
+                              <Gavel className="size-4" />
                               {t('editorialBoard.castVote')}
                             </Button>
 
                             {user?.isEbHead && (
                               <Button
                                 size="sm"
-                                className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 flex-1 disabled:opacity-45"
+                                className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-750 flex-1 disabled:opacity-45 font-bold h-10 text-xs shadow-md shadow-indigo-100"
                                 onClick={() => {
                                   setDecisionSeriesId(series._id)
                                   setVotingSeriesId(null)
                                 }}
                                 disabled={!series.meeting || series.meeting.votesCount < series.meeting.participantsCount}
                               >
-                                <Trophy className="size-3.5" />
+                                <Trophy className="size-4" />
                                 {t('editorialBoard.endVote')}
                               </Button>
                             )}
                           </div>
-
-                          {!series.meeting ? (
-                            <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-xl text-center font-medium">
-                              ⚠️ {t('editorialBoard.awaitingMeetingAlert', 'Awaiting scheduled review meeting before voting can start.')}
-                            </div>
-                          ) : (
-                            <div className="space-y-1 bg-indigo-50/50 border border-indigo-100/50 p-2 rounded-xl text-[10px] text-left">
-                              <div className="flex justify-between text-indigo-900 font-semibold">
-                                <span>Meeting: {series.meeting.title}</span>
-                                <span>{new Date(series.meeting.dateTime).toLocaleDateString()}</span>
-                              </div>
-                              <div className="flex justify-between text-neutral-500">
-                                <span>Votes Cast: {series.meeting.votesCount} / {series.meeting.participantsCount} ({Math.round((series.meeting.votesCount / series.meeting.participantsCount) * 100)}%)</span>
-                                {series.meeting.isParticipant ? (
-                                  <span className="text-emerald-600 font-bold">✓ Invited participant</span>
-                                ) : (
-                                  <span className="text-red-500 font-bold">✗ Not invited</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
 
                       {/* Vote Aggregation Display & Rubric Scorecard */}
-                      <div className="mt-4 rounded-xl bg-neutral-50 p-3 space-y-3">
+                      <div className="mt-4 rounded-2xl bg-white border border-neutral-150 p-4 space-y-4 shadow-2xs">
                         <div>
-                          <div className="mb-2 flex items-center justify-between text-xs font-medium">
-                            <span className="text-emerald-600 flex items-center gap-1"><ThumbsUp className="size-3" /> {series.votesFor || 0} {t('editorialBoard.votesFor')}</span>
-                            <span className="text-red-600 flex items-center gap-1">{series.votesAgainst || 0} {t('editorialBoard.votesAgainst')} <ThumbsDown className="size-3" /></span>
+                          <div className="mb-2 flex items-center justify-between text-xs font-bold">
+                            <span className="text-emerald-700 flex items-center gap-1.5"><ThumbsUp className="size-3.5" /> {series.votesFor || 0} {t('editorialBoard.votesFor')}</span>
+                            <span className="text-rose-700 flex items-center gap-1.5">{series.votesAgainst || 0} {t('editorialBoard.votesAgainst')} <ThumbsDown className="size-3.5" /></span>
                           </div>
-                          <div className="h-1.5 flex overflow-hidden rounded-full bg-neutral-200">
+                          <div className="h-2 flex overflow-hidden rounded-full bg-neutral-100 border border-neutral-200/40">
                             <div
-                              className="bg-emerald-500 transition-all"
+                              className="bg-emerald-500 transition-all duration-500"
                               style={{ width: `${((series.votesFor || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
                             />
                             <div
-                              className="bg-red-500 transition-all"
+                              className="bg-rose-500 transition-all duration-500"
                               style={{ width: `${((series.votesAgainst || 0) / Math.max((series.votesFor || 0) + (series.votesAgainst || 0), 1)) * 100}%` }}
                             />
                           </div>
                         </div>
 
                         {series.averageRubric && (
-                          <div className="mt-3 border-t border-neutral-200/60 pt-3 space-y-3">
+                          <div className="mt-3 border-t border-neutral-100 pt-3 space-y-3.5">
                             <div className="flex items-center justify-between">
                               <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
                                 {t('editorialBoard.rubricScorecard')}
                               </h4>
-                              <div className="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              <div className="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-extrabold shadow-sm">
                                 {t('editorialBoard.averageScore')}: {series.averageRubric.totalAverage}/10
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
+                            <div className="grid grid-cols-1 gap-2.5 text-[11px]">
                               {[
                                 { label: t('editorialBoard.artStyle'), val: series.averageRubric.artStyle },
                                 { label: t('editorialBoard.storytelling'), val: series.averageRubric.storytelling },
@@ -1072,48 +1062,57 @@ export function EditorialBoardPortalPage() {
                                 { label: t('editorialBoard.pacing'), val: series.averageRubric.pacing },
                                 { label: t('editorialBoard.commercialPotential'), val: series.averageRubric.commercialPotential },
                               ].map(({ label, val }) => (
-                                <div key={label} className="space-y-0.5">
-                                  <div className="flex justify-between font-semibold text-neutral-600">
+                                <div key={label} className="space-y-1">
+                                  <div className="flex justify-between font-bold text-neutral-600">
                                     <span>{label}</span>
-                                    <span>{val}/10</span>
+                                    <span className="text-indigo-600">{val}/10</span>
                                   </div>
-                                  <div className="h-1 w-full bg-neutral-200 rounded-full overflow-hidden">
-                                    <div className="h-full bg-indigo-600 transition-all" style={{ width: `${val * 10}%` }} />
+                                  <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden border border-neutral-200/30">
+                                    <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${val * 10}%` }} />
                                   </div>
                                 </div>
                               ))}
                             </div>
 
                             {series.memberVotes && series.memberVotes.length > 0 && (
-                              <div className="mt-2 border-t border-neutral-200/60 pt-2">
+                              <div className="mt-2 border-t border-neutral-100 pt-3">
                                 <details className="group">
-                                  <summary className="flex items-center justify-between cursor-pointer text-xs font-semibold text-indigo-600 select-none hover:text-indigo-800">
+                                  <summary className="flex items-center justify-between cursor-pointer text-xs font-bold text-indigo-600 select-none hover:text-indigo-800">
                                     <span>{t('editorialBoard.memberScoresBreakdown')} ({series.memberVotes.length})</span>
-                                    <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
+                                    <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
                                   </summary>
-                                  <div className="mt-2 space-y-2 max-h-40 overflow-y-auto pr-1">
+                                  <div className="mt-3 space-y-2.5 max-h-56 overflow-y-auto pr-1">
                                     {series.memberVotes.map((mv) => (
-                                      <div key={mv._id} className="p-2 bg-white border border-neutral-100 rounded-lg space-y-1 text-[11px] shadow-2xs">
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-bold text-neutral-800">{mv.member?.displayName}</span>
-                                          <Badge className={mv.decision === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}>
-                                            {mv.decision === 'approved' ? 'Approve' : 'Reject'}
-                                          </Badge>
+                                      <div key={mv._id} className="flex gap-3 p-3 bg-neutral-50 border border-neutral-150 rounded-xl text-left shadow-3xs">
+                                        <div className="size-8 shrink-0 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-bold">
+                                          {mv.member?.displayName?.[0] || '?'}
                                         </div>
-                                        {mv.rubric && (
-                                          <div className="text-[9px] text-neutral-500 flex flex-wrap gap-x-2 gap-y-0.5 py-0.5 border-t border-dashed border-neutral-100">
-                                            <span>🎨 Art: {mv.rubric.artStyle}</span>
-                                            <span>📖 Story: {mv.rubric.storytelling}</span>
-                                            <span>👤 Char: {mv.rubric.characterDesign}</span>
-                                            <span>⏱️ Pace: {mv.rubric.pacing}</span>
-                                            <span>💰 Comm: {mv.rubric.commercialPotential}</span>
+                                        <div className="flex-1 space-y-1.5 min-w-0">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-bold text-xs text-neutral-800 truncate">{mv.member?.displayName}</span>
+                                            <Badge className={`font-bold px-2 py-0.5 rounded-full text-[9px] shrink-0 ${
+                                              mv.decision === 'approved' 
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                                : 'bg-rose-50 text-rose-600 border-rose-200'
+                                            }`}>
+                                              {mv.decision === 'approved' ? 'Approve' : 'Reject'}
+                                            </Badge>
                                           </div>
-                                        )}
-                                        {mv.comments && (
-                                          <p className="text-[10px] text-neutral-600 italic bg-neutral-50 p-1.5 rounded-lg border border-neutral-100/50">
-                                            "{mv.comments}"
-                                          </p>
-                                        )}
+                                          {mv.rubric && (
+                                            <div className="text-[9px] text-neutral-500 font-semibold flex flex-wrap gap-x-2.5 gap-y-0.5 py-1 border-t border-dashed border-neutral-200 items-center">
+                                              <span className="flex items-center gap-0.5"><Palette className="size-2.5 text-neutral-400" /> Art: {mv.rubric.artStyle}</span>
+                                              <span className="flex items-center gap-0.5"><BookOpen className="size-2.5 text-neutral-400" /> Story: {mv.rubric.storytelling}</span>
+                                              <span className="flex items-center gap-0.5"><User className="size-2.5 text-neutral-400" /> Char: {mv.rubric.characterDesign}</span>
+                                              <span className="flex items-center gap-0.5"><Clock className="size-2.5 text-neutral-400" /> Pace: {mv.rubric.pacing}</span>
+                                              <span className="flex items-center gap-0.5"><Coins className="size-2.5 text-neutral-400" /> Comm: {mv.rubric.commercialPotential}</span>
+                                            </div>
+                                          )}
+                                          {mv.comments && (
+                                            <p className="text-[10px] text-neutral-600 font-medium italic bg-white p-2 rounded-lg border border-neutral-150 leading-normal">
+                                              "{mv.comments}"
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
@@ -1123,107 +1122,169 @@ export function EditorialBoardPortalPage() {
                           </div>
                         )}
                       </div>
-
-                      {/* Final Decision Form (End Vote / Kết thúc vote) */}
-                      {decisionSeriesId === series._id && (() => {
-                        const votesFor = series.votesFor || 0
-                        const votesAgainst = series.votesAgainst || 0
-                        const isApprovedByVotes = votesFor >= votesAgainst
-
-                        return (
-                          <div className="mt-4 space-y-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                            <div>
-                              <h4 className="mb-1 text-sm font-semibold text-indigo-900">{t('editorialBoard.endVoteAndDecision')}</h4>
-                              <p className="text-xs text-indigo-700/70">
-                                {t('editorialBoard.currentVoteResult')}{" "}
-                                <strong className={isApprovedByVotes ? "text-emerald-700" : "text-red-700"}>
-                                  {isApprovedByVotes ? t('editorialBoard.passedApproved') : t('editorialBoard.failedRejected')}
-                                </strong>
-                                {` (${votesFor} / ${votesAgainst} ${t('editorialBoard.votesLabel')})`}
-                              </p>
-                            </div>
-
-                            {isApprovedByVotes ? (
-                              <div className="space-y-3">
-                                <div>
-                                  <label className="mb-1.5 block text-xs font-semibold text-indigo-900">
-                                    {t('editorialBoard.publicationSchedule')}
-                                  </label>
-                                  <div className="flex gap-2">
-                                    {(['weekly', 'monthly'] as const).map((s) => (
-                                      <button
-                                        key={s}
-                                        onClick={() => setDecisionSchedule(s)}
-                                        className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${decisionSchedule === s
-                                          ? 'bg-indigo-600 text-white shadow-sm'
-                                          : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
-                                          }`}
-                                      >
-                                        {t(`editorialBoard.${s}`)}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                                <div className="flex gap-2 pt-1">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="rounded-xl"
-                                    onClick={() => setDecisionSeriesId(null)}
-                                  >
-                                    {t('common.cancel')}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="flex-1 gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-200"
-                                    onClick={() => handleFinalDecision(series._id, 'approved')}
-                                    disabled={submittingDecision}
-                                  >
-                                    {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                                    {t('editorialBoard.approveAndPublishMajority')}
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                <div>
-                                  <label className="mb-1.5 block text-xs font-semibold text-indigo-900">
-                                    {t('editorialBoard.rejectionReasonFeedback')}
-                                  </label>
-                                  <Textarea
-                                    value={voteComments}
-                                    onChange={(e) => setVoteComments(e.target.value)}
-                                    placeholder={t('editorialBoard.stateRejectionReasonPlaceholder')}
-                                    className="min-h-[60px] rounded-xl text-sm"
-                                  />
-                                </div>
-                                <div className="flex gap-2 pt-1">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="rounded-xl"
-                                    onClick={() => setDecisionSeriesId(null)}
-                                  >
-                                    {t('common.cancel')}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 gap-1.5 rounded-xl border border-red-200 !bg-red-50 !text-red-600 hover:!bg-red-100 hover:!text-red-700"
-                                    onClick={() => handleFinalDecision(series._id, 'rejected')}
-                                    disabled={submittingDecision}
-                                  >
-                                    {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
-                                    {t('editorialBoard.rejectManuscriptMajority')}
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })()}
                     </div>
                   </div>
+
+                  {/* Expanded Inspection Section */}
+                  {inspectSeriesId === series._id && (
+                    <div className="border-t border-neutral-150 p-6 bg-neutral-50/20 text-left space-y-5 animate-in fade-in duration-200">
+                      {/* Interactive Script & Character Designs Inspection */}
+                      <div className="p-4 bg-white border border-neutral-200 rounded-2xl shadow-3xs">
+                        <ProposalDetailView
+                          script={series.script}
+                          scriptFile={series.scriptFile}
+                          characterDesigns={series.characterDesigns}
+                        />
+                      </div>
+
+                      {/* Submitted Chapters */}
+                      <div className="space-y-3 pt-2">
+                        <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest block">
+                          {t('editorialBoard.submittedChapters', 'Submitted Chapters & Storyboard')}
+                        </span>
+
+                        {loadingChapters ? (
+                          <div className="flex items-center gap-2 text-xs text-neutral-500 py-4 justify-center">
+                            <Loader2 className="size-4 animate-spin text-neutral-800" />
+                            <span>Loading chapters...</span>
+                          </div>
+                        ) : inspectChapters.length === 0 ? (
+                          <p className="text-xs text-neutral-500 py-4 text-center bg-white border border-neutral-200 rounded-2xl">
+                            No chapters uploaded for this series draft yet.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+                            {inspectChapters.map((chapter) => (
+                              <div key={chapter._id} className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-white border border-neutral-150 text-xs shadow-3xs hover:border-neutral-300 transition-colors">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-bold text-neutral-850 truncate">
+                                    Ch. {chapter.chapterNumber}: {chapter.title}
+                                  </p>
+                                  <p className="text-[10px] font-medium text-neutral-505 mt-0.5">
+                                    {chapter.totalPages || 0} Pages · {chapter.progress || 0}% Done · Status: <span className="font-bold text-indigo-600">{chapter.status}</span>
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    className="h-8 px-3 bg-neutral-900 text-white hover:bg-neutral-800 text-[10px] font-bold rounded-xl gap-1"
+                                    onClick={() => navigate(`/editor/review/${chapter._id}`)}
+                                  >
+                                    Audit
+                                    <ChevronRight className="size-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Final Decision Form (End Vote / Kết thúc vote) */}
+                  {decisionSeriesId === series._id && (() => {
+                    const votesFor = series.votesFor || 0
+                    const votesAgainst = series.votesAgainst || 0
+                    const isApprovedByVotes = votesFor >= votesAgainst
+
+                    return (
+                      <div className="border-t border-indigo-100 bg-indigo-50/20 p-6 animate-in fade-in duration-305 text-left">
+                        <div className="max-w-xl space-y-4">
+                          <div>
+                            <h4 className="text-sm font-bold text-indigo-955 flex items-center gap-1.5">
+                              <Trophy className="size-4 text-indigo-600" />
+                              {t('editorialBoard.endVoteAndDecision')}
+                            </h4>
+                            <p className="text-xs text-indigo-850 font-semibold leading-normal mt-1">
+                              {t('editorialBoard.currentVoteResult')}{" "}
+                              <strong className={isApprovedByVotes ? "text-emerald-700" : "text-rose-700"}>
+                                {isApprovedByVotes ? t('editorialBoard.passedApproved') : t('editorialBoard.failedRejected')}
+                              </strong>
+                              {` (${votesFor} / ${votesAgainst} ${t('editorialBoard.votesLabel')})`}
+                            </p>
+                          </div>
+
+                          {isApprovedByVotes ? (
+                            <div className="space-y-4">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold text-indigo-955">
+                                  {t('editorialBoard.publicationSchedule')}
+                                </label>
+                                <div className="flex gap-2 max-w-sm">
+                                  {(['weekly', 'monthly'] as const).map((s) => (
+                                    <button
+                                      key={s}
+                                      onClick={() => setDecisionSchedule(s)}
+                                      className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${decisionSchedule === s
+                                        ? 'bg-indigo-600 text-white shadow-sm border border-indigo-650'
+                                        : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-200'
+                                        }`}
+                                    >
+                                      {t(`editorialBoard.${s}`)}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="rounded-xl border border-neutral-200 hover:bg-neutral-100 px-4"
+                                  onClick={() => setDecisionSeriesId(null)}
+                                >
+                                  {t('common.cancel')}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200 font-bold px-4 h-9"
+                                  onClick={() => handleFinalDecision(series._id, 'approved')}
+                                  disabled={submittingDecision}
+                                >
+                                  {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                                  {t('editorialBoard.approveAndPublishMajority')}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold text-indigo-955">
+                                  {t('editorialBoard.rejectionReasonFeedback')}
+                                </label>
+                                <Textarea
+                                  value={voteComments}
+                                  onChange={(e) => setVoteComments(e.target.value)}
+                                  placeholder={t('editorialBoard.stateRejectionReasonPlaceholder')}
+                                  className="min-h-[75px] rounded-xl text-xs bg-white border-neutral-200 focus:border-rose-500"
+                                />
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="rounded-xl border border-neutral-200 hover:bg-neutral-100 px-4"
+                                  onClick={() => setDecisionSeriesId(null)}
+                                >
+                                  {t('common.cancel')}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-105 font-bold px-4 h-9"
+                                  onClick={() => handleFinalDecision(series._id, 'rejected')}
+                                  disabled={submittingDecision}
+                                >
+                                  {submittingDecision ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
+                                  {t('editorialBoard.rejectManuscriptMajority')}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </CardContent>
               </Card>
             ))
@@ -1235,7 +1296,7 @@ export function EditorialBoardPortalPage() {
       {activeTab === 'meetings' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
               {t('editorialBoard.upcomingMeetings')}
             </h2>
             {user?.isEbHead ? (
@@ -1394,31 +1455,45 @@ export function EditorialBoardPortalPage() {
 
           {/* Meetings List */}
           {meetings.length === 0 ? (
-            <Card className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 grid size-16 place-items-center rounded-full bg-neutral-100">
-                <Calendar className="size-7 text-neutral-400" />
-              </div>
-              <p className="text-sm font-medium text-neutral-700">{t('editorialBoard.noMeetings')}</p>
+            <Card className="rounded-2xl border border-neutral-100 bg-white">
+              <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-neutral-50 border border-neutral-100 text-neutral-400">
+                  <Calendar className="size-8" />
+                </div>
+                <p className="text-sm font-bold text-neutral-800">{t('editorialBoard.noMeetings')}</p>
+              </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {meetings.map((m) => {
                 const isUpcoming = !!m.isUpcoming
                 const meetingDate = new Date(m.dateTime)
+                const monthName = meetingDate.toLocaleString('default', { month: 'short' })
+                const dayNum = meetingDate.getDate()
                 return (
-                  <Card key={m._id} className="p-5 flex flex-col justify-between border border-neutral-200 hover:border-neutral-300 transition-all rounded-2xl bg-white shadow-2xs relative">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <h3 className="font-extrabold text-sm text-neutral-900 tracking-tight">{m.title}</h3>
-                          {m.description && <p className="text-xs text-neutral-500 line-clamp-2">{m.description}</p>}
+                  <Card key={m._id} className="p-6 flex flex-col justify-between border border-neutral-200/80 hover:border-neutral-300 transition-all rounded-2xl bg-white shadow-xs relative">
+                    <div className="space-y-4">
+                      <div className="flex gap-4 text-left">
+                        {/* Calendar date card */}
+                        <div className="flex flex-col items-center justify-center size-16 shrink-0 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold select-none">
+                          <span className="text-[10px] uppercase tracking-wider">{monthName}</span>
+                          <span className="text-2xl font-black leading-none mt-0.5">{dayNum}</span>
                         </div>
-                        <Badge className={`shrink-0 ${isUpcoming ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
-                          {isUpcoming ? 'Upcoming' : 'Past'}
-                        </Badge>
+
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-extrabold text-sm text-neutral-900 tracking-tight leading-snug truncate">{m.title}</h3>
+                            <Badge className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isUpcoming ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'
+                            }`}>
+                              {isUpcoming ? 'Upcoming' : 'Past'}
+                            </Badge>
+                          </div>
+                          {m.description && <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">{m.description}</p>}
+                        </div>
                       </div>
 
-                      <div className="space-y-2 text-xs text-neutral-600 border-t border-neutral-50 pt-2.5">
+                      <div className="space-y-2 text-xs text-neutral-600 border-t border-neutral-100 pt-3 text-left font-semibold">
                         <div className="flex items-center gap-2">
                           <Clock className="size-3.5 text-indigo-500 shrink-0" />
                           <span>{meetingDate.toLocaleString()}</span>
@@ -1439,35 +1514,43 @@ export function EditorialBoardPortalPage() {
                         )}
                       </div>
 
-                      <div className="space-y-1.5 border-t border-neutral-50 pt-2.5">
-                        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                      <div className="space-y-2 border-t border-neutral-100 pt-3 text-left">
+                        <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-wider block">
                           Invited Participants ({m.participants?.length || 0})
                         </span>
-                        <div className="flex flex-wrap gap-1">
-                          {m.participants?.map((p: MeetingParticipant) => (
-                            <div
-                              key={p._id}
-                              title={`${p.displayName} (${p.role.replace('_', ' ')})`}
-                              className="inline-flex items-center gap-1 bg-neutral-50 border border-neutral-100 px-2 py-0.5 rounded-full text-[10px] font-semibold text-neutral-600"
-                            >
-                              <div className="size-3.5 rounded-full bg-neutral-200 grid place-items-center text-[7px] font-bold">
+                        <div className="flex items-center gap-3">
+                          {/* Avatar stack */}
+                          <div className="flex -space-x-2 overflow-hidden">
+                            {m.participants?.slice(0, 5).map((p: MeetingParticipant) => (
+                              <div
+                                key={p._id}
+                                title={`${p.displayName} (${p.role.replace('_', ' ')})`}
+                                className="size-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center shadow-sm select-none"
+                              >
                                 {p.displayName?.[0] || '?'}
                               </div>
-                              <span className="max-w-[80px] truncate">{p.displayName}</span>
-                            </div>
-                          ))}
+                            ))}
+                            {m.participants && m.participants.length > 5 && (
+                              <div className="size-8 rounded-full bg-neutral-105 border-2 border-white text-neutral-600 text-[10px] font-bold flex items-center justify-center shadow-sm select-none">
+                                +{m.participants.length - 5}
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-neutral-500 font-semibold truncate max-w-[200px]">
+                            {m.participants?.map(p => p.displayName).join(', ')}
+                          </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-neutral-50 text-[10px] text-neutral-400">
+                    <div className="flex justify-between items-center mt-5 pt-3 border-t border-neutral-100 text-[10px] text-neutral-400 font-medium">
                       <span>Scheduled by {m.createdBy?.displayName}</span>
                       {user?.isEbHead && (
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDeleteMeeting(m._id)}
-                          className="text-rose-600 hover:bg-rose-50 h-7 px-2 rounded-lg font-semibold border border-rose-100"
+                          className="text-rose-600 hover:bg-rose-50 h-8 px-3 rounded-xl font-bold border border-rose-100 hover:border-rose-250"
                         >
                           Cancel
                         </Button>
@@ -1483,30 +1566,30 @@ export function EditorialBoardPortalPage() {
 
       {/* ────── RANKINGS TAB ────── */}
       {activeTab === 'rankings' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {rankings.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="mb-4 grid size-16 place-items-center rounded-full bg-neutral-100">
-                  <Trophy className="size-7 text-neutral-400" />
+            <Card className="rounded-2xl border border-neutral-100 bg-white">
+              <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-neutral-50 border border-neutral-100 text-neutral-400">
+                  <Trophy className="size-8 text-neutral-450" />
                 </div>
-                <p className="text-sm font-medium text-neutral-700">{t('editorialBoard.noRankings')}</p>
+                <p className="text-sm font-bold text-neutral-800">{t('editorialBoard.noRankings')}</p>
               </CardContent>
             </Card>
           ) : (
             <>
               {/* Rankings Table */}
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-xs">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-neutral-100 bg-neutral-50/80">
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('editorialBoard.rank')}</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('editorialBoard.series')}</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('editorialBoard.weeklyVotes')}</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('editorialBoard.totalVotes')}</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('editorialBoard.status')}</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('editorialBoard.action')}</th>
+                      <tr className="border-b border-neutral-100 bg-neutral-50/80 text-left">
+                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.rank')}</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.series')}</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.weeklyVotes')}</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.totalVotes')}</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.status')}</th>
+                        <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.action')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1515,60 +1598,60 @@ export function EditorialBoardPortalPage() {
                         return (
                           <tr
                             key={series._id}
-                            className={`border-b border-neutral-50 transition-colors hover:bg-neutral-50/60 ${series.cancellationRisk ? 'bg-red-50/30' : ''}`}
+                            className={`border-b border-neutral-50 transition-colors hover:bg-neutral-50/60 ${series.cancellationRisk ? 'bg-rose-50/20' : ''}`}
                           >
-                            <td className="px-4 py-3">{getRankBadge(series.rank)}</td>
-                            <td className="px-4 py-3">
+                            <td className="px-6 py-4 font-semibold text-left">{getRankBadge(series.rank)}</td>
+                            <td className="px-6 py-4 text-left">
                               <div className="flex items-center gap-3">
-                                <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-neutral-100">
-                                  <BookOpen className="size-4 text-neutral-400" />
+                                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-505">
+                                  <BookOpen className="size-4.5" />
                                 </div>
                                 <div>
-                                  <p className="font-medium text-neutral-900">{series.title}</p>
-                                  <p className="text-xs text-neutral-400">{series.mangakaId?.displayName}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-bold text-neutral-900 leading-none">{series.title}</p>
+                                    {series.cancellationRisk && (
+                                      <span className="flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[9px] font-bold text-rose-600">
+                                        <AlertTriangle className="size-2.5" />
+                                        {t('editorialBoard.cancellationRisk')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-neutral-400 mt-1 font-medium">{series.mangakaId?.displayName}</p>
                                 </div>
-                                {series.cancellationRisk && (
-                                  <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
-                                    <AlertTriangle className="size-3" />
-                                    Risk
-                                  </span>
-                                )}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-6 py-4 text-center">
                               <div className="flex flex-col items-center gap-1">
-                                <span className="inline-flex items-center gap-1 font-medium">
+                                <span className={`inline-flex items-center gap-1 font-bold text-xs ${series.weeklyVotes > 0 ? 'text-emerald-700' : 'text-neutral-500'}`}>
                                   {series.weeklyVotes > 0 ? (
-                                    <TrendingUp className="size-3.5 text-emerald-500" />
+                                    <TrendingUp className="size-3.5" />
                                   ) : (
-                                    <TrendingDown className="size-3.5 text-red-400" />
+                                    <TrendingDown className="size-3.5" />
                                   )}
                                   {series.weeklyVotes}
                                 </span>
                                 {series.cancellationRisk && (
-                                  <div className="w-16 h-1 rounded-full bg-red-100 overflow-hidden mt-1">
-                                    <div className="h-full bg-red-500 w-[20%] animate-pulse" />
+                                  <div className="w-16 h-1 rounded-full bg-rose-105 overflow-hidden mt-1">
+                                    <div className="h-full bg-rose-500 w-[20%] animate-pulse" />
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-center font-medium text-neutral-600">{series.totalVotes}</td>
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-6 py-4 text-center font-bold text-neutral-600">{series.totalVotes}</td>
+                            <td className="px-6 py-4 text-center">
                               <Badge className={getStatusBadge(series.status)}>
                                 {series.publicationSchedule ? `${series.status} (${series.publicationSchedule})` : series.status}
                               </Badge>
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="size-8 rounded-lg p-0"
-                                  onClick={() => setExpandedId(isExpanded ? null : series._id)}
-                                >
-                                  {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                                </Button>
-                              </div>
+                            <td className="px-6 py-4 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="size-9 rounded-xl p-0 hover:bg-neutral-100 border border-neutral-200"
+                                onClick={() => setExpandedId(isExpanded ? null : series._id)}
+                              >
+                                {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                              </Button>
                             </td>
                           </tr>
                         )
@@ -1578,37 +1661,43 @@ export function EditorialBoardPortalPage() {
                 </div>
               </Card>
 
-              {/* Expanded Series Actions */}
+              {/* Expanded Series Actions Drawer */}
               {expandedId && (() => {
                 const series = rankings.find(s => s._id === expandedId)
                 if (!series) return null
 
                 return (
-                  <Card className="overflow-hidden border-indigo-100">
-                    <CardContent className="space-y-4 p-5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-neutral-950">
-                          Actions for "{series.title}"
+                  <Card className="overflow-hidden border-indigo-100 bg-indigo-50/10 rounded-2xl shadow-xs animate-in fade-in slide-in-from-top-3 duration-250">
+                    <CardContent className="space-y-5 p-6">
+                      <div className="flex items-center justify-between border-b border-indigo-100/50 pb-3">
+                        <h4 className="text-sm font-bold text-indigo-955 flex items-center gap-1.5">
+                          <Activity className="size-4 text-indigo-600" />
+                          {t('editorialBoard.seriesActions', 'Actions for')}{" "}
+                          <span className="text-indigo-600 font-extrabold">"{series.title}"</span>
                         </h4>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         {/* Change Schedule */}
-                        <div className="rounded-xl border border-neutral-200 p-4">
-                          <div className="mb-3 flex items-center gap-2 text-xs font-medium text-neutral-700">
-                            <Calendar className="size-3.5" />
-                            {t('editorialBoard.changeSchedule')}
+                        <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-3xs flex flex-col justify-between text-left">
+                          <div>
+                            <div className="mb-3 flex items-center gap-2 text-xs font-bold text-neutral-700">
+                              <Calendar className="size-4 text-indigo-500" />
+                              {t('editorialBoard.changeSchedule')}
+                            </div>
+                            <p className="text-[11px] text-neutral-450 leading-relaxed mb-4">Update the manuscript upload publication cadence for this series.</p>
                           </div>
+                          
                           {scheduleSeriesId === series._id ? (
-                            <div className="space-y-2">
+                            <div className="space-y-3 animate-in fade-in duration-200">
                               <div className="flex gap-2">
                                 {(['weekly', 'monthly'] as const).map((s) => (
                                   <button
                                     key={s}
                                     onClick={() => setSelectedSchedule(s)}
-                                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${selectedSchedule === s
-                                      ? 'bg-indigo-600 text-white'
-                                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                                    className={`flex-1 rounded-xl px-3 py-2 text-xs font-bold transition-all ${selectedSchedule === s
+                                      ? 'bg-indigo-600 text-white shadow-sm border border-indigo-650'
+                                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200'
                                       }`}
                                   >
                                     {t(`editorialBoard.${s}`)}
@@ -1616,10 +1705,10 @@ export function EditorialBoardPortalPage() {
                                 ))}
                               </div>
                               <div className="flex gap-2">
-                                <Button size="sm" variant="ghost" className="flex-1 rounded-lg text-xs" onClick={() => setScheduleSeriesId(null)}>
+                                <Button size="sm" variant="ghost" className="flex-1 rounded-xl text-xs border border-neutral-200 hover:bg-neutral-100 h-8" onClick={() => setScheduleSeriesId(null)}>
                                   {t('common.cancel')}
                                 </Button>
-                                <Button size="sm" className="flex-1 rounded-lg bg-indigo-600 text-xs text-white hover:bg-indigo-700" onClick={() => handleSetSchedule(series._id)}>
+                                <Button size="sm" className="flex-1 rounded-xl bg-indigo-600 text-xs text-white hover:bg-indigo-700 h-8 font-bold" onClick={() => handleSetSchedule(series._id)}>
                                   {t('common.save')}
                                 </Button>
                               </div>
@@ -1628,12 +1717,12 @@ export function EditorialBoardPortalPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="w-full gap-1.5 rounded-lg text-xs"
+                              className="w-full gap-1.5 rounded-xl text-xs font-bold h-9 border border-neutral-200 hover:bg-neutral-50 shadow-3xs"
                               onClick={() => setScheduleSeriesId(series._id)}
                             >
                               <Calendar className="size-3.5" />
                               {series.publicationSchedule
-                                ? `Currently: ${series.publicationSchedule}`
+                                ? `CADENCE: ${series.publicationSchedule.toUpperCase()}`
                                 : t('editorialBoard.setSchedule')
                               }
                             </Button>
@@ -1641,28 +1730,32 @@ export function EditorialBoardPortalPage() {
                         </div>
 
                         {/* Input Reader Votes */}
-                        <div className="rounded-xl border border-neutral-200 p-4">
-                          <div className="mb-3 flex items-center gap-2 text-xs font-medium text-neutral-700">
-                            <BarChart3 className="size-3.5" />
-                            {t('editorialBoard.inputWeeklyVotes')}
+                        <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-3xs flex flex-col justify-between text-left">
+                          <div>
+                            <div className="mb-3 flex items-center gap-2 text-xs font-bold text-neutral-700">
+                              <BarChart3 className="size-4 text-emerald-600" />
+                              {t('editorialBoard.inputWeeklyVotes')}
+                            </div>
+                            <p className="text-[11px] text-neutral-450 leading-relaxed mb-4">Directly input the manual reader performance votes for this period.</p>
                           </div>
+                          
                           {inputVotesSeriesId === series._id ? (
-                            <div className="space-y-2">
+                            <div className="space-y-3 animate-in fade-in duration-200">
                               <Input
                                 type="number"
                                 min="0"
                                 value={inputVotesCount}
                                 onChange={(e) => setInputVotesCount(e.target.value)}
-                                placeholder="Enter vote count..."
-                                className="rounded-lg text-sm"
+                                placeholder="Enter votes..."
+                                className="rounded-xl text-xs bg-white border-neutral-200 focus:border-indigo-500 h-8"
                               />
                               <div className="flex gap-2">
-                                <Button size="sm" variant="ghost" className="flex-1 rounded-lg text-xs" onClick={() => setInputVotesSeriesId(null)}>
+                                <Button size="sm" variant="ghost" className="flex-1 rounded-xl text-xs border border-neutral-200 hover:bg-neutral-100 h-8" onClick={() => setInputVotesSeriesId(null)}>
                                   {t('common.cancel')}
                                 </Button>
                                 <Button
                                   size="sm"
-                                  className="flex-1 gap-1 rounded-lg bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                  className="flex-1 gap-1 rounded-xl bg-emerald-600 text-xs text-white hover:bg-emerald-700 h-8 font-bold"
                                   onClick={() => handleInputVotes(series._id)}
                                 >
                                   <Send className="size-3" />
@@ -1674,7 +1767,7 @@ export function EditorialBoardPortalPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="w-full gap-1.5 rounded-lg text-xs"
+                              className="w-full gap-1.5 rounded-xl text-xs font-bold h-9 border border-neutral-200 hover:bg-neutral-50 shadow-3xs"
                               onClick={() => {
                                 setInputVotesSeriesId(series._id)
                                 setInputVotesCount(String(series.weeklyVotes || 0))
@@ -1687,26 +1780,30 @@ export function EditorialBoardPortalPage() {
                         </div>
 
                         {/* Cancel Series */}
-                        <div className="rounded-xl border border-red-100 bg-red-50/30 p-4">
-                          <div className="mb-3 flex items-center gap-2 text-xs font-medium text-red-700">
-                            <Ban className="size-3.5" />
-                            {t('editorialBoard.cancelSeries')}
+                        <div className="rounded-2xl border border-rose-100 bg-rose-50/20 p-5 shadow-3xs flex flex-col justify-between text-left">
+                          <div>
+                            <div className="mb-3 flex items-center gap-2 text-xs font-bold text-rose-700">
+                              <Ban className="size-4 text-rose-500" />
+                              {t('editorialBoard.cancelSeries')}
+                            </div>
+                            <p className="text-[11px] text-rose-750 leading-relaxed mb-4">Halt all development and cancel publication of this series manuscript.</p>
                           </div>
+                          
                           {cancelSeriesId === series._id ? (
-                            <div className="space-y-2">
+                            <div className="space-y-3 animate-in fade-in duration-200">
                               <Textarea
                                 value={cancelReason}
                                 onChange={(e) => setCancelReason(e.target.value)}
                                 placeholder={t('editorialBoard.cancelReason')}
-                                className="min-h-[60px] rounded-lg text-xs"
+                                className="min-h-[50px] rounded-xl text-xs bg-white border-neutral-200 focus:border-rose-500"
                               />
                               <div className="flex gap-2">
-                                <Button size="sm" variant="ghost" className="flex-1 rounded-lg text-xs" onClick={() => setCancelSeriesId(null)}>
+                                <Button size="sm" variant="ghost" className="flex-1 rounded-xl text-xs border border-neutral-200 hover:bg-neutral-100 h-8" onClick={() => setCancelSeriesId(null)}>
                                   {t('common.cancel')}
                                 </Button>
                                 <Button
                                   size="sm"
-                                  className="flex-1 gap-1 rounded-lg bg-red-600 text-xs text-white hover:bg-red-700"
+                                  className="flex-1 gap-1 rounded-xl bg-red-600 text-xs text-white hover:bg-red-700 h-8 font-bold"
                                   onClick={() => handleCancelSeries(series._id)}
                                   disabled={!cancelReason.trim()}
                                 >
@@ -1719,7 +1816,7 @@ export function EditorialBoardPortalPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="w-full gap-1.5 rounded-lg border border-red-200 text-xs text-red-600 hover:bg-red-100"
+                              className="w-full gap-1.5 rounded-xl border border-rose-200 text-xs text-rose-600 hover:bg-rose-105 font-bold h-9 shadow-3xs bg-white"
                               onClick={() => setCancelSeriesId(series._id)}
                             >
                               <Ban className="size-3.5" />
@@ -1739,57 +1836,94 @@ export function EditorialBoardPortalPage() {
 
       {/* ────── INPUT VOTES TAB ────── */}
       {activeTab === 'input' && (
-        <div className="space-y-3">
-          <Card>
-            <CardContent className="p-5">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold text-neutral-950">{t('editorialBoard.inputWeeklyVotes')}</h3>
-                <p className="text-xs text-neutral-400">Input reader vote data for each active series after each publication period</p>
+        <div className="space-y-4 max-w-4xl mx-auto">
+          <Card className="rounded-2xl border border-neutral-250/70 bg-white shadow-xs overflow-hidden border-t-4 border-t-indigo-650">
+            {/* Header section */}
+            <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3 text-left">
+                <div className="grid size-11 place-items-center rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-700 shadow-3xs">
+                  <BarChart3 className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-neutral-900 tracking-tight leading-snug">
+                    {t('editorialBoard.inputWeeklyVotes')}
+                  </h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Input reader vote data for each active series after each publication period
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-2">
+              {/* Active count badge */}
+              <div className="self-start sm:self-center shrink-0">
+                <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-bold px-3 py-1 rounded-full shadow-3xs">
+                  {rankings.filter(s => s.status === 'Active').length} Active Series
+                </Badge>
+              </div>
+            </div>
+
+            {/* List content */}
+            <div className="p-6">
+              <div className="space-y-3">
                 {rankings.filter(s => s.status === 'Active').length === 0 ? (
-                  <div className="py-8 text-center text-sm text-neutral-400">No active series found</div>
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-neutral-50 border border-neutral-100 text-neutral-400">
+                      <BarChart3 className="size-8 text-neutral-400" />
+                    </div>
+                    <p className="text-sm font-bold text-neutral-800">No active series found</p>
+                    <p className="text-xs text-neutral-400 mt-1">There are currently no active series requiring vote input.</p>
+                  </div>
                 ) : (
                   rankings.filter(s => s.status === 'Active').map((series) => (
                     <div
                       key={series._id}
-                      className="flex items-center justify-between rounded-xl bg-neutral-50 p-4 transition-colors hover:bg-neutral-100/80"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-neutral-150 bg-white p-5 hover:border-indigo-150 hover:shadow-xs transition-all duration-200 gap-4"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white shadow-sm">
-                          {getRankBadge(series.rank)}
+                      <div className="flex items-center gap-4 text-left">
+                        {/* Rank Badge */}
+                        <div className="shrink-0 select-none">
+                          {getRankBadge(series.rank || 0)}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-neutral-900">{series.title}</p>
-                          <p className="text-xs text-neutral-400">
-                            {series.mangakaId?.displayName} · Current: {series.weeklyVotes} votes
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-extrabold text-neutral-900 leading-snug">{series.title}</p>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-250 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                              <TrendingUp className="size-2.5 shrink-0" />
+                              {series.weeklyVotes} {t('editorialBoard.weeklyVotes', 'Votes')}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-neutral-400 mt-1 font-medium">
+                            {series.mangakaId?.displayName} · Total: <span className="font-semibold text-neutral-600">{series.totalVotes}</span>
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end gap-2 shrink-0">
                         {inputVotesSeriesId === series._id ? (
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              value={inputVotesCount}
-                              onChange={(e) => setInputVotesCount(e.target.value)}
-                              className="w-24 rounded-lg text-sm"
-                              placeholder="0"
-                            />
+                          <div className="flex items-center gap-2 bg-indigo-50/20 border border-indigo-100/50 p-2 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min="0"
+                                value={inputVotesCount}
+                                onChange={(e) => setInputVotesCount(e.target.value)}
+                                className="w-28 rounded-xl text-xs bg-white border-neutral-200 focus:border-indigo-500 font-extrabold text-center h-9 pr-6"
+                                placeholder="0"
+                                autoFocus
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-extrabold text-neutral-400 uppercase select-none">Votes</span>
+                            </div>
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="rounded-lg text-xs"
+                              className="rounded-xl text-xs border border-neutral-200 hover:bg-neutral-100 font-bold h-9 px-3"
                               onClick={() => setInputVotesSeriesId(null)}
                             >
                               {t('common.cancel')}
                             </Button>
                             <Button
                               size="sm"
-                              className="gap-1 rounded-lg bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                              className="gap-1.5 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700 h-9 px-4 shadow-sm shadow-emerald-200 hover:shadow-md transition-all duration-200"
                               onClick={() => handleInputVotes(series._id)}
                             >
                               <Send className="size-3" />
@@ -1800,7 +1934,7 @@ export function EditorialBoardPortalPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="gap-1.5 rounded-lg text-xs"
+                            className="gap-1.5 rounded-xl text-xs font-bold border border-neutral-200 hover:border-indigo-150 hover:bg-indigo-50/10 hover:text-indigo-650 h-10 px-4 transition-all duration-200 shadow-3xs"
                             onClick={() => {
                               setInputVotesSeriesId(series._id)
                               setInputVotesCount(String(series.weeklyVotes || 0))
@@ -1815,7 +1949,7 @@ export function EditorialBoardPortalPage() {
                   ))
                 )}
               </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
       )}

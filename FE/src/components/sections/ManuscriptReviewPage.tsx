@@ -20,7 +20,9 @@ import {
   BookOpen,
   Gavel,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  AlertTriangle,
+  X,
 } from 'lucide-react'
 import { DraftReviewCanvas, type AnnotationData as DraftAnnotationData } from './DraftReviewCanvas'
 
@@ -674,7 +676,7 @@ export function ManuscriptReviewPage() {
                   onClick={() => setShowSeriesDetails(false)}
                   className="text-neutral-400 hover:text-white text-xs bg-transparent border-none cursor-pointer p-0.5 rounded hover:bg-white/[0.05]"
                 >
-                  ✕
+                  <X className="size-3.5" />
                 </button>
               </div>
               
@@ -743,12 +745,14 @@ export function ManuscriptReviewPage() {
                 return (
                   <>
                     {!ebSeriesInfo.meeting ? (
-                      <div className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal">
-                        ⚠️ Awaiting scheduled review meeting before voting can start.
+                      <div className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal flex items-center justify-center gap-1.5">
+                        <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
+                        <span>Awaiting scheduled review meeting before voting can start.</span>
                       </div>
                     ) : !ebSeriesInfo.meeting.isParticipant ? (
-                      <div className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal">
-                        ⚠️ Only meeting participants are allowed to vote.
+                      <div className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-xl text-center font-medium my-2 leading-normal flex items-center justify-center gap-1.5">
+                        <AlertTriangle className="size-3.5 text-rose-450 shrink-0" />
+                        <span>Only meeting participants are allowed to vote.</span>
                       </div>
                     ) : null}
 
@@ -989,9 +993,10 @@ export function ManuscriptReviewPage() {
               onChange={(e) => setNoteInput(e.target.value)}
             />
 
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 flex items-start gap-2">
+              <AlertTriangle className="size-4 text-amber-400 shrink-0 mt-0.5" />
               <p className="text-[10px] text-amber-400/90 leading-relaxed font-medium">
-                {t('studio.reviewWarning', '⚠️ This feedback pin will only be visible to the Mangaka after you REJECT the manuscript from the Editor Portal. If you Approve, this pin will remain hidden.')}
+                {t('studio.reviewWarning', 'This feedback pin will only be visible to the Mangaka after you REJECT the manuscript from the Editor Portal. If you Approve, this pin will remain hidden.')}
               </p>
             </div>
 
