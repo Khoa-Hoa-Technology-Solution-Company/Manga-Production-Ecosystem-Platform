@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Calendar, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Loader2 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, CardContent, CardHeader, CardTitle, Progress } from '../ui'
 import { dashboardAPI } from '../../lib/api'
@@ -35,20 +36,21 @@ type WorkflowData = {
   Published: ColumnData
 }
 
-const columnMeta = [
-  { status: 'Draft' as const, title: 'Draft', color: 'bg-neutral-400', badgeClass: 'bg-neutral-100 text-neutral-600' },
-  { status: 'Reviewing' as const, title: 'Reviewing', color: 'bg-amber-500', badgeClass: 'bg-amber-100 text-amber-600' },
-  { status: 'Approved' as const, title: 'Approved', color: 'bg-sky-500', badgeClass: 'bg-sky-100 text-sky-600' },
-  { status: 'Published' as const, title: 'Published', color: 'bg-emerald-500', badgeClass: 'bg-emerald-100 text-emerald-600' },
-]
-
 export function WorkflowBoardSection() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t, i18n } = useTranslation()
   const [workflow, setWorkflow] = useState<WorkflowData | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const limit = 4
+
+  const columnMeta = [
+    { status: 'Draft' as const, title: t('workflowBoard.draft'), color: 'bg-neutral-400', badgeClass: 'bg-neutral-100 text-neutral-600' },
+    { status: 'Reviewing' as const, title: t('workflowBoard.reviewing'), color: 'bg-amber-500', badgeClass: 'bg-amber-100 text-amber-600' },
+    { status: 'Approved' as const, title: t('workflowBoard.approved'), color: 'bg-sky-500', badgeClass: 'bg-sky-100 text-sky-600' },
+    { status: 'Published' as const, title: t('workflowBoard.publishedCol'), color: 'bg-emerald-500', badgeClass: 'bg-emerald-100 text-emerald-600' },
+  ]
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -69,7 +71,8 @@ export function WorkflowBoardSection() {
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return 'Mar 22'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US'
+    return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
   }
 
   const getInitials = (name?: string) => {
@@ -79,6 +82,16 @@ export function WorkflowBoardSection() {
       return (parts[0][0] + parts[1][0]).toUpperCase()
     }
     return name.slice(0, 2).toUpperCase()
+  }
+
+  const getSubtitle = () => {
+    switch (user?.role) {
+      case 'mangaka': return t('workflowBoard.subtitleMangaka')
+      case 'assistant': return t('workflowBoard.subtitleAssistant')
+      case 'editor': return t('workflowBoard.subtitleEditor')
+      case 'editorial_board': return t('workflowBoard.subtitleEB')
+      default: return t('workflowBoard.subtitleDefault')
+    }
   }
 
   // Calculate pagination details
@@ -109,19 +122,15 @@ export function WorkflowBoardSection() {
     <Card className="gap-4 p-6 shadow-sm border border-neutral-200/80 bg-white">
       <CardHeader className="flex-row items-center justify-between gap-2 p-0">
         <div className="flex flex-col gap-1">
-          <CardTitle className="text-base font-semibold leading-6 text-neutral-900">Chapter Workflow Board</CardTitle>
+          <CardTitle className="text-base font-semibold leading-6 text-neutral-900">{t('workflowBoard.title')}</CardTitle>
           <span className="text-xs leading-4 text-neutral-500 font-medium">
-            {user?.role === 'mangaka' && 'Track your chapters across production stages'}
-            {user?.role === 'assistant' && 'Track chapters you are working on across production stages'}
-            {user?.role === 'editor' && 'Track chapters from your assigned series across production stages'}
-            {user?.role === 'editorial_board' && 'Track all platform chapters across production stages'}
-            {!['mangaka', 'assistant', 'editor', 'editorial_board'].includes(user?.role || '') && 'Track chapters across production stages'}
+            {getSubtitle()}
           </span>
         </div>
         {user?.role === 'mangaka' && (
           <Button variant="outline" size="sm" className="gap-1.5 font-semibold text-neutral-700 hover:text-neutral-900 border-neutral-200" onClick={() => navigate('/studio')}>
             <Plus className="size-3.5" />
-            New Chapter
+            {t('workflowBoard.newChapter')}
           </Button>
         )}
       </CardHeader>
@@ -130,11 +139,11 @@ export function WorkflowBoardSection() {
         {loading ? (
           <div className="col-span-4 flex items-center justify-center py-16 text-neutral-400">
             <Loader2 className="size-8 animate-spin text-neutral-300 mr-2" />
-            <span className="text-xs font-semibold">Loading workflow stages...</span>
+            <span className="text-xs font-semibold">{t('workflowBoard.loadingStages')}</span>
           </div>
         ) : !workflow ? (
           <div className="col-span-4 text-center py-16 text-xs text-neutral-500 font-medium border border-dashed border-neutral-200 rounded-xl">
-            No workflow data available.
+            {t('workflowBoard.noData')}
           </div>
         ) : (
           columnMeta.map((col) => {
@@ -155,7 +164,7 @@ export function WorkflowBoardSection() {
                 <div className="flex flex-col gap-2 flex-1">
                   {colData.items.length === 0 ? (
                     <div className="text-center py-8 px-2 text-[10px] text-neutral-400 font-semibold border border-dashed border-neutral-200/60 rounded-lg bg-white/50">
-                      No chapters here
+                      {t('workflowBoard.noChaptersHere')}
                     </div>
                   ) : (
                     colData.items.map((item) => (
@@ -200,7 +209,11 @@ export function WorkflowBoardSection() {
 
       <div className="flex items-center justify-between border-t border-neutral-100 pt-3 mt-1">
         <span className="text-xs leading-4 text-neutral-400 font-semibold">
-          Showing {maxCount > 0 ? (currentPage - 1) * limit + 1 : 0}-{Math.min(currentPage * limit, maxCount)} of {maxCount} chapters
+          {t('common.showingRange', { 
+            from: maxCount > 0 ? (currentPage - 1) * limit + 1 : 0, 
+            to: Math.min(currentPage * limit, maxCount), 
+            total: maxCount 
+          })}
         </span>
 
         {totalPages > 1 && (
