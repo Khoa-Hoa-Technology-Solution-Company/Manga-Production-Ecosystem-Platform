@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Menu, Server, Loader2 } from 'lucide-react'
 import { Button } from './components/ui'
 import { Shell } from './components/layout/Shell'
@@ -58,6 +59,7 @@ function MainLayout() {
 
 function App() {
   const { isAuthenticated } = useAuth()
+  const { t } = useTranslation()
   const [isServerUp, setIsServerUp] = useState<boolean>(true)
 
   useEffect(() => {
@@ -148,37 +150,20 @@ function App() {
               </div>
             </div>
 
-            {/* Bilingual messages */}
-            <div className="space-y-4 w-full">
-              {/* Vietnamese */}
-              <div className="space-y-1">
-                <h2 className="text-base font-bold tracking-tight text-white flex items-center justify-center gap-2">
-                  <Loader2 className="size-4 animate-spin text-indigo-500" />
-                  Đang kết nối tới máy chủ...
-                </h2>
-                <p className="text-xs text-neutral-400 leading-relaxed px-2">
-                  Hệ thống đang kết nối lại với máy chủ trên Render. Quá trình này có thể mất từ 1-2 phút do máy chủ cần thời gian khởi động từ trạng thái nghỉ (idle sleep).
-                </p>
-              </div>
-
-              {/* Separator line */}
-              <div className="border-t border-neutral-800" />
-
-              {/* English */}
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-neutral-300">
-                  Connecting to backend...
-                </h3>
-                <p className="text-xs text-neutral-400 leading-relaxed px-2">
-                  The backend server is spinning up on Render. This usually takes 1-2 minutes as services wake up from sleep. Thank you for your patience!
-                </p>
-              </div>
+            <div className="space-y-1 w-full">
+              <h2 className="text-base font-bold tracking-tight text-white flex items-center justify-center gap-2">
+                <Loader2 className="size-4 animate-spin text-indigo-500" />
+                {t('serverOverlay.connectingTitle')}
+              </h2>
+              <p className="text-xs text-neutral-400 leading-relaxed px-2">
+                {t('serverOverlay.connectingDesc')}
+              </p>
             </div>
 
             {/* Progress/status bar */}
             <div className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-neutral-950 border border-neutral-800 py-1 text-[10px] text-neutral-500">
               <div className="size-1.5 rounded-full bg-amber-500 animate-ping" />
-              <span>Checking connection status...</span>
+              <span>{t('serverOverlay.checkingStatus')}</span>
             </div>
           </div>
         </div>

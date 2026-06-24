@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Mail, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, Avatar, AvatarFallback, Badge } from '../ui'
 import { dashboardAPI } from '../../lib/api'
@@ -15,6 +16,7 @@ type TeamMember = {
 }
 
 export function TeamOverviewSection() {
+  const { t } = useTranslation()
   const [team, setTeam] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -60,15 +62,15 @@ export function TeamOverviewSection() {
   const getRoleLabel = (role: TeamMember['role']) => {
     switch (role) {
       case 'mangaka':
-        return { text: 'Mangaka', badge: 'bg-[#f54900]/10 text-[#f54900] border-none' }
+        return { text: t('roles.mangaka'), badge: 'bg-[#f54900]/10 text-[#f54900] border-none' }
       case 'assistant':
-        return { text: 'Assistant', badge: 'bg-[#009689]/10 text-[#009689] border-none' }
+        return { text: t('roles.assistant'), badge: 'bg-[#009689]/10 text-[#009689] border-none' }
       case 'editor':
-        return { text: 'Editor', badge: 'bg-indigo-50 text-indigo-700 border-none' }
+        return { text: t('roles.editor'), badge: 'bg-indigo-50 text-indigo-700 border-none' }
       case 'editorial_board':
-        return { text: 'Editorial Board', badge: 'bg-amber-50 text-amber-700 border-none' }
+        return { text: t('roles.editorial_board'), badge: 'bg-amber-50 text-amber-700 border-none' }
       default:
-        return { text: 'Reader', badge: 'bg-neutral-100 text-neutral-600 border-none' }
+        return { text: t('roles.reader'), badge: 'bg-neutral-100 text-neutral-600 border-none' }
     }
   }
 
@@ -76,8 +78,8 @@ export function TeamOverviewSection() {
     <Card className="p-6 shadow-sm border border-neutral-200/80 bg-white">
       <CardHeader className="flex-row items-center justify-between p-0 pb-4 border-b border-neutral-100">
         <div className="flex flex-col gap-1">
-          <CardTitle className="text-base font-semibold text-neutral-900">Team Overview</CardTitle>
-          <span className="text-xs text-neutral-500 font-medium">Realtime presence and active members</span>
+          <CardTitle className="text-base font-semibold text-neutral-900">{t('teamOverview.title')}</CardTitle>
+          <span className="text-xs text-neutral-500 font-medium">{t('teamOverview.subtitle')}</span>
         </div>
       </CardHeader>
 
@@ -85,11 +87,11 @@ export function TeamOverviewSection() {
         {loading ? (
           <div className="flex items-center justify-center py-10 text-neutral-400">
             <Loader2 className="size-5 animate-spin text-neutral-300 mr-2" />
-            <span className="text-xs font-semibold">Loading team members...</span>
+            <span className="text-xs font-semibold">{t('teamOverview.loading')}</span>
           </div>
         ) : team.length === 0 ? (
           <div className="text-center py-10 text-xs text-neutral-400 font-semibold border border-dashed border-neutral-200 rounded-xl bg-neutral-50/50">
-            No active team members registered
+            {t('teamOverview.noMembers')}
           </div>
         ) : (
           <div className="divide-y divide-neutral-100">
