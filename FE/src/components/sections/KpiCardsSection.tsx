@@ -86,7 +86,7 @@ export function KpiCardsSection() {
     icon: typeof BookOpen
     badge?: string
     badgeVariant?: 'default' | 'secondary' | 'destructive'
-  }> = []
+  }>
 
   if (role === 'mangaka') {
     metrics = [
