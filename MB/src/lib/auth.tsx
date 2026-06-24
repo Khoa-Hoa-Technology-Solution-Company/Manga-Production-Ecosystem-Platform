@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI, setToken as setApiToken, clearToken } from './api';
+import { authAPI, setToken as setApiToken, clearToken, setUnauthorizedCallback } from './api';
 
 // ── Types ───────────────────────────────────────────
 export type User = {
@@ -44,6 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Register unauthorized callback to redirect to login
+  useEffect(() => {
+    setUnauthorizedCallback(() => {
+      setUser(null);
+      setToken(null);
+    });
+  }, []);
+
   // Load saved auth on mount
   useEffect(() => {
     (async () => {
@@ -54,9 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
 
         if (savedToken && savedUser) {
-          setToken(savedToken);
-          setUser(JSON.parse(savedUser));
           await setApiToken(savedToken);
+          setUser(JSON.parse(savedUser));
+          setToken(savedToken);
         }
       } catch {
         // Ignore storage errors on startup
@@ -68,11 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const data = await authAPI.login(email, password);
-    setToken(data.token);
-    setUser(data.user);
     await setApiToken(data.token);
     await AsyncStorage.setItem(TOKEN_KEY, data.token);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    setUser(data.user);
+    setToken(data.token);
   };
 
   const register = async (regData: {
@@ -82,18 +90,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role?: string;
   }) => {
     const data = await authAPI.register(regData);
-    setToken(data.token);
-    setUser(data.user);
     await setApiToken(data.token);
     await AsyncStorage.setItem(TOKEN_KEY, data.token);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    setUser(data.user);
+    setToken(data.token);
   };
 
   const logout = async () => {
-    setToken(null);
-    setUser(null);
     await clearToken();
+    await AsyncStorage.removeItem(TOKEN_KEY);
     await AsyncStorage.removeItem(USER_KEY);
+    setUser(null);
+    setToken(null);
   };
 
   return (

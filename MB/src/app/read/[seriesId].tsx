@@ -237,8 +237,10 @@ export default function ReaderScreen() {
       chaptersAPI.getBySeries(seriesId)
     ])
       .then(([sData, cData]) => {
-        setSeriesData(sData);
-        const chs = cData.chapters || [];
+        setSeriesData(sData.series ?? sData);
+        const chs = (cData.chapters || [])
+          .filter((c: any) => c.status === 'Published')
+          .sort((a: any, b: any) => a.chapterNumber - b.chapterNumber);
         setChapters(chs);
         if (chs.length > 0) {
           // Honor chapterIndex URL param (from Series Detail screen)
@@ -283,7 +285,7 @@ export default function ReaderScreen() {
     ])
       .then(([pData, cData]) => {
         const fetchedPages = (pData.pages || [])
-          .map((p: any) => getImageUrl(p.imageUrl))
+          .map((p: any) => getImageUrl(p.originalImage || p.processedImage || p.imageUrl))
           .filter((url): url is string => !!url);
         setPages(fetchedPages.length > 0 ? fetchedPages : [
           'https://picsum.photos/seed/p1/900/1200',
@@ -296,8 +298,8 @@ export default function ReaderScreen() {
           user: c.userId?.displayName || 'Cộng đồng',
           initials: (c.userId?.displayName || 'C').slice(0, 2).toUpperCase(),
           time: new Date(c.createdAt).toLocaleDateString('vi-VN') || 'Vừa xong',
-          text: c.content,
-          likes: c.likesCount || 0,
+          text: c.text || '',
+          likes: c.likes || 0,
           liked: false,
           color: ['#fb7185', '#f43f5e'],
           replies: []
@@ -462,7 +464,7 @@ export default function ReaderScreen() {
     const currentChapter = chapters[activeChapterIndex];
     if (!currentChapter) return;
     commentsAPI
-      .create(currentChapter._id, { content: newCommentText })
+      .create(currentChapter._id, { text: newCommentText })
       .then((data) => {
         const comment = data.comment || {};
         const newComment = {
@@ -470,7 +472,7 @@ export default function ReaderScreen() {
           user: comment.userId?.displayName || 'Bạn (Reader)',
           initials: (comment.userId?.displayName || 'YO').slice(0, 2).toUpperCase(),
           time: 'Vừa xong',
-          text: comment.content || newCommentText,
+          text: comment.text || newCommentText,
           likes: 0,
           liked: false,
           color: ['#fb7185', '#f43f5e'],

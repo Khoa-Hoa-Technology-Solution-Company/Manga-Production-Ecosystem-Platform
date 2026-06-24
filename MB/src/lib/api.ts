@@ -27,6 +27,12 @@ export async function clearToken(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_TOKEN_KEY);
 }
 
+let unauthorizedCallback: (() => void) | null = null;
+
+export function setUnauthorizedCallback(cb: () => void) {
+  unauthorizedCallback = cb;
+}
+
 // ── Core fetch wrapper ──────────────────────────────
 type FetchOptions = {
   method?: string;
@@ -55,7 +61,7 @@ async function apiFetch<T = any>(
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s connection timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s connection timeout
 
   const config: RequestInit = {
     method,
@@ -85,6 +91,7 @@ async function apiFetch<T = any>(
     // Token expired or invalid — clear cached auth
     await clearToken();
     await AsyncStorage.removeItem('mangaflow-user');
+    unauthorizedCallback?.();
   }
 
   if (!response.ok) {
@@ -278,7 +285,7 @@ export const commentsAPI = {
     );
   },
 
-  create: (chapterId: string, data: { content: string; parentId?: string }) =>
+  create: (chapterId: string, data: { text: string; parentId?: string }) =>
     apiFetch<{ comment: any }>(`/chapters/${chapterId}/comments`, {
       method: 'POST',
       body: data,

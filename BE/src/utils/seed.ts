@@ -103,7 +103,7 @@ async function seed() {
 
   console.log('  ✅ Chapters created (8)');
 
-  // ── Pages for Chapter 42 (The Blade Awakens) ──────
+  // ── Pages for Chapter 40 (Rising Shadows) ──────
   const mangaImages = [
     '/manga/page-panels.png',
     '/manga/cover-action.png',
@@ -112,6 +112,28 @@ async function seed() {
     '/manga/cover-horror.png',
   ];
 
+  const ch40Pages = await Page.create(
+    mangaImages.map((img, idx) => ({
+      chapterId: chapters[0]._id, // Chapter 40
+      pageNumber: idx + 1,
+      originalImage: img,
+      width: 1200,
+      height: 1800,
+    }))
+  );
+
+  // ── Pages for Chapter 41 (The Dark Forge) ──────
+  const ch41Pages = await Page.create(
+    mangaImages.map((img, idx) => ({
+      chapterId: chapters[1]._id, // Chapter 41
+      pageNumber: idx + 1,
+      originalImage: img,
+      width: 1200,
+      height: 1800,
+    }))
+  );
+
+  // ── Pages for Chapter 42 (The Blade Awakens) ──────
   const ch42Pages = await Page.create(
     mangaImages.map((img, idx) => ({
       chapterId: chapters[2]._id, // Chapter 42
@@ -133,7 +155,7 @@ async function seed() {
     }))
   );
 
-  console.log(`  ✅ Pages created (${ch42Pages.length + ch44Pages.length})`);
+  console.log(`  ✅ Pages created (${ch40Pages.length + ch41Pages.length + ch42Pages.length + ch44Pages.length})`);
 
   // ── Zones for Ch42 Page 1 ─────────────────────────
   const ch42Zones = await Zone.create([
