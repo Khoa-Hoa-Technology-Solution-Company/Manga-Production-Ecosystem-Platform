@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +25,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/hooks/use-theme';
 
 const roleOptions = [
   { value: 'mangaka', label: 'Mangaka', desc: 'Tác giả truyện' },
@@ -41,6 +43,10 @@ const demoAccounts = [
 
 export default function LoginScreen() {
   const { login, register } = useAuth();
+  const theme = useTheme();
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
+
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,6 +56,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('reader');
+
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -86,7 +96,9 @@ export default function LoginScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#0e051d', '#07020e']}
+        colors={isDark ? ['#0e051d', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
       <SafeAreaView style={styles.safeArea}>
@@ -101,23 +113,36 @@ export default function LoginScreen() {
           >
             {/* Logo & Brand */}
             <View style={styles.brandSection}>
-              <View style={styles.logoCircle}>
-                <BookOpen size={28} color="#fff" />
-              </View>
+              <LinearGradient
+                colors={['#f43f5e', '#8b5cf6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoCircle}
+              >
+                <BookOpen size={30} color="#fff" />
+              </LinearGradient>
               <ThemedText style={styles.brandTitle}>MangaFlow</ThemedText>
-              <ThemedText style={styles.brandSubtitle}>
+              <ThemedText themeColor="textSecondary" style={styles.brandSubtitle}>
                 Nền tảng sản xuất Manga chuyên nghiệp
               </ThemedText>
             </View>
 
             {/* Card */}
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: isDark ? 'rgba(22, 17, 41, 0.65)' : 'rgba(255, 255, 255, 0.85)',
+                  borderColor: isDark ? 'rgba(244, 63, 94, 0.12)' : 'rgba(244, 63, 94, 0.15)',
+                },
+              ]}
+            >
               {/* Header */}
               <View style={styles.cardHeader}>
                 <ThemedText style={styles.cardTitle}>
                   {isLogin ? 'Đăng Nhập' : 'Tạo Tài Khoản'}
                 </ThemedText>
-                <ThemedText style={styles.cardSubtitle}>
+                <ThemedText themeColor="textSecondary" style={styles.cardSubtitle}>
                   {isLogin
                     ? 'Đăng nhập để truy cập workspace'
                     : 'Tạo tài khoản mới để bắt đầu'}
@@ -134,16 +159,27 @@ export default function LoginScreen() {
               {/* Register: Display Name */}
               {!isLogin && (
                 <View style={styles.inputGroup}>
-                  <ThemedText style={styles.inputLabel}>Tên hiển thị</ThemedText>
-                  <View style={styles.inputRow}>
-                    <User size={16} color="#64748b" />
+                  <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Tên hiển thị</ThemedText>
+                  <View
+                    style={[
+                      styles.inputRow,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.04)',
+                        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)',
+                      },
+                      nameFocused && styles.inputRowActive,
+                    ]}
+                  >
+                    <User size={16} color={nameFocused ? '#fb7185' : '#64748b'} />
                     <TextInput
-                      style={styles.textInput}
+                      style={[styles.textInput, { color: theme.text }]}
                       value={displayName}
                       onChangeText={setDisplayName}
                       placeholder="Yuki Mori"
-                      placeholderTextColor="#475569"
+                      placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
                       autoCapitalize="words"
+                      onFocus={() => setNameFocused(true)}
+                      onBlur={() => setNameFocused(false)}
                     />
                   </View>
                 </View>
@@ -151,41 +187,63 @@ export default function LoginScreen() {
 
               {/* Email */}
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Email</ThemedText>
-                <View style={styles.inputRow}>
-                  <Mail size={16} color="#64748b" />
+                <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Email</ThemedText>
+                <View
+                  style={[
+                    styles.inputRow,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.04)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)',
+                    },
+                    emailFocused && styles.inputRowActive,
+                  ]}
+                >
+                  <Mail size={16} color={emailFocused ? '#fb7185' : '#64748b'} />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { color: theme.text }]}
                     value={email}
                     onChangeText={setEmail}
                     placeholder="you@example.com"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoCorrect={false}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
                   />
                 </View>
               </View>
 
               {/* Password */}
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Mật khẩu</ThemedText>
-                <View style={styles.inputRow}>
-                  <Lock size={16} color="#64748b" />
+                <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Mật khẩu</ThemedText>
+                <View
+                  style={[
+                    styles.inputRow,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.04)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)',
+                    },
+                    passwordFocused && styles.inputRowActive,
+                  ]}
+                >
+                  <Lock size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
                   <TextInput
-                    style={[styles.textInput, { flex: 1 }]}
+                    style={[styles.textInput, { flex: 1, color: theme.text }]}
                     value={password}
                     onChangeText={setPassword}
                     placeholder="••••••••"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)}>
                     {showPassword ? (
-                      <EyeOff size={16} color="#64748b" />
+                      <EyeOff size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
                     ) : (
-                      <Eye size={16} color="#64748b" />
+                      <Eye size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
                     )}
                   </Pressable>
                 </View>
@@ -194,7 +252,7 @@ export default function LoginScreen() {
               {/* Register: Role Picker */}
               {!isLogin && (
                 <View style={styles.inputGroup}>
-                  <ThemedText style={styles.inputLabel}>Vai trò</ThemedText>
+                  <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Vai trò</ThemedText>
                   <View style={styles.rolesGrid}>
                     {roleOptions.map((opt) => {
                       const active = role === opt.value;
@@ -204,6 +262,10 @@ export default function LoginScreen() {
                           onPress={() => setRole(opt.value)}
                           style={[
                             styles.roleChip,
+                            {
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(15, 23, 42, 0.02)',
+                              borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.06)',
+                            },
                             active && styles.roleChipActive,
                           ]}
                         >
@@ -234,23 +296,33 @@ export default function LoginScreen() {
               <Pressable
                 onPress={handleSubmit}
                 disabled={loading}
-                style={[styles.submitBtn, loading && { opacity: 0.6 }]}
+                style={({ pressed }) => [
+                  styles.submitBtnWrap,
+                  (loading || pressed) && { opacity: 0.8 }
+                ]}
               >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <ThemedText style={styles.submitText}>
-                      {isLogin ? 'Đăng nhập' : 'Đăng ký'}
-                    </ThemedText>
-                    <ChevronRight size={16} color="#fff" />
-                  </>
-                )}
+                <LinearGradient
+                  colors={['#f43f5e', '#8b5cf6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.submitBtn}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <ThemedText style={styles.submitText}>
+                        {isLogin ? 'Đăng nhập' : 'Đăng ký'}
+                      </ThemedText>
+                      <ChevronRight size={16} color="#fff" />
+                    </>
+                  )}
+                </LinearGradient>
               </Pressable>
 
               {/* Toggle */}
               <View style={styles.toggleRow}>
-                <ThemedText style={styles.toggleText}>
+                <ThemedText themeColor="textSecondary" style={styles.toggleText}>
                   {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
                 </ThemedText>
                 <Pressable
@@ -267,26 +339,41 @@ export default function LoginScreen() {
             </View>
 
             {/* Demo Accounts */}
-            <View style={styles.demoCard}>
+            <View
+              style={[
+                styles.demoCard,
+                {
+                  backgroundColor: isDark ? 'rgba(22, 17, 41, 0.45)' : 'rgba(15, 23, 42, 0.03)',
+                  borderColor: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(15, 23, 42, 0.08)',
+                },
+              ]}
+            >
               <View style={styles.demoHeader}>
                 <Sparkles size={12} color="#f43f5e" />
-                <ThemedText style={styles.demoTitle}>TÀI KHOẢN DEMO</ThemedText>
+                <ThemedText themeColor="textSecondary" style={styles.demoTitle}>TÀI KHOẢN DEMO</ThemedText>
               </View>
               <View style={styles.demoGrid}>
                 {demoAccounts.map((d) => (
                   <Pressable
                     key={d.email}
                     onPress={() => fillDemo(d.email)}
-                    style={styles.demoChip}
+                    style={({ pressed }) => [
+                      styles.demoChip,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#ffffff',
+                        borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.06)',
+                      },
+                      pressed && { opacity: 0.7 },
+                    ]}
                   >
-                    <ThemedText style={styles.demoChipLabel}>{d.label}</ThemedText>
-                    <ThemedText style={styles.demoChipEmail} numberOfLines={1}>
+                    <ThemedText style={[styles.demoChipLabel, { color: theme.text }]}>{d.label}</ThemedText>
+                    <ThemedText style={[styles.demoChipEmail, { color: theme.textSecondary }]} numberOfLines={1}>
                       {d.email}
                     </ThemedText>
                   </Pressable>
                 ))}
               </View>
-              <ThemedText style={styles.demoHint}>
+              <ThemedText style={[styles.demoHint, { color: theme.textSecondary }]}>
                 Mật khẩu: password123
               </ThemedText>
             </View>
@@ -307,39 +394,41 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 24,
   },
-  brandSection: { alignItems: 'center', gap: 8 },
+  brandSection: { alignItems: 'center', gap: 10 },
   logoCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: '#f43f5e',
+    width: 64,
+    height: 64,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
+    shadowColor: '#f43f5e',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
   brandTitle: {
-    color: '#fff',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
   brandSubtitle: {
-    color: '#64748b',
-    fontSize: 12,
+    fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
   },
   card: {
-    backgroundColor: 'rgba(15, 10, 30, 0.8)',
+    backgroundColor: 'rgba(22, 17, 41, 0.65)',
     borderRadius: 24,
-    padding: 20,
+    padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(244, 63, 94, 0.12)',
     gap: 16,
   },
   cardHeader: { gap: 4 },
-  cardTitle: { color: '#fff', fontSize: 18, fontWeight: '900' },
-  cardSubtitle: { color: '#64748b', fontSize: 12 },
+  cardTitle: { fontSize: 18, fontWeight: '900' },
+  cardSubtitle: { fontSize: 12 },
   errorBox: {
     backgroundColor: 'rgba(239,68,68,0.1)',
     borderWidth: 1,
@@ -361,12 +450,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 48,
+  },
+  inputRowActive: {
+    borderColor: '#f43f5e',
+    backgroundColor: 'rgba(244, 63, 94, 0.05)',
   },
   textInput: {
     flex: 1,
@@ -400,15 +493,17 @@ const styles = StyleSheet.create({
   },
   roleChipLabelActive: { color: '#fff' },
   roleChipDesc: { color: '#475569', fontSize: 10 },
+  submitBtnWrap: {
+    marginTop: 4,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
   submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#f43f5e',
     paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 4,
   },
   submitText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   toggleRow: {
@@ -420,11 +515,11 @@ const styles = StyleSheet.create({
   toggleText: { color: '#64748b', fontSize: 12 },
   toggleLink: { color: '#f43f5e', fontSize: 12, fontWeight: '800' },
   demoCard: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: 'rgba(22, 17, 41, 0.45)',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(139, 92, 246, 0.1)',
     gap: 10,
   },
   demoHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -437,15 +532,17 @@ const styles = StyleSheet.create({
   demoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
   },
   demoChip: {
-    width: '47%',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    width: '48%',
+    backgroundColor: 'rgba(255,255,255,0.02)',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   demoChipLabel: { color: '#cbd5e1', fontSize: 11, fontWeight: '800' },
   demoChipEmail: { color: '#475569', fontSize: 9 },

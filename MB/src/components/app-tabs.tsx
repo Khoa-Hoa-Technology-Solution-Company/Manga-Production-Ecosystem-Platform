@@ -86,6 +86,15 @@ export default function AppTabs() {
           />
         </NativeTabs.Trigger>
       )}
+
+      {/* Notifications Tab — visible to all roles */}
+      <NativeTabs.Trigger name="notifications">
+        <NativeTabs.Trigger.Label>Thông Báo</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={require('@/assets/images/tabIcons/explore.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

@@ -164,7 +164,7 @@ const themes = {
 export default function ReaderScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { seriesId } = useLocalSearchParams<{ seriesId: string }>();
+  const { seriesId, chapterIndex: chapterIndexParam } = useLocalSearchParams<{ seriesId: string; chapterIndex?: string }>();
   const { width: screenWidth } = Dimensions.get('window');
 
   const { user } = useAuth();
@@ -241,7 +241,10 @@ export default function ReaderScreen() {
         const chs = cData.chapters || [];
         setChapters(chs);
         if (chs.length > 0) {
-          setActiveChapterIndex(0);
+          // Honor chapterIndex URL param (from Series Detail screen)
+          const requestedIndex = parseInt(chapterIndexParam || '0', 10);
+          const safeIndex = isNaN(requestedIndex) ? 0 : Math.min(requestedIndex, chs.length - 1);
+          setActiveChapterIndex(safeIndex);
         }
       })
       .catch((err) => {

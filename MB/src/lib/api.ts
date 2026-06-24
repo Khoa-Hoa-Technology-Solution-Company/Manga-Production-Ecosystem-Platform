@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ── Base URL ────────────────────────────────────────
 // On physical devices, set EXPO_PUBLIC_API_BASE_URL in .env to your machine's local IP
 // e.g. EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:3000
-const API_BASE_URL = 'http://10.0.2.2:3000'; // Hardcoded to bypass environment variable cache
+const rawBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:3000';
+const API_BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
 const STORAGE_TOKEN_KEY = 'mangaflow-token';
 
@@ -53,9 +54,13 @@ async function apiFetch<T = any>(
     reqHeaders['Content-Type'] = 'application/json';
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s connection timeout
+
   const config: RequestInit = {
     method,
     headers: reqHeaders,
+    signal: controller.signal,
   };
 
   if (body) {
@@ -65,7 +70,9 @@ async function apiFetch<T = any>(
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api${path}`, config);
+    clearTimeout(timeoutId);
   } catch (error: any) {
+    clearTimeout(timeoutId);
     console.error('Fetch network error:', error);
     throw {
       status: 0,
