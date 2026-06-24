@@ -260,6 +260,19 @@ export default function ReaderScreen() {
     loadSeriesData();
   }, [seriesId]);
 
+  // Sync activeChapterIndex when chapterIndexParam or chapters changes (e.g. when returning to series detail and choosing another chapter)
+  useEffect(() => {
+    if (chapters.length > 0) {
+      const requestedIndex = parseInt(chapterIndexParam || '0', 10);
+      const safeIndex = isNaN(requestedIndex) ? 0 : Math.min(requestedIndex, chapters.length - 1);
+      setActiveChapterIndex(safeIndex);
+      setCurrentPage(0);
+      setScrollProgress(0);
+      scrollYRef.current = 0;
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [chapterIndexParam, chapters]);
+
   // Increment view count when chapter index or chapters change
   useEffect(() => {
     const currentChapter = chapters[activeChapterIndex];
