@@ -228,7 +228,7 @@ export default function ReaderScreen() {
 
   // Fetch series details and chapters
   const loadSeriesData = () => {
-    if (!seriesId) return;
+    if (!seriesId || seriesId === 'undefined') return;
     setError(null);
     setLoading(true);
 

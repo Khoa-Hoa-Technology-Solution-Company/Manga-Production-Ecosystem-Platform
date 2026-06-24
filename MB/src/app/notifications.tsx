@@ -16,6 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { notificationsAPI } from '@/lib/api';
+import { socketService } from '@/lib/socket';
 
 interface Notification {
   _id: string;
@@ -46,6 +47,32 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    notificationsAPI
+      .getAll()
+      .then((data) => {
+        setNotifications(data.notifications || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load notifications on refresh:', err);
+      })
+      .finally(() => setRefreshing(false));
+  }, []);
+
+  // Listen to realtime notifications via Socket
+  useEffect(() => {
+    const handleNewNotification = (n: any) => {
+      setNotifications((prev) => [n, ...prev]);
+    };
+
+    socketService.on('notification:new', handleNewNotification);
+    return () => {
+      socketService.off('notification:new', handleNewNotification);
+    };
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -197,27 +224,31 @@ export default function NotificationsScreen() {
           <View style={styles.center}>
             <ActivityIndicator size="large" color="#6366f1" />
           </View>
-        ) : notifications.length === 0 ? (
-          <View style={styles.empty}>
-            <BellOff size={52} color={theme.textSecondary} style={{ opacity: 0.4 }} />
-            <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
-              Chưa có thông báo nào
-            </ThemedText>
-            <ThemedText style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-              Các cập nhật về series bạn theo dõi sẽ hiện ở đây.
-            </ThemedText>
-          </View>
         ) : (
           <FlatList
             data={notifications}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
+            ListEmptyComponent={() => (
+              <View style={styles.empty}>
+                <BellOff size={52} color={theme.textSecondary} style={{ opacity: 0.4 }} />
+                <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
+                  Chưa có thông báo nào
+                </ThemedText>
+                <ThemedText style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+                  Các cập nhật về series bạn theo dõi sẽ hiện ở đây.
+                </ThemedText>
+              </View>
+            )}
             contentContainerStyle={[
               styles.list,
               { paddingBottom: (BottomTabInset ?? 80) + insets.bottom + 24 },
+              notifications.length === 0 && { flex: 1, justifyContent: 'center' }
             ]}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
           />
         )}
       </SafeAreaView>

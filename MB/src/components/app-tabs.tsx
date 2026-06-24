@@ -95,6 +95,14 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
+
+      {/* Hidden detail routes to register them in the tabs navigator */}
+      <NativeTabs.Trigger name="series/[seriesId]" style={{ display: 'none' }}>
+        <NativeTabs.Trigger.Label>Series</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="read/[seriesId]" style={{ display: 'none' }}>
+        <NativeTabs.Trigger.Label>Read</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
