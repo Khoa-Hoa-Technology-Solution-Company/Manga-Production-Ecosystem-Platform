@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowDown, Search, BookOpen, Star } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui'
 import { dashboardAPI } from '../../lib/api'
@@ -17,6 +18,7 @@ type RankingItem = {
 
 export function SeriesRankingSection() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const [sortBy, setSortBy] = useState<'votes' | 'rating'>('votes')
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,18 +48,24 @@ export function SeriesRankingSection() {
     row.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const getSubtitle = () => {
+    switch (user?.role) {
+      case 'mangaka': return t('rankings.subtitleMangaka')
+      case 'editor': return t('rankings.subtitleEditor')
+      case 'assistant': return t('rankings.subtitleAssistant')
+      case 'editorial_board': return t('rankings.subtitleEB')
+      case 'reader': return t('rankings.subtitleReader')
+      default: return t('rankings.subtitleDefault')
+    }
+  }
+
   return (
     <Card className="gap-4 p-6 shadow-sm">
       <CardHeader className="flex-row items-center justify-between gap-2 p-0">
         <div className="flex flex-col gap-1">
-          <CardTitle className="text-base leading-6">Series Ranking & Ratings</CardTitle>
+          <CardTitle className="text-base leading-6">{t('rankings.title')}</CardTitle>
           <span className="text-xs leading-4 text-neutral-500">
-            {user?.role === 'mangaka' && 'Top performing active and completed series in your studio'}
-            {user?.role === 'editor' && 'Top performing active and completed series you manage'}
-            {user?.role === 'assistant' && 'Performance of series you are assisting with'}
-            {user?.role === 'editorial_board' && 'Top performing active and completed series on the platform'}
-            {user?.role === 'reader' && 'Top performing active and completed series on the platform'}
-            {!['mangaka', 'editor', 'assistant', 'editorial_board', 'reader'].includes(user?.role || '') && 'Top performing active and completed series'}
+            {getSubtitle()}
           </span>
         </div>
 
@@ -70,7 +78,7 @@ export function SeriesRankingSection() {
                 sortBy === 'votes' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'
               }`}
             >
-              Weekly Votes
+              {t('rankings.weeklyVotes')}
             </button>
             <button
               onClick={() => handleSortChange('rating')}
@@ -78,14 +86,14 @@ export function SeriesRankingSection() {
                 sortBy === 'rating' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'
               }`}
             >
-              Average Rating
+              {t('rankings.averageRating')}
             </button>
           </div>
 
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-neutral-500" />
             <Input
-              placeholder="Search series..."
+              placeholder={t('rankings.searchSeries')}
               className="h-8 w-56 pl-8 text-xs leading-4"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -99,34 +107,34 @@ export function SeriesRankingSection() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">Rank</TableHead>
-                <TableHead>Series Title</TableHead>
-                <TableHead>Genre</TableHead>
+                <TableHead className="w-12">{t('rankings.rank')}</TableHead>
+                <TableHead>{t('rankings.seriesTitle')}</TableHead>
+                <TableHead>{t('rankings.genre')}</TableHead>
                 <TableHead>
                   <div className="flex items-center gap-1">
-                    Rating {sortBy === 'rating' && <ArrowDown className="size-3" />}
+                    {t('rankings.rating')} {sortBy === 'rating' && <ArrowDown className="size-3" />}
                   </div>
                 </TableHead>
                 <TableHead>
                   <div className="flex items-center gap-1">
-                    Weekly Votes {sortBy === 'votes' && <ArrowDown className="size-3" />}
+                    {t('rankings.weeklyVotes')} {sortBy === 'votes' && <ArrowDown className="size-3" />}
                   </div>
                 </TableHead>
-                <TableHead>Total Votes</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{t('rankings.totalVotes')}</TableHead>
+                <TableHead>{t('rankings.status')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-6 text-neutral-500">
-                    Loading rankings...
+                    {t('rankings.loadingRankings')}
                   </TableCell>
                 </TableRow>
               ) : filteredRankings.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-6 text-neutral-500">
-                    No series found
+                    {t('rankings.noSeriesFound')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -157,7 +165,7 @@ export function SeriesRankingSection() {
                             : 'text-amber-700 border-amber-200 bg-amber-50'
                         }`}
                       >
-                        {row.status === 'Active' || row.status === 'Completed' ? 'Published' : 'Coming Soon'}
+                        {row.status === 'Active' || row.status === 'Completed' ? t('rankings.publishedStatus') : t('rankings.comingSoon')}
                       </span>
                     </TableCell>
                   </TableRow>
@@ -169,7 +177,7 @@ export function SeriesRankingSection() {
 
         <div className="flex items-center justify-between border-t border-neutral-100 pt-3 mt-3">
           <span className="text-xs leading-4 text-neutral-500">
-            Showing {filteredRankings.length} of {rankings.length} series
+            {t('common.showingCount', { count: filteredRankings.length, total: rankings.length })}
           </span>
         </div>
       </CardContent>

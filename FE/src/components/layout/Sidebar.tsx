@@ -27,7 +27,7 @@ const navigation: Array<{
   { key: 'dashboard', labelKey: 'sidebar.dashboard', icon: LayoutDashboard, section: 'main' },
   { key: 'studio', labelKey: 'sidebar.studio', icon: PenTool, section: 'create', roles: ['mangaka'] },
   { key: 'series-manager', labelKey: 'sidebar.seriesManager', icon: BookMarked, section: 'create', roles: ['mangaka'] },
-  { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create', roles: ['mangaka', 'assistant'] },
+  { key: 'tasks', labelKey: 'sidebar.assistant', icon: Briefcase, section: 'create', roles: ['assistant'] },
   { key: 'editor-portal', labelKey: 'sidebar.editorPortal', icon: LayoutDashboard, section: 'manage', roles: ['editor'] },
   { key: 'editorial-board', labelKey: 'sidebar.editorialBoard', icon: Gavel, section: 'manage', roles: ['editorial_board'] },
   { key: 'discover', labelKey: 'sidebar.discover', icon: Compass, section: 'explore' },
@@ -54,13 +54,30 @@ const routeMap: Record<SidebarKey, string> = {
   settings: '/settings',
 }
 
+const getActiveKey = (pathname: string): SidebarKey | null => {
+  if (pathname === '/') return 'home'
+
+  // Sort routeMap entries by route path length descending to match longest path prefix first
+  const entries = Object.entries(routeMap) as [SidebarKey, string][]
+  const sortedEntries = [...entries].sort((a, b) => b[1].length - a[1].length)
+
+  for (const [key, route] of sortedEntries) {
+    if (route === '/') continue // skip root
+    if (pathname === route || pathname.startsWith(route + '/')) {
+      return key
+    }
+  }
+
+  return null
+}
+
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const { t, i18n } = useTranslation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   
-  const active = location.pathname === '/' ? 'home' : location.pathname.split('/')[1] || 'home'
+  const active = getActiveKey(location.pathname)
 
   const toggleLang = () => {
     i18n.changeLanguage(i18n.language === 'en' ? 'vi' : 'en')
@@ -131,12 +148,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         <nav className="flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
           {sections.map((section) => {
             const userRole = user?.role?.toLowerCase() || 'reader'
-            const isReader = userRole === 'reader'
-            const restrictedForReader = ['studio', 'series-manager', 'tasks', 'editor-portal', 'editorial-board']
             
             const sectionItems = navigation.filter((n) => {
               if (n.section !== section.key) return false
-              if (isReader && restrictedForReader.includes(n.key)) return false
               // Role-specific items: only show if user has matching role
               if (n.roles && !n.roles.includes(userRole)) return false
               return true

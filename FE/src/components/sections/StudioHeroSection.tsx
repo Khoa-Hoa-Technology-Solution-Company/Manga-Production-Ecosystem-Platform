@@ -1,33 +1,35 @@
+import { useTranslation } from 'react-i18next'
 import { ArrowRight, Pencil, Play, Sparkles } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button } from '../ui'
 
 export function StudioHeroSection() {
+  const { t } = useTranslation()
+
   return (
     <section className="overflow-hidden bg-neutral-950 text-white">
       <div className="grid gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-2 lg:px-12 lg:py-12">
         <div className="flex flex-col justify-center gap-6">
           <Badge variant="secondary" className="w-fit gap-1.5">
             <Sparkles className="size-3" />
-            Now in Public Beta
+            {t('studioLanding.publicBeta')}
           </Badge>
 
           <div className="space-y-4">
             <h1 className="max-w-xl text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-              The Ultimate Real-Time Manga Collaboration Platform
+              {t('studioLanding.heroTitle')}
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-white/70 sm:text-base sm:leading-7">
-              A role-based ecosystem connecting Mangaka, Assistants, Editors, Publishers, and Readers in one seamless
-              creative workspace built for the next generation of manga production.
+              {t('studioLanding.heroDescription')}
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button size="lg" variant="secondary" className="gap-2">
-              Start Creating Free <ArrowRight className="size-4" />
+              {t('studioLanding.startCreating')} <ArrowRight className="size-4" />
             </Button>
             <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent text-white hover:bg-white/5">
               <Play className="size-4" />
-              Watch Demo
+              {t('studioLanding.watchDemo')}
             </Button>
           </div>
 
@@ -39,7 +41,7 @@ export function StudioHeroSection() {
                 </Avatar>
               ))}
             </div>
-            <span className="text-xs text-white/60 sm:text-sm">12,400+ creators already onboard</span>
+            <span className="text-xs text-white/60 sm:text-sm">{t('studioLanding.creatorsOnboard')}</span>
           </div>
         </div>
 
@@ -54,7 +56,7 @@ export function StudioHeroSection() {
 
             <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-[11px] font-medium text-neutral-950 shadow-lg backdrop-blur">
               <span className="size-2 animate-pulse rounded-full bg-[#e7000b]" />
-              Live editing · Page 24
+              {t('studioLanding.liveEditing')}
             </div>
 
             <div className="absolute right-4 top-16 max-w-48 rounded-xl bg-white/95 p-3 text-neutral-950 shadow-lg backdrop-blur">
@@ -64,7 +66,7 @@ export function StudioHeroSection() {
                 </Avatar>
                 <span className="text-[10px] font-semibold">Editor Kenji</span>
               </div>
-              <p className="text-[10px] leading-4 text-neutral-500">Tighten the panel composition here →</p>
+              <p className="text-[10px] leading-4 text-neutral-500">{t('studioLanding.tightenPanel')}</p>
             </div>
 
             <div className="absolute bottom-4 left-4 flex items-center -space-x-2">
@@ -84,7 +86,7 @@ export function StudioHeroSection() {
 
             <div className="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-neutral-950 px-3 py-2 text-[10px] font-medium text-white shadow-lg">
               <Pencil className="size-3" />
-              Annotation tool
+              {t('studioLanding.annotationTool')}
             </div>
           </div>
         </div>

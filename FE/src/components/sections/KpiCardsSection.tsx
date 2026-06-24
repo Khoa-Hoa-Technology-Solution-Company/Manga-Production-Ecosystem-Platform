@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowUp, ArrowDown, BookOpen, CheckSquare, Heart, Coins } from 'lucide-react'
 import { Card, CardContent, CardHeader, Badge } from '../ui'
 import { useAuth } from '../../lib/auth'
@@ -26,6 +27,7 @@ type StatsData = {
 
 export function KpiCardsSection() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,12 +41,12 @@ export function KpiCardsSection() {
       })
       .catch((err) => {
         console.error('Failed to fetch dashboard stats:', err)
-        setError('Could not load statistics')
+        setError(t('kpi.errorLoading'))
       })
       .finally(() => {
         setLoading(false)
       })
-  }, [user])
+  }, [user, t])
 
   if (loading) {
     return (
@@ -69,7 +71,7 @@ export function KpiCardsSection() {
     return (
       <section className="grid gap-4 xl:grid-cols-3">
         <Card className="col-span-3 p-6 text-center text-xs leading-4 text-red-500 border border-red-100 bg-red-50/30">
-          {error || 'An error occurred while loading dashboard stats.'}
+          {error || t('kpi.errorGeneric')}
         </Card>
       </section>
     )
@@ -91,27 +93,27 @@ export function KpiCardsSection() {
   if (role === 'mangaka') {
     metrics = [
       {
-        label: 'Active Series',
+        label: t('kpi.activeSeries'),
         value: stats.activeSeries || 0,
         delta: stats.activeSeriesDelta && stats.activeSeriesDelta > 0 ? `+${stats.activeSeriesDelta}` : undefined,
         deltaDirection: 'up',
         note: stats.activeSeriesDelta && stats.activeSeriesDelta > 0 
-          ? `+${stats.activeSeriesDelta} created this month` 
-          : 'Total active series',
+          ? t('kpi.activeSeriesCreated', { count: stats.activeSeriesDelta }) 
+          : t('kpi.totalActiveSeries'),
         icon: BookOpen,
       },
       {
-        label: 'Pending Tasks',
+        label: t('kpi.pendingTasks'),
         value: stats.pendingTasks || 0,
-        note: `${stats.urgentTasks || 0} deadline in 24h`,
+        note: t('kpi.deadlineIn24h', { count: stats.urgentTasks || 0 }),
         icon: CheckSquare,
-        badge: stats.urgentTasks && stats.urgentTasks > 0 ? `${stats.urgentTasks} urgent` : undefined,
+        badge: stats.urgentTasks && stats.urgentTasks > 0 ? t('kpi.urgent', { count: stats.urgentTasks }) : undefined,
         badgeVariant: 'destructive',
       },
       {
-        label: 'Weekly Votes',
+        label: t('kpi.weeklyVotes'),
         value: (stats.weeklyVotes || 0).toLocaleString(),
-        note: 'Weekly reader votes',
+        note: t('kpi.weeklyReaderVotes'),
         icon: Heart,
         badge: stats.weeklyVotesDelta ? `${stats.weeklyVotesDelta >= 0 ? '+' : ''}${stats.weeklyVotesDelta}%` : undefined,
         badgeVariant: stats.weeklyVotesDelta && stats.weeklyVotesDelta >= 0 ? 'secondary' : 'destructive',
@@ -120,46 +122,46 @@ export function KpiCardsSection() {
   } else if (role === 'assistant') {
     metrics = [
       {
-        label: 'Available Gigs',
+        label: t('kpi.availableGigs'),
         value: stats.availableTasks || 0,
-        note: 'Tasks open for recruitment',
+        note: t('kpi.tasksOpenForRecruitment'),
         icon: BookOpen,
       },
       {
-        label: 'Tasks In Progress',
+        label: t('kpi.tasksInProgress'),
         value: stats.inProgress || 0,
-        note: `${stats.urgentTasks || 0} deadline in 24h`,
+        note: t('kpi.deadlineIn24h', { count: stats.urgentTasks || 0 }),
         icon: CheckSquare,
-        badge: stats.urgentTasks && stats.urgentTasks > 0 ? 'Urgent' : undefined,
+        badge: stats.urgentTasks && stats.urgentTasks > 0 ? t('assistant.urgent') : undefined,
         badgeVariant: 'destructive',
       },
       {
-        label: 'Total Earnings',
+        label: t('kpi.totalEarnings'),
         value: stats.earnings ? `$${stats.earnings.toLocaleString()}` : '$0',
-        note: 'Lifetime payout',
+        note: t('kpi.lifetimePayout'),
         icon: Coins,
       },
     ]
   } else if (role === 'editor' || role === 'editorial_board') {
     metrics = [
       {
-        label: 'Chapters Reviewing',
+        label: t('kpi.chaptersReviewing'),
         value: stats.reviewing || 0,
-        note: 'Under active review',
+        note: t('kpi.underActiveReview'),
         icon: CheckSquare,
-        badge: stats.reviewing && stats.reviewing > 0 ? 'Action required' : undefined,
+        badge: stats.reviewing && stats.reviewing > 0 ? t('kpi.actionRequired') : undefined,
         badgeVariant: 'destructive',
       },
       {
-        label: 'Chapters Approved',
+        label: t('kpi.chaptersApproved'),
         value: stats.approved || 0,
-        note: 'Ready for final publication decision',
+        note: t('kpi.readyForPublication'),
         icon: BookOpen,
       },
       {
-        label: 'Published Chapters',
+        label: t('kpi.publishedChapters'),
         value: stats.published || 0,
-        note: 'All-time published chapters',
+        note: t('kpi.allTimePublished'),
         icon: Heart,
       },
     ]
@@ -167,21 +169,21 @@ export function KpiCardsSection() {
     // Reader & fallback
     metrics = [
       {
-        label: 'Subscribed Series',
+        label: t('kpi.subscribedSeries'),
         value: stats.subscribedSeries || 0,
-        note: 'In your reading list',
+        note: t('kpi.inYourReadingList'),
         icon: BookOpen,
       },
       {
-        label: 'Published Chapters',
+        label: t('kpi.publishedChapters'),
         value: stats.publishedChapters || 0,
-        note: 'Total chapters online',
+        note: t('kpi.totalChaptersOnline'),
         icon: CheckSquare,
       },
       {
-        label: 'Total Votes Cast',
+        label: t('kpi.totalVotesCast'),
         value: stats.totalVotes || 0,
-        note: 'Your votes supported creators',
+        note: t('kpi.votesSupported'),
         icon: Heart,
       },
     ]
