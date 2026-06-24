@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert } from 'react-native';
+import { ImageBackground, Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -42,6 +42,8 @@ const levelColors: Record<string, string> = {
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
   const { user, logout } = useAuth();
   const [activeMood, setActiveMood] = useState('All');
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -197,14 +199,14 @@ export default function HomeScreen() {
   );
 
   const handleOpenSeries = (id: string) => {
-    router.push(`/read/${id}`);
+    router.push(`/series/${id}`);
   };
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
       {/* Premium glowing background */}
       <LinearGradient
-        colors={['#0e051d', '#130e2c', '#07020e']}
+        colors={isDark ? ['#0e051d', '#130e2c', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.backgroundGlow}
@@ -224,11 +226,20 @@ export default function HomeScreen() {
                 <Sparkles size={13} color="#f43f5e" />
                 <ThemedText style={styles.headerSubtitle}>Manga Ecosystem</ThemedText>
               </View>
-              <ThemedText type="title" style={styles.headerTitle}>Reader Hub</ThemedText>
+              <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>Reader Hub</ThemedText>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Pressable style={styles.logoutBtn} onPress={logout}>
-                <LogOut size={20} color="#94a3b8" />
+              <Pressable
+                style={[
+                  styles.logoutBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15, 23, 42, 0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15, 23, 42, 0.06)'
+                  }
+                ]}
+                onPress={logout}
+              >
+                <LogOut size={20} color={isDark ? '#94a3b8' : '#475569'} />
               </Pressable>
               <Pressable style={styles.profileAvatar} onPress={() => router.push('/studio')}>
                 <LinearGradient colors={['#fb7185', '#8b5cf6']} style={StyleSheet.absoluteFillObject} />
@@ -273,9 +284,22 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.carouselActionRow}>
-                  <Pressable onPress={() => handleOpenSeries(currentFeatured.id)} style={styles.playBtn}>
-                    <Play size={15} color="#0a051d" />
-                    <ThemedText style={styles.playBtnText}>Đọc Ngay</ThemedText>
+                  <Pressable
+                    onPress={() => handleOpenSeries(currentFeatured.id)}
+                    style={({ pressed }) => [
+                      styles.playBtnWrap,
+                      pressed && { opacity: 0.9 }
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['#f43f5e', '#ec4899']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.playBtn}
+                    >
+                      <Play size={14} color="#fff" />
+                      <ThemedText style={styles.playBtnText}>Đọc Ngay</ThemedText>
+                    </LinearGradient>
                   </Pressable>
                   <View style={styles.dotIndicatorRow}>
                     {featuredSeries.map((_, i) => (
@@ -288,15 +312,34 @@ export default function HomeScreen() {
           </View>
 
           {/* Search Row */}
-          <View style={styles.searchRow}>
-            <View style={styles.searchBox}>
-              <Search size={16} color="#a5b4fc" />
-              <ThemedText style={styles.searchText}>Tìm truyện, tác giả, chapter...</ThemedText>
+          <Pressable
+            onPress={() => router.push('/explore')}
+            style={styles.searchRow}
+          >
+            <View
+              style={[
+                styles.searchBox,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.04)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.06)',
+                }
+              ]}
+            >
+              <Search size={16} color={isDark ? '#a5b4fc' : '#6366f1'} />
+              <ThemedText themeColor="textSecondary" style={styles.searchText}>Tìm truyện, tác giả, chapter...</ThemedText>
             </View>
-            <Pressable style={styles.iconPill}>
-              <LayoutGrid size={18} color="#fff" />
-            </Pressable>
-          </View>
+            <View
+              style={[
+                styles.iconPill,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.04)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.06)',
+                }
+              ]}
+            >
+              <LayoutGrid size={18} color={isDark ? '#fff' : '#6366f1'} />
+            </View>
+          </Pressable>
 
           {/* Mood Selector horizontal scroll */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moodRow}>
@@ -328,13 +371,18 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <TrendingUp size={16} color="#38bdf8" />
-              <ThemedText type="smallBold" style={styles.sectionTitle}>TIẾP TỤC ĐỌC</ThemedText>
+              <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]}>TIẾP TỤC ĐỌC</ThemedText>
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
             {continueReading.map((item) => (
               <Pressable key={item.id} onPress={() => handleOpenSeries(item.id)} style={styles.resumeCard}>
-                <View style={styles.resumeCoverWrap}>
+                <View
+                  style={[
+                    styles.resumeCoverWrap,
+                    { borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)' }
+                  ]}
+                >
                   <Image source={{ uri: item.cover }} style={styles.resumeCover} contentFit="cover" />
                   <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={styles.resumeOverlay} />
                   <View style={styles.progressWrap}>
@@ -344,7 +392,7 @@ export default function HomeScreen() {
                     </View>
                   </View>
                 </View>
-                <ThemedText style={styles.resumeTitle} numberOfLines={1}>{item.title}</ThemedText>
+                <ThemedText style={[styles.resumeTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</ThemedText>
               </Pressable>
             ))}
           </ScrollView>
@@ -353,12 +401,23 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Flame size={16} color="#f43f5e" />
-              <ThemedText type="smallBold" style={styles.sectionTitle}>HOT TUẦN NÀY</ThemedText>
+              <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]}>HOT TUẦN NÀY</ThemedText>
             </View>
             <View style={styles.shelfTabs}>
               {(['all', 'shared'] as const).map((tab) => (
-                <Pressable key={tab} onPress={() => setActiveShelfTab(tab)} style={[styles.shelfTab, activeShelfTab === tab && styles.shelfTabActive]}>
-                  <ThemedText style={[styles.shelfTabText, activeShelfTab === tab && styles.shelfTabTextActive]}>
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveShelfTab(tab)}
+                  style={[
+                    styles.shelfTab,
+                    activeShelfTab === tab && styles.shelfTabActive,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.04)',
+                      borderColor: activeShelfTab === tab ? '#fb7185' : 'transparent',
+                    }
+                  ]}
+                >
+                  <ThemedText style={[styles.shelfTabText, activeShelfTab === tab && styles.shelfTabTextActive, { color: activeShelfTab === tab ? '#fb7185' : theme.textSecondary }]}>
                     {tab === 'all' ? 'Tất cả' : 'Được chia sẻ'}
                   </ThemedText>
                 </Pressable>
@@ -430,14 +489,17 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Trophy size={16} color="#fbbf24" />
-              <ThemedText type="smallBold" style={styles.sectionTitle}>BẢNG XẾP HẠNG ĐỘC GIẢ</ThemedText>
+              <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]}>BẢNG XẾP HẠNG ĐỘC GIẢ</ThemedText>
             </View>
             <ThemedText style={styles.sectionActionText}>Tháng này</ThemedText>
           </View>
 
           <LinearGradient
-            colors={['rgba(22,17,41,0.85)', 'rgba(39,29,74,0.45)']}
-            style={styles.leaderboardCard}
+            colors={isDark ? ['rgba(22,17,41,0.85)', 'rgba(39,29,74,0.45)'] : ['rgba(255,255,255,0.95)', 'rgba(240,240,243,0.7)']}
+            style={[
+              styles.leaderboardCard,
+              { borderColor: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(15, 23, 42, 0.08)' }
+            ]}
           >
             {leaderboard.map((row, idx) => (
               <View key={row.rank} style={[styles.leaderboardRow, idx === leaderboard.length - 1 && { borderBottomWidth: 0 }]}>
@@ -459,21 +521,24 @@ export default function HomeScreen() {
                     <User size={13} color="#fff" />
                   </View>
                   <View>
-                    <ThemedText style={styles.leaderboardUsername}>{row.name}</ThemedText>
-                    <ThemedText style={styles.leaderboardBadge}>{row.badge}</ThemedText>
+                    <ThemedText style={[styles.leaderboardUsername, { color: theme.text }]}>{row.name}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.leaderboardBadge}>{row.badge}</ThemedText>
                   </View>
                 </View>
 
                 <View style={styles.statsCol}>
                   <LinearGradient
                     colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']}
-                    style={styles.levelWrap}
+                    style={[
+                      styles.levelWrap,
+                      { borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.06)' }
+                    ]}
                   >
                     <View style={[styles.levelDot, { backgroundColor: row.color }]} />
                     <ThemedText style={[styles.levelText, { color: row.color }]}>{row.level}</ThemedText>
                   </LinearGradient>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
-                    <ThemedText style={styles.votesText}>{row.rating}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.votesText}>{row.rating}</ThemedText>
                     <Star size={10} color="#fbbf24" fill="#fbbf24" />
                   </View>
                 </View>
@@ -494,65 +559,157 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerSubtitle: { color: '#fb7185', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  headerTitle: { color: '#fff', fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  headerTitle: { fontSize: 28, lineHeight: 32, fontWeight: '800' },
   profileAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)' },
   activeIndicator: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e', position: 'absolute', right: 0, bottom: 0, borderWidth: 1.5, borderColor: '#0a051d' },
-  featuredWrap: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', elevation: 8, shadowColor: '#fb7185', shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
-  featuredCover: { minHeight: 260, justifyContent: 'flex-end' },
+  featuredWrap: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.15)',
+    elevation: 8,
+    shadowColor: '#fb7185',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  featuredCover: { minHeight: 280, justifyContent: 'flex-end' },
   featuredBgImage: { borderRadius: 24 },
   featuredOverlay: { ...StyleSheet.absoluteFillObject },
-  featuredContent: { padding: Spacing.three, gap: 10 },
+  featuredContent: { padding: Spacing.four, gap: 10 },
   badgeWrap: { flexDirection: 'row', gap: 8 },
-  glassBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  featuredTitle: { color: '#fff', fontSize: 24, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
-  featuredSubtitle: { color: '#cbd5e1', fontSize: 13, lineHeight: 18 },
+  glassBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(22, 17, 41, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  featuredTitle: {
+    color: '#fff',
+    fontSize: 26,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  featuredSubtitle: { color: '#cbd5e1', fontSize: 13, lineHeight: 18, opacity: 0.9 },
   metaWrap: { flexDirection: 'row', gap: 12 },
-  metaPill: { color: '#fff', fontSize: 11, fontWeight: '700', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaPill: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    backgroundColor: 'rgba(22, 17, 41, 0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
   carouselActionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999 },
-  playBtnText: { color: '#0a051d', fontWeight: '800', fontSize: 13 },
+  playBtnWrap: { borderRadius: 999, overflow: 'hidden' },
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 10 },
+  playBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   dotIndicatorRow: { flexDirection: 'row', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
   dotActive: { width: 16, height: 6, borderRadius: 3, backgroundColor: '#fb7185' },
   searchRow: { flexDirection: 'row', gap: 10 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
-  searchText: { color: '#a5b4fc', fontSize: 13 },
-  iconPill: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1 },
+  searchText: { fontSize: 13 },
+  iconPill: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   moodRow: { gap: 8, paddingVertical: 2 },
   moodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', overflow: 'hidden' },
   moodText: { color: '#94a3b8', fontSize: 13, fontWeight: '700' },
   moodTextActive: { color: '#fff' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { color: '#f8fafc', fontSize: 13, letterSpacing: 1.5, fontWeight: '800' },
+  sectionTitle: { fontSize: 13, letterSpacing: 1.5, fontWeight: '800' },
   sectionActionText: { color: '#6366f1', fontSize: 12, fontWeight: '700' },
   horizontalList: { gap: 12, paddingRight: Spacing.three },
   resumeCard: { width: 132, gap: 8 },
-  resumeCoverWrap: { width: '100%', height: 180, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  resumeCoverWrap: {
+    width: '100%',
+    height: 180,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
   resumeCover: { width: '100%', height: '100%' },
   resumeOverlay: { ...StyleSheet.absoluteFillObject },
   progressWrap: { position: 'absolute', bottom: 10, left: 10, right: 10, gap: 4 },
   progressText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   progressBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: '#38bdf8', borderRadius: 2 },
-  resumeTitle: { color: '#cbd5e1', fontWeight: '800', fontSize: 13 },
+  progressBarFill: { height: '100%', backgroundColor: '#fb7185', borderRadius: 2 },
+  resumeTitle: { fontWeight: '800', fontSize: 13 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  gridCard: { width: '48%', height: 230, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', position: 'relative' },
+  gridCard: {
+    width: '48%',
+    height: 240,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   gridCover: { width: '100%', height: '100%' },
   gridCardOverlay: { ...StyleSheet.absoluteFillObject },
-  hotBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, position: 'absolute', top: 10, left: 10, backgroundColor: '#f43f5e', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  hotBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: '#f43f5e',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    zIndex: 20,
+  },
   hotBadgeText: { color: '#fff', fontSize: 9, fontWeight: '900' },
-  gridTextWrap: { position: 'absolute', bottom: 12, left: 12, right: 12, gap: 2 },
-  gridCardGenre: { color: '#a5b4fc', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  gridCardTitle: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  gridCardAuthor: { color: '#cbd5e1', fontSize: 10, fontWeight: '600' },
+  gridTextWrap: { position: 'absolute', bottom: 12, left: 12, right: 12, gap: 2, zIndex: 10 },
+  gridCardGenre: { color: '#a5b4fc', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  gridCardTitle: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  gridCardAuthor: { color: '#cbd5e1', fontSize: 10, fontWeight: '600', opacity: 0.9 },
   gridMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  gridMetaText: { color: '#94a3b8', fontSize: 11, fontWeight: '700', flexDirection: 'row', alignItems: 'center', gap: 3 },
-  leaderboardCard: { borderRadius: 24, padding: Spacing.three, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', gap: 10 },
+  gridMetaText: { color: '#cbd5e1', fontSize: 11, fontWeight: '700', flexDirection: 'row', alignItems: 'center', gap: 3 },
+  leaderboardCard: {
+    borderRadius: 24,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: 'rgba(22, 17, 41, 0.45)',
+    gap: 10,
+  },
   shelfTabs: { flexDirection: 'row', gap: 8 },
   shelfTab: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)' },
-  shelfTabActive: { backgroundColor: 'rgba(251,113,133,0.18)' },
+  shelfTabActive: { backgroundColor: 'rgba(251,113,133,0.18)', borderWidth: 1, borderColor: '#fb7185' },
   shelfTabText: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
   shelfTabTextActive: { color: '#fff' },
   leaderboardRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 10 },
@@ -561,22 +718,20 @@ const styles = StyleSheet.create({
   rankNum: { color: '#64748b', fontSize: 13, fontWeight: '800' },
   userCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   leaderboardAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  leaderboardUsername: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  leaderboardBadge: { color: '#a5b4fc', fontSize: 10 },
+  leaderboardUsername: { fontSize: 13, fontWeight: '800' },
+  leaderboardBadge: { fontSize: 10 },
   statsCol: { alignItems: 'flex-end', gap: 2 },
-  levelWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  levelWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
   levelDot: { width: 5, height: 5, borderRadius: 2.5 },
   levelText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  votesText: { color: '#94a3b8', fontSize: 10, fontWeight: '700' },
+  votesText: { fontSize: 10, fontWeight: '700' },
   logoutBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   errorBanner: {
     flexDirection: 'row',

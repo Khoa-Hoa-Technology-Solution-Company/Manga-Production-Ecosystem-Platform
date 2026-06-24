@@ -1,0 +1,304 @@
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  View,
+  useColorScheme,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Bell, BellOff, Check, CheckCheck } from 'lucide-react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { BottomTabInset } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { notificationsAPI } from '@/lib/api';
+
+interface Notification {
+  _id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  type?: string;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Vừa xong';
+  if (mins < 60) return `${mins} phút trước`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} giờ trước`;
+  const days = Math.floor(hrs / 24);
+  return `${days} ngày trước`;
+}
+
+export default function NotificationsScreen() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [markingAll, setMarkingAll] = useState(false);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const loadNotifications = useCallback(() => {
+    setLoading(true);
+    notificationsAPI
+      .getAll()
+      .then((data) => {
+        setNotifications(data.notifications || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load notifications:', err);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  const handleMarkRead = (id: string) => {
+    notificationsAPI.markRead(id).catch((err) =>
+      console.error('Failed to mark notification read:', err)
+    );
+    setNotifications((prev) =>
+      prev.map((n) => (n._id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const handleMarkAllRead = async () => {
+    if (unreadCount === 0) return;
+    setMarkingAll(true);
+    try {
+      await notificationsAPI.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.error('Failed to mark all read:', err);
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  const renderItem = ({ item }: { item: Notification }) => (
+    <Pressable
+      onPress={() => !item.read && handleMarkRead(item._id)}
+      style={[
+        styles.card,
+        {
+          backgroundColor: item.read
+            ? (isDark ? 'rgba(22, 17, 41, 0.45)' : '#ffffff')
+            : (isDark ? 'rgba(244, 63, 94, 0.06)' : 'rgba(244, 63, 94, 0.04)'),
+          borderColor: item.read
+            ? (isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(15, 23, 42, 0.06)')
+            : (isDark ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.2)'),
+          shadowColor: '#000',
+          shadowOpacity: isDark ? 0 : (item.read ? 0.02 : 0.04),
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 8,
+          elevation: isDark ? 0 : 2,
+        },
+      ]}
+    >
+      {/* Unread dot */}
+      {!item.read && <View style={styles.unreadDot} />}
+
+      <View style={[styles.cardIconWrap, { backgroundColor: item.read ? (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.04)') : 'rgba(244, 63, 94, 0.1)' }]}>
+        <Bell size={18} color={item.read ? theme.textSecondary : '#fb7185'} />
+      </View>
+
+      <View style={styles.cardContent}>
+        <ThemedText
+          style={[
+            styles.cardTitle,
+            { color: theme.text, fontWeight: item.read ? '400' : '700' },
+          ]}
+          numberOfLines={1}
+        >
+          {item.title || 'Thông báo mới'}
+        </ThemedText>
+        <ThemedText
+          style={[styles.cardMessage, { color: theme.textSecondary }]}
+          numberOfLines={2}
+        >
+          {item.message}
+        </ThemedText>
+        <ThemedText style={[styles.cardTime, { color: theme.textSecondary }]}>
+          {timeAgo(item.createdAt)}
+        </ThemedText>
+      </View>
+
+      {!item.read && (
+        <View style={styles.cardAction}>
+          <Check size={14} color="#fb7185" />
+        </View>
+      )}
+    </Pressable>
+  );
+
+  return (
+    <ThemedView style={styles.screen}>
+      <LinearGradient
+        colors={isDark ? ['#0e051d', '#130e2c', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        {/* Header */}
+        <View
+          style={[
+            styles.header,
+            { borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)' },
+          ]}
+        >
+          <View>
+            <ThemedText style={[styles.headerTitle, { color: theme.text }]}>
+              Thông Báo
+            </ThemedText>
+            {unreadCount > 0 && (
+              <ThemedText style={[styles.headerSub, { color: theme.textSecondary }]}>
+                {unreadCount} chưa đọc
+              </ThemedText>
+            )}
+          </View>
+
+          {unreadCount > 0 && (
+            <Pressable
+              onPress={handleMarkAllRead}
+              disabled={markingAll}
+              style={[
+                styles.markAllBtn,
+                { backgroundColor: isDark ? 'rgba(244,63,94,0.12)' : 'rgba(244,63,94,0.08)' },
+              ]}
+            >
+              {markingAll ? (
+                <ActivityIndicator size="small" color="#fb7185" />
+              ) : (
+                <>
+                  <CheckCheck size={14} color="#fb7185" />
+                  <ThemedText style={styles.markAllText}>Đọc tất cả</ThemedText>
+                </>
+              )}
+            </Pressable>
+          )}
+        </View>
+
+        {/* Content */}
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#6366f1" />
+          </View>
+        ) : notifications.length === 0 ? (
+          <View style={styles.empty}>
+            <BellOff size={52} color={theme.textSecondary} style={{ opacity: 0.4 }} />
+            <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
+              Chưa có thông báo nào
+            </ThemedText>
+            <ThemedText style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+              Các cập nhật về series bạn theo dõi sẽ hiện ở đây.
+            </ThemedText>
+          </View>
+        ) : (
+          <FlatList
+            data={notifications}
+            keyExtractor={(item) => item._id}
+            renderItem={renderItem}
+            contentContainerStyle={[
+              styles.list,
+              { paddingBottom: (BottomTabInset ?? 80) + insets.bottom + 24 },
+            ]}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          />
+        )}
+      </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  safeArea: { flex: 1 },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700' },
+  headerSub: { fontSize: 13, marginTop: 2 },
+
+  markAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  markAllText: { fontSize: 13, color: '#fb7185', fontWeight: '600' },
+
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  emptyTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 21, opacity: 0.7 },
+
+  list: { padding: 16 },
+
+  card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+    position: 'relative',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#fb7185',
+  },
+  cardIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  cardContent: { flex: 1, gap: 3 },
+  cardTitle: { fontSize: 14 },
+  cardMessage: { fontSize: 13, lineHeight: 19 },
+  cardTime: { fontSize: 11, marginTop: 2 },
+  cardAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    flexShrink: 0,
+  },
+});
