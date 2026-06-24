@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Bell, CheckSquare, Heart, MessageSquare, Clock, Award, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui'
 import { dashboardAPI } from '../../lib/api'
@@ -13,6 +14,7 @@ type Activity = {
 }
 
 export function RecentActivitySection() {
+  const { t } = useTranslation()
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -33,19 +35,19 @@ export function RecentActivitySection() {
     const now = new Date()
     const past = new Date(dateStr)
     const diffMs = now.getTime() - past.getTime()
-    if (isNaN(diffMs) || diffMs < 0) return 'Just now'
+    if (isNaN(diffMs) || diffMs < 0) return t('activity.justNow')
     
     const diffSec = Math.floor(diffMs / 1000)
-    if (diffSec < 60) return 'Just now'
+    if (diffSec < 60) return t('activity.justNow')
     
     const diffMin = Math.floor(diffSec / 60)
-    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffMin < 60) return t('activity.mAgo', { count: diffMin })
     
     const diffHour = Math.floor(diffMin / 60)
-    if (diffHour < 24) return `${diffHour}h ago`
+    if (diffHour < 24) return t('activity.hAgo', { count: diffHour })
     
     const diffDay = Math.floor(diffHour / 24)
-    return `${diffDay}d ago`
+    return t('activity.dAgo', { count: diffDay })
   }
 
   const getActivityIcon = (type: Activity['type']) => {
@@ -74,8 +76,8 @@ export function RecentActivitySection() {
     <Card className="p-6 shadow-sm border border-neutral-200/80 bg-white">
       <CardHeader className="flex-row items-center justify-between p-0 pb-4 border-b border-neutral-100">
         <div className="flex flex-col gap-1">
-          <CardTitle className="text-base font-semibold text-neutral-900">Recent Activity</CardTitle>
-          <span className="text-xs text-neutral-500 font-medium">Updates and alerts across your projects</span>
+          <CardTitle className="text-base font-semibold text-neutral-900">{t('activity.title')}</CardTitle>
+          <span className="text-xs text-neutral-500 font-medium">{t('activity.subtitle')}</span>
         </div>
       </CardHeader>
 
@@ -83,11 +85,11 @@ export function RecentActivitySection() {
         {loading ? (
           <div className="flex items-center justify-center py-10 text-neutral-400">
             <Loader2 className="size-5 animate-spin text-neutral-300 mr-2" />
-            <span className="text-xs font-semibold">Loading activities...</span>
+            <span className="text-xs font-semibold">{t('activity.loading')}</span>
           </div>
         ) : activities.length === 0 ? (
           <div className="text-center py-10 text-xs text-neutral-400 font-semibold border border-dashed border-neutral-200 rounded-xl bg-neutral-50/50">
-            No recent activity
+            {t('activity.noActivity')}
           </div>
         ) : (
           <div className="flow-root">

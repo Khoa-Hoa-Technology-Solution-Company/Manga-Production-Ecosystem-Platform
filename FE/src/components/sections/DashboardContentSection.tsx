@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Star, BookOpen, Heart, ArrowRight } from 'lucide-react'
 import { Card, CardHeader, Badge, Button } from '../ui'
 import { KpiCardsSection } from './KpiCardsSection'
@@ -41,6 +42,7 @@ interface VotingActivityItem {
 
 function ReaderSubscribedSeriesSection({ series, loading }: { series: SubscribedSeries[], loading: boolean }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   
   if (loading) {
     return (
@@ -68,9 +70,9 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
         <div className="flex flex-col gap-1">
           <h2 className="text-base font-semibold leading-6 text-neutral-900 flex items-center gap-2">
             <BookOpen className="size-4 text-indigo-500" />
-            My Reading List
+            {t('readerDashboard.myReadingList')}
           </h2>
-          <span className="text-xs leading-4 text-neutral-500 font-medium">Manga series you are subscribed to</span>
+          <span className="text-xs leading-4 text-neutral-500 font-medium">{t('readerDashboard.subscribedHint')}</span>
         </div>
         <Button 
           variant="outline" 
@@ -78,7 +80,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
           onClick={() => navigate('/discover')}
           className="text-xs font-semibold h-8 rounded-xl hover:bg-neutral-50 border-neutral-200"
         >
-          Discover
+          {t('sidebar.discover')}
         </Button>
       </CardHeader>
       
@@ -87,9 +89,9 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
           <div className="size-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3 shadow-inner">
             <BookOpen className="size-6" />
           </div>
-          <h3 className="text-sm font-semibold text-neutral-950 mb-1">Your reading list is empty</h3>
+          <h3 className="text-sm font-semibold text-neutral-950 mb-1">{t('readerDashboard.emptyListTitle')}</h3>
           <p className="text-xs text-neutral-500 max-w-sm mb-4 leading-relaxed">
-            Follow series to get notified of new chapters and track them here on your dashboard.
+            {t('readerDashboard.emptyListHint')}
           </p>
           <Button 
             variant="default" 
@@ -97,7 +99,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
             onClick={() => navigate('/discover')}
             className="text-xs font-semibold h-8 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white"
           >
-            Find Manga
+            {t('readerDashboard.findManga')}
           </Button>
         </div>
       ) : (
@@ -152,7 +154,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
                     {item.title}
                   </h3>
                   <p className="text-[9px] text-neutral-400 font-semibold truncate">
-                    by {item.mangakaId?.displayName || 'Unknown Mangaka'}
+                    {t('common.by')} {item.mangakaId?.displayName || t('readerDashboard.unknownMangaka')}
                   </p>
                   <p className="text-[10px] text-neutral-500 line-clamp-2 mt-1 leading-normal">
                     {item.description}
@@ -164,7 +166,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
                     <Heart className="size-2.5 text-rose-500 fill-current" /> {item.totalVotes || 0}
                   </span>
                   <span className="text-indigo-500 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 font-bold">
-                    Read Now <ArrowRight className="size-2.5" />
+                    {t('readerDashboard.readNow')} <ArrowRight className="size-2.5" />
                   </span>
                 </div>
               </div>
@@ -178,6 +180,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
 
 function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivityItem[], loading: boolean }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   if (loading) {
     return (
@@ -218,9 +221,9 @@ function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivity
         <div className="flex flex-col gap-1">
           <h2 className="text-base font-semibold leading-6 text-neutral-900 flex items-center gap-2">
             <Heart className="size-4 text-rose-500" />
-            My Voting History
+            {t('readerDashboard.myVotingHistory')}
           </h2>
-          <span className="text-xs leading-4 text-neutral-500 font-medium">Chapters you supported with votes</span>
+          <span className="text-xs leading-4 text-neutral-500 font-medium">{t('readerDashboard.votingHistoryHint')}</span>
         </div>
       </CardHeader>
       
@@ -229,9 +232,9 @@ function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivity
           <div className="size-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-2 shadow-inner">
             <Heart className="size-5" />
           </div>
-          <h3 className="text-xs font-semibold text-neutral-950 mb-0.5">No votes cast yet</h3>
+          <h3 className="text-xs font-semibold text-neutral-950 mb-0.5">{t('readerDashboard.noVotesTitle')}</h3>
           <p className="text-[10px] text-neutral-500 max-w-[200px] mb-3 leading-normal">
-            Vote on published chapters to support creators!
+            {t('readerDashboard.noVotesHint')}
           </p>
           <Button 
             variant="outline" 
@@ -239,7 +242,7 @@ function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivity
             onClick={() => navigate('/discover')}
             className="text-[10px] font-semibold h-7 px-2.5 rounded-lg hover:bg-neutral-50 border-neutral-200"
           >
-            Find Chapters
+            {t('readerDashboard.findChapters')}
           </Button>
         </div>
       ) : (
@@ -247,7 +250,7 @@ function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivity
           {votes.map((item) => {
             const timeAgo = item.createdAt 
               ? new Date(item.createdAt).toLocaleDateString()
-              : 'Recently'
+              : t('common.recently')
             return (
               <div key={item._id} className="relative group">
                 <div className="absolute -left-[21.5px] top-1 flex size-3.5 items-center justify-center rounded-full bg-rose-100 border-2 border-white text-rose-500 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-300">
