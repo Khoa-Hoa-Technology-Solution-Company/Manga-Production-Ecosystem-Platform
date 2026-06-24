@@ -32,8 +32,8 @@ export function TeamOverviewSection() {
       })
 
     // 2. Setup realtime socket status listeners
-    const handleStatusChange = (data: any) => {
-      const { userId, status } = data
+    const handleStatusChange = (data: unknown) => {
+      const { userId, status } = data as { userId: string; status: string }
       setTeam((prev) =>
         prev.map((member) =>
           member._id === userId ? { ...member, online: status === 'online' } : member

@@ -50,8 +50,10 @@ export function WorkflowBoardSection() {
   const [currentPage, setCurrentPage] = useState(1)
   const limit = 4
 
-  const fetchWorkflow = () => {
-    setLoading(true)
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setLoading(true)
+    })
     dashboardAPI.getWorkflow(currentPage, limit)
       .then((res) => {
         setWorkflow(res.data.workflow)
@@ -62,10 +64,6 @@ export function WorkflowBoardSection() {
       .finally(() => {
         setLoading(false)
       })
-  }
-
-  useEffect(() => {
-    fetchWorkflow()
   }, [currentPage])
 
   const formatDate = (dateStr: string) => {

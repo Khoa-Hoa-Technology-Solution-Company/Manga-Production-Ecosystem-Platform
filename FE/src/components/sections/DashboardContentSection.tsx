@@ -12,7 +12,34 @@ import { TeamOverviewSection } from './TeamOverviewSection'
 import { useAuth } from '../../lib/auth'
 import { dashboardAPI, chaptersAPI } from '../../lib/api'
 
-function ReaderSubscribedSeriesSection({ series, loading }: { series: any[], loading: boolean }) {
+interface SubscribedSeries {
+  _id: string
+  title: string
+  coverImage?: string
+  status: string
+  mangakaId?: {
+    displayName: string
+  }
+  description: string
+  totalVotes?: number
+}
+
+interface VotingActivityItem {
+  _id: string
+  createdAt?: string
+  chapterId?: {
+    _id: string
+    chapterNumber: number
+    title?: string
+  }
+  seriesId?: {
+    title: string
+  }
+  rating?: number
+  reaction?: string
+}
+
+function ReaderSubscribedSeriesSection({ series, loading }: { series: SubscribedSeries[], loading: boolean }) {
   const navigate = useNavigate()
   
   if (loading) {
@@ -81,9 +108,14 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: any[], loa
               onClick={async () => {
                 try {
                   const res = await chaptersAPI.getBySeries(item._id)
+                  interface ChapterItem {
+                    _id: string
+                    status: string
+                    chapterNumber: number
+                  }
                   const publishedChapters = (res.data.chapters || [])
-                    .filter((c: any) => c.status === 'Published')
-                    .sort((a: any, b: any) => a.chapterNumber - b.chapterNumber)
+                    .filter((c: ChapterItem) => c.status === 'Published')
+                    .sort((a: ChapterItem, b: ChapterItem) => a.chapterNumber - b.chapterNumber)
                   if (publishedChapters.length > 0) {
                     navigate(`/read/${publishedChapters[0]._id}`)
                   } else {
@@ -144,7 +176,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: any[], loa
   )
 }
 
-function ReaderVotingActivitySection({ votes, loading }: { votes: any[], loading: boolean }) {
+function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivityItem[], loading: boolean }) {
   const navigate = useNavigate()
 
   if (loading) {
@@ -267,14 +299,16 @@ export function DashboardContentSection() {
   const showTeam = role === 'mangaka' || role === 'editor' || role === 'editorial_board'
 
   const [readerData, setReaderData] = useState<{
-    subscribedSeries: any[];
-    votedChapters: any[];
+    subscribedSeries: SubscribedSeries[];
+    votedChapters: VotingActivityItem[];
   } | null>(null)
   const [loadingReader, setLoadingReader] = useState(false)
 
   useEffect(() => {
     if (isReader) {
-      setLoadingReader(true)
+      Promise.resolve().then(() => {
+        setLoadingReader(true)
+      })
       dashboardAPI.getReaderData()
         .then((res) => {
           setReaderData(res.data)
