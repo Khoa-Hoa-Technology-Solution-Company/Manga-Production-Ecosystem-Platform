@@ -134,6 +134,14 @@ function StudioWorkspacePageContent() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const [activeTool, setActiveTool] = useState('select')
   const [rightTab, setRightTab] = useState('zones')
   const [zoom, setZoom] = useState(100)
@@ -486,6 +494,7 @@ function StudioWorkspacePageContent() {
   const refreshSeriesAndChapters = async (targetSeriesId?: string) => {
     try {
       const seriesRes = await seriesAPI.getAll()
+      if (!isMountedRef.current) return
       const list = seriesRes.data.series || []
       setSeriesList(list)
 
@@ -496,6 +505,7 @@ function StudioWorkspacePageContent() {
         } else {
           setSelectedSeriesId(activeSeriesId)
           const chaptersRes = await chaptersAPI.getBySeries(activeSeriesId)
+          if (!isMountedRef.current) return
           const nextChapters = chaptersRes.data.chapters || []
           setChapters(nextChapters)
         }
@@ -512,6 +522,7 @@ function StudioWorkspacePageContent() {
   // Load series list, select appropriate series based on paramSeriesId or fallback
   useEffect(() => {
     seriesAPI.getAll().then(res => {
+      if (!isMountedRef.current) return
       const list = res.data.series || []
       setSeriesList(list)
 
@@ -538,6 +549,7 @@ function StudioWorkspacePageContent() {
   useEffect(() => {
     if (!selectedSeriesId) return
     chaptersAPI.getBySeries(selectedSeriesId).then(res => {
+      if (!isMountedRef.current) return
       const nextChapters = res.data.chapters || []
       setChapters(nextChapters)
 
@@ -588,6 +600,7 @@ function StudioWorkspacePageContent() {
       return
     }
     pagesAPI.getByChapter(selectedChapterId).then(res => {
+      if (!isMountedRef.current) return
       const nextPages = res.data.pages || []
       setPages(nextPages)
 
@@ -639,6 +652,7 @@ function StudioWorkspacePageContent() {
   const loadZones = useCallback(() => {
     if (!currentPage?._id) { setZones([]); return }
     zonesAPI.getByPage(currentPage._id).then(res => {
+      if (!isMountedRef.current) return
       const z = res.data.zones || []
       setZones(z)
       // Keep existing visibility state if it exists, otherwise set to true
@@ -655,6 +669,7 @@ function StudioWorkspacePageContent() {
   useEffect(() => {
     if (!selectedChapterId) { setPageTasks([]); return }
     tasksAPI.getAll({ chapterId: selectedChapterId }).then(res => {
+      if (!isMountedRef.current) return
       setPageTasks(res.data.tasks || [])
     }).catch(() => { })
   }, [selectedChapterId, currentPage?._id])
@@ -662,6 +677,7 @@ function StudioWorkspacePageContent() {
   const loadAnnotations = useCallback(() => {
     if (!selectedChapterId) return
     annotationsAPI.getByChapter(selectedChapterId).then(res => {
+      if (!isMountedRef.current) return
       setPageAnnotations(res.data.annotations || [])
     }).catch(console.error)
   }, [selectedChapterId])

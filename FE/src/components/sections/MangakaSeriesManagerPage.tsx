@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, RefreshCw, Sparkles, Users } from 'lucide-react'
@@ -24,6 +24,14 @@ export function MangakaSeriesManagerPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // State Management
   const [seriesList, setSeriesList] = useState<SeriesData[]>([])
@@ -101,6 +109,8 @@ export function MangakaSeriesManagerPage() {
     setLoading(true)
     try {
       const res = await seriesAPI.getAll()
+      if (!isMountedRef.current) return
+      
       const list = (res.data.series || []).filter((s: SeriesData) => {
         const mId = s.mangakaId && typeof s.mangakaId === 'object' ? s.mangakaId._id : s.mangakaId
         return String(mId) === String(user?._id)
@@ -127,12 +137,15 @@ export function MangakaSeriesManagerPage() {
 
       if (nextSeriesId) {
         const chapterRes = await chaptersAPI.getBySeries(nextSeriesId)
+        if (!isMountedRef.current) return
         setChapters(chapterRes.data.chapters || [])
       } else {
         setChapters([])
       }
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -149,7 +162,9 @@ export function MangakaSeriesManagerPage() {
     seriesAPI
       .getEditors()
       .then((res) => {
-        setEditorsList(res.data.editors || [])
+        if (isMountedRef.current) {
+          setEditorsList(res.data.editors || [])
+        }
       })
       .catch(console.error)
   }, [])
@@ -159,27 +174,49 @@ export function MangakaSeriesManagerPage() {
     if (!selectedSeriesId) return
     chaptersAPI
       .getBySeries(selectedSeriesId)
-      .then((res) => setChapters(res.data.chapters || []))
-      .catch(() => setChapters([]))
+      .then((res) => {
+        if (isMountedRef.current) {
+          setChapters(res.data.chapters || [])
+        }
+      })
+      .catch(() => {
+        if (isMountedRef.current) {
+          setChapters([])
+        }
+      })
   }, [selectedSeriesId])
 
   // Load dedicated assistants when series changes and is Active
   useEffect(() => {
     if (!selectedSeriesId || selectedSeries?.status !== 'Active') {
       Promise.resolve().then(() => {
-        setDedicatedAssistants([])
+        if (isMountedRef.current) {
+          setDedicatedAssistants([])
+        }
       })
       return
     }
     Promise.resolve().then(() => {
-      setLoadingAssistants(true)
+      if (isMountedRef.current) {
+        setLoadingAssistants(true)
+      }
     })
     seriesAPI
       .getDedicatedAssistants(selectedSeriesId)
-      .then((res) => setDedicatedAssistants(res.data.dedicatedAssistants || []))
-      .catch(() => setDedicatedAssistants([]))
+      .then((res) => {
+        if (isMountedRef.current) {
+          setDedicatedAssistants(res.data.dedicatedAssistants || [])
+        }
+      })
+      .catch(() => {
+        if (isMountedRef.current) {
+          setDedicatedAssistants([])
+        }
+      })
       .finally(() => {
-        setLoadingAssistants(false)
+        if (isMountedRef.current) {
+          setLoadingAssistants(false)
+        }
       })
   }, [selectedSeriesId, selectedSeries?.status])
 
