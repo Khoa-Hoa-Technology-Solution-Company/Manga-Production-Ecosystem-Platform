@@ -7,6 +7,7 @@ import {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI, setToken as setApiToken, clearToken, setUnauthorizedCallback } from './api';
+import { socketService } from './socket';
 
 // ── Types ───────────────────────────────────────────
 export type User = {
@@ -51,6 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
     });
   }, []);
+
+  // Connect/disconnect socket based on auth status
+  useEffect(() => {
+    if (token) {
+      socketService.connect();
+    } else {
+      socketService.disconnect();
+    }
+  }, [token]);
 
   // Load saved auth on mount
   useEffect(() => {

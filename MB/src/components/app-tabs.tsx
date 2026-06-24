@@ -1,6 +1,7 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Tabs } from 'expo-router';
 import React from 'react';
 import { useColorScheme } from 'react-native';
+import { Image } from 'expo-image';
 
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
@@ -12,89 +13,181 @@ export default function AppTabs() {
   const role = user?.role || 'reader';
 
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelVisibilityMode="labeled"
-      labelStyle={{ selected: { color: colors.text } }}>
-      
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Reader</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: colors.background,
+          borderTopColor: colors.backgroundElement,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: 12,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Reader',
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/home.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
 
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Discover</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Discover',
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
 
       {/* Mangaka Tabs */}
-      {role === 'mangaka' && (
-        <NativeTabs.Trigger name="studio">
-          <NativeTabs.Trigger.Label>Studio</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-      )}
-      {role === 'mangaka' && (
-        <NativeTabs.Trigger name="manage">
-          <NativeTabs.Trigger.Label>Manage</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')} // Replace with proper icon later if needed
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-      )}
+      <Tabs.Screen
+        name="studio"
+        options={{
+          title: 'Studio',
+          href: role === 'mangaka' ? undefined : null,
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="manage"
+        options={{
+          title: 'Manage',
+          href: role === 'mangaka' ? undefined : null,
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
 
       {/* Assistant Tab */}
-      {role === 'assistant' && (
-        <NativeTabs.Trigger name="tasks">
-          <NativeTabs.Trigger.Label>Tasks</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-      )}
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'Tasks',
+          href: role === 'assistant' ? undefined : null,
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
 
       {/* Editor Tab */}
-      {role === 'editor' && (
-        <NativeTabs.Trigger name="editor">
-          <NativeTabs.Trigger.Label>Editor</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-      )}
+      <Tabs.Screen
+        name="editor"
+        options={{
+          title: 'Editor',
+          href: role === 'editor' ? undefined : null,
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
 
       {/* Editorial Board Tab */}
-      {role === 'editorial_board' && (
-        <NativeTabs.Trigger name="board">
-          <NativeTabs.Trigger.Label>Board</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon
-            src={require('@/assets/images/tabIcons/explore.png')}
-            renderingMode="template"
-          />
-        </NativeTabs.Trigger>
-      )}
+      <Tabs.Screen
+        name="board"
+        options={{
+          title: 'Board',
+          href: role === 'editorial_board' ? undefined : null,
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
 
       {/* Notifications Tab — visible to all roles */}
-      <NativeTabs.Trigger name="notifications">
-        <NativeTabs.Trigger.Label>Thông Báo</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Thông Báo',
+          tabBarIcon: ({ color }) => (
+            <Image
+              source={require('@/assets/images/tabIcons/explore.png')}
+              style={{ width: 22, height: 22, tintColor: color }}
+              contentFit="contain"
+            />
+          ),
+        }}
+      />
+
+      {/* Detail screens are registered but hidden from the tab bar */}
+      <Tabs.Screen
+        name="series/[seriesId]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="read/[seriesId]"
+        options={{
+          href: null,
+        }}
+      />
+
+      {/* Other screens that should be hidden from tab bar */}
+      <Tabs.Screen
+        name="login"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="settings"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          href: null,
+        }}
+      />
+    </Tabs>
   );
 }

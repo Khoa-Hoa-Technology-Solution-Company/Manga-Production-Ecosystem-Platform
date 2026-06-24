@@ -71,7 +71,7 @@ export default function SeriesDetailScreen() {
 
   // ── Load data ────────────────────────────────────
   const loadData = useCallback(() => {
-    if (!seriesId) return;
+    if (!seriesId || seriesId === 'undefined') return;
     setLoading(true);
     setError(null);
 
