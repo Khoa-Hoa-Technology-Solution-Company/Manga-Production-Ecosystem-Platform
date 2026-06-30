@@ -58,8 +58,11 @@ export async function transitionChapterStatus(
   if (newStatus === 'Approved') {
     const series = await Series.findById(chapter.seriesId);
     if (series && (series.status === 'Active' || series.status === 'Completed')) {
-      targetStatus = 'Published';
-      chapter.publishedAt = new Date();
+      // Only publish immediately if there is no future publication deadline scheduled
+      if (!chapter.publicationDeadline || chapter.publicationDeadline <= new Date()) {
+        targetStatus = 'Published';
+        chapter.publishedAt = new Date();
+      }
     }
   }
 

@@ -3,10 +3,14 @@ import app from './app';
 import { env } from './config/env';
 import { connectDB } from './config/db';
 import { initSocket } from './socket';
+import { startScheduler } from './services/scheduler.service';
 
 async function start() {
   // Connect to MongoDB
   await connectDB();
+
+  // Start scheduled chapter publisher background worker
+  startScheduler();
 
   // Create HTTP server
   const server = http.createServer(app);
