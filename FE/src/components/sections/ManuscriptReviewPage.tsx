@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useRef, type MouseEvent, } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -25,6 +26,14 @@ import {
   X,
 } from 'lucide-react'
 import { DraftReviewCanvas, type AnnotationData as DraftAnnotationData } from './DraftReviewCanvas'
+
+const DEFAULT_CRITERIA = [
+  { key: 'artStyle', label: 'Art Style' },
+  { key: 'storytelling', label: 'Storytelling' },
+  { key: 'characterDesign', label: 'Character Design' },
+  { key: 'pacing', label: 'Pacing & Layout' },
+  { key: 'commercialPotential', label: 'Commercial Potential' }
+]
 
 interface PageData {
   _id: string
@@ -124,11 +133,8 @@ export function ManuscriptReviewPage() {
 
   // Editorial Board Rubric States
   const [ebSeriesInfo, setEbSeriesInfo] = useState<EbSeriesInfo | null>(null)
-  const [rubricArtStyle, setRubricArtStyle] = useState(5)
-  const [rubricStorytelling, setRubricStorytelling] = useState(5)
-  const [rubricCharacterDesign, setRubricCharacterDesign] = useState(5)
-  const [rubricPacing, setRubricPacing] = useState(5)
-  const [rubricCommercialPotential, setRubricCommercialPotential] = useState(5)
+  const [activeTemplate, setActiveTemplate] = useState<any>(null)
+  const [rubricScores, setRubricScores] = useState<Record<string, number>>({})
   const [voteComments, setVoteComments] = useState('')
   const [submittingVote, setSubmittingVote] = useState(false)
 
@@ -138,13 +144,7 @@ export function ManuscriptReviewPage() {
       await ebAPI.castVote(seriesId, {
         decision,
         comments: voteComments,
-        rubric: {
-          artStyle: rubricArtStyle,
-          storytelling: rubricStorytelling,
-          characterDesign: rubricCharacterDesign,
-          pacing: rubricPacing,
-          commercialPotential: rubricCommercialPotential,
-        },
+        rubric: rubricScores,
       })
       alert('Vote submitted successfully!')
       const ebPendingRes = await ebAPI.getPending()
@@ -233,13 +233,16 @@ export function ManuscriptReviewPage() {
               const matched = ebPendingRes.data.series?.find((s: EbSeriesInfo) => s._id === ch.seriesId)
               if (matched) {
                 setEbSeriesInfo(matched)
-                if (matched.userVoteRubric) {
-                  setRubricArtStyle(matched.userVoteRubric.artStyle || 5)
-                  setRubricStorytelling(matched.userVoteRubric.storytelling || 5)
-                  setRubricCharacterDesign(matched.userVoteRubric.characterDesign || 5)
-                  setRubricPacing(matched.userVoteRubric.pacing || 5)
-                  setRubricCommercialPotential(matched.userVoteRubric.commercialPotential || 5)
-                }
+                const activeTpl = (matched as any).rubricTemplate || ebPendingRes.data.activeTemplate
+                setActiveTemplate(activeTpl || null)
+                
+                const initialScores: Record<string, number> = {}
+                const criteria = activeTpl ? activeTpl.criteria : DEFAULT_CRITERIA
+                criteria.forEach((c: any) => {
+                  initialScores[c.key] = matched.userVoteRubric?.[c.key] || 5
+                })
+                setRubricScores(initialScores)
+
                 if (matched.userVote) {
                   const myVoteComment = matched.memberVotes?.find((mv: EbMemberVote) => {
                     const memberId = typeof mv.member === 'object' ? mv.member?._id : mv.member;
@@ -757,29 +760,29 @@ export function ManuscriptReviewPage() {
                     ) : null}
 
                     <div className="space-y-2.5 mt-2">
-                      {[
-                        { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
-                        { key: 'storytelling', label: t('editorialBoard.storytelling', 'Storytelling'), val: rubricStorytelling, setVal: setRubricStorytelling },
-                        { key: 'characterDesign', label: t('editorialBoard.characterDesign', 'Character Design'), val: rubricCharacterDesign, setVal: setRubricCharacterDesign },
-                        { key: 'pacing', label: t('editorialBoard.pacing', 'Pacing & Layout'), val: rubricPacing, setVal: setRubricPacing },
-                        { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
-                      ].map(({ key, label, val, setVal }) => (
-                        <div key={key} className="space-y-1">
-                          <div className="flex justify-between text-[10px] text-neutral-300">
-                            <span>{label}</span>
-                            <span className="font-bold text-indigo-400">{val}/10</span>
+                      {(activeTemplate?.criteria || DEFAULT_CRITERIA).map((c: any) => {
+                        const score = rubricScores[c.key] ?? 5
+                        return (
+                          <div key={c.key} className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-neutral-300">
+                              <span>{c.label}</span>
+                              <span className="font-bold text-indigo-400">{score}/10</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="10"
+                              value={score}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value)
+                                setRubricScores((prev) => ({ ...prev, [c.key]: val }))
+                              }}
+                              disabled={!canVote}
+                              className="w-full accent-indigo-500 cursor-pointer h-1 bg-white/10 rounded-lg appearance-none disabled:opacity-40"
+                            />
                           </div>
-                          <input
-                            type="range"
-                            min="1"
-                            max="10"
-                            value={val}
-                            onChange={(e) => setVal(parseInt(e.target.value))}
-                            disabled={!canVote}
-                            className="w-full accent-indigo-500 cursor-pointer h-1 bg-white/10 rounded-lg appearance-none disabled:opacity-40"
-                          />
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
 
                     <textarea
@@ -792,7 +795,12 @@ export function ManuscriptReviewPage() {
 
                     {/* Dynamic Auto-decision & Submit */}
                     {(() => {
-                      const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5
+                      const criteria = activeTemplate?.criteria || DEFAULT_CRITERIA
+                      let sum = 0
+                      criteria.forEach((c: any) => {
+                        sum += rubricScores[c.key] ?? 5
+                      })
+                      const currentAverage = criteria.length > 0 ? sum / criteria.length : 5
                       const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected'
 
                       return (

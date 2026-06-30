@@ -25,6 +25,7 @@ export interface IChapter extends Document {
   progress: number;
   views: number;
   publishedAt?: Date;
+  publicationDeadline?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +54,7 @@ const chapterSchema = new Schema<IChapter>(
     progress: { type: Number, default: 0, min: 0, max: 100 },
     views: { type: Number, default: 0 },
     publishedAt: { type: Date },
+    publicationDeadline: { type: Date },
   },
   { timestamps: true }
 );

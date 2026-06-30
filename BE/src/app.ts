@@ -25,6 +25,8 @@ import dedicatedAssistantRoutes from './routes/dedicated-assistant.routes';
 import ebRoutes from './routes/eb.routes';
 import meetingRoutes from './routes/meeting.routes';
 import uploadRoutes from './routes/upload.routes';
+import rubricTemplateRoutes from './routes/rubric-template.routes';
+import reactionsRoutes from './routes/reactions.routes';
 
 const app = express();
 
@@ -110,6 +112,8 @@ app.use('/api/series', dedicatedAssistantRoutes);
 app.use('/api/eb', ebRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/rubric-templates', rubricTemplateRoutes);
+app.use('/api/reactions', reactionsRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {
