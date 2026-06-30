@@ -55,7 +55,7 @@ export async function getBySeriesId(req: Request, res: Response): Promise<void> 
 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
-    const { chapterNumber, title } = req.body;
+    const { chapterNumber, title, publicationDeadline } = req.body;
 
     const lastChapter = await Chapter.findOne({ seriesId: req.params.seriesId })
       .sort({ chapterNumber: -1 });
@@ -72,6 +72,7 @@ export async function create(req: Request, res: Response): Promise<void> {
       seriesId: req.params.seriesId,
       chapterNumber: finalChapterNumber,
       title,
+      publicationDeadline: publicationDeadline ? new Date(publicationDeadline) : undefined,
       mangakaId: req.user?._id,
       collaborators: [
         {
@@ -92,8 +93,12 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function update(req: Request, res: Response): Promise<void> {
   try {
-    const { chapterNumber, title, totalPages, progress, editorId } = req.body;
+    const { chapterNumber, title, totalPages, progress, editorId, publicationDeadline } = req.body;
     const updateData: any = { title, totalPages, progress, editorId };
+
+    if (publicationDeadline !== undefined) {
+      updateData.publicationDeadline = publicationDeadline ? new Date(publicationDeadline) : null;
+    }
 
     if (chapterNumber !== undefined) {
       const existing = await Chapter.findById(req.params.id);

@@ -5,9 +5,10 @@ export interface IMeeting extends Document {
   description?: string;
   dateTime: Date;
   location?: string;
-  seriesId?: mongoose.Types.ObjectId;
+  seriesIds: mongoose.Types.ObjectId[];
   participants: mongoose.Types.ObjectId[];
   createdBy: mongoose.Types.ObjectId;
+  rubricTemplateId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,9 +19,10 @@ const meetingSchema = new Schema<IMeeting>(
     description: { type: String, trim: true },
     dateTime: { type: Date, required: true },
     location: { type: String, trim: true },
-    seriesId: { type: Schema.Types.ObjectId, ref: 'Series' },
+    seriesIds: [{ type: Schema.Types.ObjectId, ref: 'Series' }],
     participants: [{ type: Schema.Types.ObjectId, ref: 'User', required: true }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    rubricTemplateId: { type: Schema.Types.ObjectId, ref: 'RubricTemplate' },
   },
   { timestamps: true }
 );

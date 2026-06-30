@@ -237,6 +237,7 @@ function StudioWorkspacePageContent() {
   const [newSeriesCoverImage, setNewSeriesCoverImage] = useState('')
   const [newChapterNumber, setNewChapterNumber] = useState('1')
   const [newChapterTitle, setNewChapterTitle] = useState('Chapter 1')
+  const [newChapterDeadline, setNewChapterDeadline] = useState('')
 
   // ── Zone creation dialog ──────────────────────────
   const [showNewZoneDialog, setShowNewZoneDialog] = useState(false)
@@ -1976,8 +1977,10 @@ function StudioWorkspacePageContent() {
       await chaptersAPI.create(selectedSeriesId, {
         chapterNumber: Number(newChapterNumber),
         title: newChapterTitle.trim(),
+        publicationDeadline: newChapterDeadline ? new Date(newChapterDeadline) : undefined,
       })
       setShowCreateChapterDialog(false)
+      setNewChapterDeadline('')
       await refreshSeriesAndChapters(selectedSeriesId)
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to create chapter')
@@ -2052,13 +2055,20 @@ function StudioWorkspacePageContent() {
       {/* ── Top toolbar ──────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-3 py-2 bg-white z-10">
         <div className="flex items-center gap-4 border-r border-neutral-200 pr-4 mr-2 shrink-0">
-          <div>
+          <div className="text-left">
             <h1 className="text-sm font-semibold truncate max-w-[150px]">{currentSeries?.title || 'Studio Workspace'}</h1>
-            {isMangaka && currentSeries?.rank && (
-              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-100 text-amber-700 hover:bg-amber-100 mt-0.5">
-                Rank #{currentSeries.rank}
-              </Badge>
-            )}
+            <div className="flex flex-wrap gap-1.5 mt-0.5 items-center">
+              {isMangaka && currentSeries?.rank && (
+                <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-100 text-amber-700 hover:bg-amber-100">
+                  Rank #{currentSeries.rank}
+                </Badge>
+              )}
+              {currentChapter?.publicationDeadline && (
+                <Badge variant="default" className="text-[9px] h-4 px-1.5 text-rose-600 bg-rose-50 border-rose-100 font-bold">
+                  ⏰ Deadline: {new Date(currentChapter.publicationDeadline).toLocaleDateString()}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         {/* Tools */}
@@ -3232,6 +3242,15 @@ function StudioWorkspacePageContent() {
             <div>
               <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>
               <Input value={newChapterTitle} onChange={(e) => setNewChapterTitle(e.target.value)} placeholder="Chapter 1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Publication Deadline</label>
+              <input
+                type="date"
+                className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-neutral-50 focus:bg-white outline-none focus:border-indigo-500 font-bold transition-all"
+                value={newChapterDeadline}
+                onChange={(e) => setNewChapterDeadline(e.target.value)}
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowCreateChapterDialog(false)}>

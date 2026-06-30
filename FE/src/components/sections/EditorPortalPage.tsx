@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
-import { seriesAPI, chaptersAPI, editorAPI, meetingAPI, authAPI } from '../../lib/api'
+import { seriesAPI, chaptersAPI, editorAPI, meetingAPI, authAPI, rubricTemplateAPI } from '../../lib/api'
 import {
   Badge,
   Button,
@@ -154,6 +155,7 @@ interface MeetingItem {
   dateTime: string
   location: string
   seriesId?: MeetingSeries
+  seriesIds?: MeetingSeries[]
   participants: MeetingParticipant[]
   createdBy: {
     _id: string
@@ -195,8 +197,10 @@ export function EditorPortalPage() {
   const [meetingDesc, setMeetingDesc] = useState('')
   const [meetingDateTime, setMeetingDateTime] = useState('')
   const [meetingLoc, setMeetingLoc] = useState('')
-  const [meetingSeriesId, setMeetingSeriesId] = useState('')
+  const [meetingSeriesIds, setMeetingSeriesIds] = useState<string[]>([])
   const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
+  const [rubricTemplates, setRubricTemplates] = useState<any[]>([])
+  const [meetingRubricTemplateId, setMeetingRubricTemplateId] = useState('')
   const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
   const [submittingMeeting, setSubmittingMeeting] = useState(false)
 
@@ -432,12 +436,16 @@ export function EditorPortalPage() {
 
   const loadMeetings = async () => {
     try {
-      const res = await meetingAPI.getAll()
-      const formattedMeetings: MeetingItem[] = (res.data.meetings || []).map((m: MeetingItem) => ({
+      const [mRes, rRes] = await Promise.all([
+        meetingAPI.getAll(),
+        rubricTemplateAPI.getAll().catch(() => ({ data: { templates: [] } }))
+      ])
+      const formattedMeetings: MeetingItem[] = (mRes.data.meetings || []).map((m: MeetingItem) => ({
         ...m,
         isUpcoming: new Date(m.dateTime).getTime() > Date.now(),
       }))
       setMeetings(formattedMeetings)
+      setRubricTemplates(rRes.data.templates || rRes.data.rubrics || [])
     } catch (err) {
       console.error('Failed to load meetings', err)
     }
@@ -446,6 +454,14 @@ export function EditorPortalPage() {
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0) return
+
+    // Enforce odd number of total participants (including the logged-in user as the scheduler)
+    const uniqueCount = new Set([...meetingParticipants, user?._id]).size
+    if (uniqueCount % 2 === 0) {
+      alert(t('editorialBoard.evenParticipantsError', 'The total number of participants (including yourself as the organizer) must be an odd number to avoid voting ties. Current count: ' + uniqueCount + '.'))
+      return
+    }
+
     setSubmittingMeeting(true)
     try {
       await meetingAPI.create({
@@ -453,8 +469,9 @@ export function EditorPortalPage() {
         description: meetingDesc,
         dateTime: meetingDateTime,
         location: meetingLoc,
-        seriesId: meetingSeriesId || undefined,
+        seriesIds: meetingSeriesIds,
         participants: meetingParticipants,
+        rubricTemplateId: meetingRubricTemplateId || undefined,
       })
       setShowMeetingForm(false)
       // Reset form
@@ -462,11 +479,13 @@ export function EditorPortalPage() {
       setMeetingDesc('')
       setMeetingDateTime('')
       setMeetingLoc('')
-      setMeetingSeriesId('')
+      setMeetingSeriesIds([])
       setMeetingParticipants([])
+      setMeetingRubricTemplateId('')
       await loadMeetings()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create meeting:', err)
+      alert(err.response?.data?.error || 'Failed to create meeting.')
     } finally {
       setSubmittingMeeting(false)
     }
@@ -1929,21 +1948,59 @@ export function EditorPortalPage() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.selectRelatedSeries')}</label>
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-neutral-700">Evaluation Rubric Template</label>
                     <select
-                      value={meetingSeriesId}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMeetingSeriesId(e.target.value)}
-                      className="w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs outline-none focus:border-indigo-500 font-medium shadow-2xs"
+                      className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:border-indigo-500 font-medium cursor-pointer shadow-3xs"
+                      value={meetingRubricTemplateId}
+                      onChange={(e) => setMeetingRubricTemplateId(e.target.value)}
                     >
-                      <option value="">-- No Series --</option>
+                      <option value="">Default Active Rubric</option>
+                      {rubricTemplates.map((tpl: any) => (
+                        <option key={tpl._id} value={tpl._id}>
+                          {tpl.name} ({tpl.criteria?.length} categories)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-700 block">
+                      {t('editorialBoard.selectRelatedSeries')} <span className="text-indigo-600">({meetingSeriesIds.length} selected)</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-white border border-neutral-200 rounded-xl">
                       {[
                         ...portfolio.map((p) => ({ _id: p.series._id, title: `[Portfolio] ${p.series.title}` })),
                         ...pendingSeries.map((s) => ({ _id: s._id, title: `[Draft] ${s.title}` })),
-                      ].map((s) => (
-                        <option key={s._id} value={s._id}>{s.title}</option>
-                      ))}
-                    </select>
+                      ].map((s) => {
+                        const isSelected = meetingSeriesIds.includes(s._id)
+                        return (
+                          <div
+                            key={s._id}
+                            onClick={() => {
+                              setMeetingSeriesIds((prev) =>
+                                prev.includes(s._id) ? prev.filter((id) => id !== s._id) : [...prev, s._id]
+                              )
+                            }}
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-semibold'
+                                : 'border-neutral-100 hover:bg-neutral-50 text-neutral-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              readOnly
+                              className="accent-indigo-650"
+                            />
+                            <span className="truncate">{s.title}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -1961,6 +2018,12 @@ export function EditorPortalPage() {
                   <label className="text-xs font-bold text-neutral-700 block">
                     {t('editorialBoard.selectParticipants')} <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
                   </label>
+                  {/* Odd number participant validation feedback */}
+                  {new Set([...meetingParticipants, user?._id]).size % 2 === 0 && (
+                    <p className="text-[10px] font-semibold text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100 mb-1">
+                      ⚠️ Current total participants (including you): {new Set([...meetingParticipants, user?._id]).size} (Even). Please select an odd number of total participants to prevent voting ties.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 bg-white border border-neutral-200 rounded-xl">
                     {availableReviewers.length === 0 ? (
                       <div className="col-span-full py-4 text-center text-xs text-neutral-400">Loading reviewers...</div>
@@ -2002,7 +2065,7 @@ export function EditorPortalPage() {
                   </Button>
                   <Button
                     type="submit"
-                    className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-750 text-xs font-bold px-4 py-2"
+                    className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-755 text-xs font-bold px-4 py-2"
                     disabled={submittingMeeting || !meetingTitle || !meetingDateTime || meetingParticipants.length === 0}
                   >
                     {submittingMeeting ? <Loader2 className="size-4.5 animate-spin" /> : t('common.create')}
@@ -2049,14 +2112,30 @@ export function EditorPortalPage() {
                             <span className="truncate">{m.location}</span>
                           </div>
                         )}
-                        {m.seriesId && (
+                        {m.seriesIds && m.seriesIds.length > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-start gap-2">
+                              <BookOpen className="size-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                              <div className="flex flex-col">
+                                <span className="font-bold text-neutral-400 text-[10px] uppercase tracking-wider">Related Series:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {m.seriesIds.map((sObj: any) => (
+                                    <span key={sObj._id} className="bg-indigo-50/50 border border-indigo-150 text-indigo-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                                      {sObj.title}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : m.seriesId ? (
                           <div className="flex items-center gap-2">
                             <BookOpen className="size-3.5 text-indigo-500 shrink-0" />
                             <span className="font-semibold text-neutral-800">
                               Series: {m.seriesId?.title || 'Unknown Series'}
                             </span>
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="space-y-1.5 border-t border-neutral-50 pt-2.5">

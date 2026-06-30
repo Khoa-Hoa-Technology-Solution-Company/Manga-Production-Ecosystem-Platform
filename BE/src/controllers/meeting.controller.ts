@@ -14,7 +14,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { title, description, dateTime, location, seriesId, participants } = req.body;
+    const { title, description, dateTime, location, seriesId, seriesIds, participants, rubricTemplateId } = req.body;
 
     if (!title || !dateTime || !participants || !Array.isArray(participants) || participants.length === 0) {
       res.status(400).json({ error: 'Title, date/time, and at least one participant are required.' });
@@ -22,35 +22,48 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     }
 
     // Ensure the creator is also listed as a participant, or at least has view access.
-    // We can add them to participants if they are not there, or keep it as is.
     const uniqueParticipants = Array.from(new Set([...participants, req.user!._id.toString()]));
+
+    // Validation: Number of participants must be odd
+    if (uniqueParticipants.length % 2 === 0) {
+      res.status(400).json({ error: 'The number of participants (including the organizer) must be an odd number to prevent voting ties.' });
+      return;
+    }
+
+    // Support both seriesId (backward compat) and seriesIds
+    let finalSeriesIds: string[] = [];
+    if (Array.isArray(seriesIds)) {
+      finalSeriesIds = seriesIds;
+    } else if (seriesId) {
+      finalSeriesIds = [seriesId];
+    }
 
     const meeting = await Meeting.create({
       title,
       description,
       dateTime: new Date(dateTime),
       location,
-      seriesId: seriesId || undefined,
+      seriesIds: finalSeriesIds,
       participants: uniqueParticipants,
       createdBy: req.user!._id,
+      rubricTemplateId: rubricTemplateId ? rubricTemplateId : undefined,
     });
 
     const populatedMeeting = await Meeting.findById(meeting._id)
       .populate('createdBy', 'displayName avatar role')
       .populate('participants', 'displayName email avatar role')
-      .populate('seriesId', 'title coverImage');
+      .populate('seriesIds', 'title coverImage')
+      .populate('rubricTemplateId');
 
-    // Notify all participants (excluding the creator themselves)
     const formattedDate = new Date(dateTime).toLocaleString();
-    let seriesTitle = '';
-    let seriesObj: any = null;
-    if (seriesId) {
-      seriesObj = await Series.findById(seriesId);
-      if (seriesObj) seriesTitle = ` for series "${seriesObj.title}"`;
-    }
-
     const creatorName = req.user!.displayName || 'The Editorial Board Head';
 
+    // Fetch series details to generate notifications
+    const seriesObjects = await Series.find({ _id: { $in: finalSeriesIds } });
+    const seriesTitles = seriesObjects.map(s => `"${s.title}"`).join(', ');
+    const seriesTitleMsg = seriesTitles ? ` for series ${seriesTitles}` : '';
+
+    // Notify all participants (excluding the creator themselves)
     for (const participantId of uniqueParticipants) {
       if (participantId.toString() === req.user!._id.toString()) continue;
 
@@ -59,13 +72,13 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
         userId: participantId,
         type: 'system',
         title: 'New Review Meeting Scheduled',
-        message: `${creatorName} scheduled a review meeting "${title}"${seriesTitle} on ${formattedDate}.`,
+        message: `${creatorName} scheduled a review meeting "${title}"${seriesTitleMsg} on ${formattedDate}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
       });
 
       // Additional notification for Series Review
-      if (seriesObj) {
+      for (const seriesObj of seriesObjects) {
         await createNotification({
           userId: participantId,
           type: 'system',
@@ -77,8 +90,8 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       }
     }
 
-    // Notify the Mangaka of the series
-    if (seriesObj) {
+    // Notify the Mangakas of the series
+    for (const seriesObj of seriesObjects) {
       await createNotification({
         userId: seriesObj.mangakaId.toString(),
         type: 'system',
@@ -108,7 +121,8 @@ export async function getMeetings(req: Request, res: Response): Promise<void> {
     })
       .populate('createdBy', 'displayName avatar role')
       .populate('participants', 'displayName email avatar role')
-      .populate('seriesId', 'title coverImage')
+      .populate('seriesIds', 'title coverImage')
+      .populate('rubricTemplateId')
       .sort({ dateTime: 1 });
 
     res.json({ meetings });
@@ -144,14 +158,10 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Send cancellation notifications before deletion
     const creatorName = req.user!.displayName || 'An organizer';
     const formattedDate = new Date(meeting.dateTime).toLocaleString();
 
-    let seriesObj: any = null;
-    if (meeting.seriesId) {
-      seriesObj = await Series.findById(meeting.seriesId);
-    }
+    const seriesObjects = await Series.find({ _id: { $in: meeting.seriesIds } });
 
     for (const participantId of meeting.participants) {
       if (participantId.toString() === userId.toString()) continue;
@@ -165,7 +175,7 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
         relatedType: 'Meeting',
       });
 
-      if (seriesObj) {
+      for (const seriesObj of seriesObjects) {
         await createNotification({
           userId: participantId.toString(),
           type: 'system',
@@ -177,7 +187,7 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
       }
     }
 
-    if (seriesObj) {
+    for (const seriesObj of seriesObjects) {
       await createNotification({
         userId: seriesObj.mangakaId.toString(),
         type: 'system',
@@ -195,3 +205,4 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: error.message });
   }
 }
+

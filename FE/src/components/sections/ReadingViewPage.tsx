@@ -20,7 +20,7 @@ import {
   ThumbsUp,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
-import { commentsAPI, seriesAPI, chaptersAPI, votesAPI, pagesAPI } from '../../lib/api'
+import { commentsAPI, seriesAPI, chaptersAPI, votesAPI, pagesAPI, reactionsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 import { useAuth } from '../../lib/auth'
 
@@ -284,14 +284,22 @@ export function ReadingViewPage() {
         if (res.data.userVote) {
           setVoted(Boolean(res.data.userVote.voted))
           setUserRating(res.data.userVote.rating || 0)
-          const savedReaction = res.data.userVote.reaction
-          if (savedReaction) setActiveReactions(new Set([savedReaction]))
         } else {
           setVoted(false)
           setUserRating(0)
         }
+      })
+      .catch(console.error)
+
+    // Load decoupled reactions
+    reactionsAPI.get('chapter', chapterId)
+      .then((res: any) => {
         if (res.data.reactions) {
-          setServerReactions(res.data.reactions)
+          const mapped = res.data.reactions.map((r: any) => ({ _id: r.emoji, count: r.count }))
+          setServerReactions(mapped)
+        }
+        if (res.data.userReactions) {
+          setActiveReactions(new Set(res.data.userReactions))
         }
       })
       .catch(console.error)
@@ -514,38 +522,32 @@ export function ReadingViewPage() {
       return
     }
 
-    // Determine new reaction: clicking active reaction deselects it (send null)
-    const newReaction = activeReactions.has(emoji) ? null : emoji
+    const hadReaction = activeReactions.has(emoji)
 
     // Optimistic update
     setActiveReactions((prev) => {
       const next = new Set(prev)
-      if (newReaction) next.add(emoji)
-      else next.delete(emoji)
+      if (hadReaction) next.delete(emoji)
+      else next.add(emoji)
       return next
     })
 
     try {
-      await votesAPI.vote(activeChapterId, {
-        reaction: newReaction,
-        seriesId: chapter?.seriesId,
-      })
-      // Refresh reactions count from server
-      const votesRes = await votesAPI.getByChapter(activeChapterId)
-      if (votesRes.data.reactions) {
-        setServerReactions(votesRes.data.reactions)
+      const res = await reactionsAPI.toggle('chapter', activeChapterId, emoji)
+      if (res.data.reactions) {
+        const mapped = res.data.reactions.map((r: any) => ({ _id: r.emoji, count: r.count }))
+        setServerReactions(mapped)
       }
-      if (votesRes.data.userVote) {
-        const savedReaction = votesRes.data.userVote.reaction
-        setActiveReactions(savedReaction ? new Set([savedReaction]) : new Set())
+      if (res.data.userReactions) {
+        setActiveReactions(new Set(res.data.userReactions))
       }
     } catch (err) {
       console.error('Failed to save reaction:', err)
       // Revert on error
       setActiveReactions((prev) => {
         const next = new Set(prev)
-        if (newReaction) next.delete(emoji)
-        else next.add(emoji)
+        if (hadReaction) next.add(emoji)
+        else next.delete(emoji)
         return next
       })
     }

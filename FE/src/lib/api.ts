@@ -105,9 +105,26 @@ export const ebAPI = {
 // ── Meeting API ─────────────────────────────────────
 export const meetingAPI = {
   getAll: () => api.get('/meetings'),
-  create: (data: { title: string; description?: string; dateTime: string; location?: string; seriesId?: string; participants: string[] }) =>
+  create: (data: { title: string; description?: string; dateTime: string; location?: string; seriesId?: string; seriesIds?: string[]; participants: string[]; rubricTemplateId?: string }) =>
     api.post('/meetings', data),
   delete: (id: string) => api.delete(`/meetings/${id}`),
+};
+
+// ── Rubric Template API ──────────────────────────────
+export const rubricTemplateAPI = {
+  getAll: () => api.get('/rubric-templates'),
+  getActive: () => api.get('/rubric-templates/active'),
+  create: (data: { name: string; criteria: { key: string; label: string; weight?: number }[] }) =>
+    api.post('/rubric-templates', data),
+  activate: (id: string) => api.patch(`/rubric-templates/${id}/activate`),
+};
+
+// ── Reactions API ────────────────────────────────────
+export const reactionsAPI = {
+  toggle: (targetType: 'series' | 'chapter', targetId: string, emoji: string | null) =>
+    api.post(`/reactions/${targetType}/${targetId}`, { emoji }),
+  get: (targetType: 'series' | 'chapter', targetId: string) =>
+    api.get(`/reactions/${targetType}/${targetId}`),
 };
 
 // ── Chapters API ────────────────────────────────────

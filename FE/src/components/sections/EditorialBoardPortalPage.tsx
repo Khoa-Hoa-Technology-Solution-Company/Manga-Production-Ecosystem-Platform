@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -6,12 +7,20 @@ import {
   BookOpen, ChevronDown, ChevronUp, AlertTriangle, Send,
   Calendar, Ban, Loader2, TrendingUp, TrendingDown,
   LayoutDashboard, Activity, ChevronRight, User, Tag,
-  Palette, Coins, Medal, Star, CheckCircle2, X
+  Palette, Medal, Star, CheckCircle2, X
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
-import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI } from '../../lib/api'
+import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
+
+const DEFAULT_CRITERIA = [
+  { key: 'artStyle', label: 'Art Style' },
+  { key: 'storytelling', label: 'Storytelling' },
+  { key: 'characterDesign', label: 'Character Design' },
+  { key: 'pacing', label: 'Pacing & Layout' },
+  { key: 'commercialPotential', label: 'Commercial Potential' }
+]
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -102,6 +111,7 @@ type DashboardStats = {
   activeCount: number
   cancellationRiskCount: number
   totalDecisions: number
+  overdueCount: number
 }
 
 interface MeetingParticipant {
@@ -125,6 +135,7 @@ interface MeetingItem {
   dateTime: string
   location: string
   seriesId?: MeetingSeries
+  seriesIds?: MeetingSeries[]
   participants: MeetingParticipant[]
   createdBy: {
     _id: string
@@ -186,7 +197,7 @@ export function EditorialBoardPortalPage() {
   }
 
   // Dashboard state
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 })
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 })
   const [atRiskSeries, setAtRiskSeries] = useState<SeriesItem[]>([])
   const [recentDecisions, setRecentDecisions] = useState<SeriesItem[]>([])
   const [lowRatingChapters, setLowRatingChapters] = useState<Array<{
@@ -201,12 +212,12 @@ export function EditorialBoardPortalPage() {
   // Voting state (with rubric criteria 1-10)
   const [votingSeriesId, setVotingSeriesId] = useState<string | null>(null)
   const [voteComments, setVoteComments] = useState('')
-  const [rubricArtStyle, setRubricArtStyle] = useState(5)
-  const [rubricStorytelling, setRubricStorytelling] = useState(5)
-  const [rubricCharacterDesign, setRubricCharacterDesign] = useState(5)
-  const [rubricPacing, setRubricPacing] = useState(5)
-  const [rubricCommercialPotential, setRubricCommercialPotential] = useState(5)
+  const [activeTemplate, setActiveTemplate] = useState<any>(null)
+  const [rubricScores, setRubricScores] = useState<Record<string, number>>({})
   const [submittingVote, setSubmittingVote] = useState(false)
+
+  // Overdue chapters state
+  const [overdueChapters, setOverdueChapters] = useState<any[]>([])
 
   // Final Decision state
   const [decisionSeriesId, setDecisionSeriesId] = useState<string | null>(null)
@@ -235,10 +246,21 @@ export function EditorialBoardPortalPage() {
   const [meetingDesc, setMeetingDesc] = useState('')
   const [meetingDateTime, setMeetingDateTime] = useState('')
   const [meetingLoc, setMeetingLoc] = useState('')
-  const [meetingSeriesId, setMeetingSeriesId] = useState('')
+  const [meetingSeriesIds, setMeetingSeriesIds] = useState<string[]>([])
   const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
+  const [meetingRubricTemplateId, setMeetingRubricTemplateId] = useState('')
   const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
   const [submittingMeeting, setSubmittingMeeting] = useState(false)
+
+  // Rubrics template management states
+  const [rubricTemplates, setRubricTemplates] = useState<any[]>([])
+  const [showCreateRubricModal, setShowCreateRubricModal] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [newTemplateCriteria, setNewTemplateCriteria] = useState<Array<{ key: string; label: string }>>([
+    { key: 'artStyle', label: 'Art Style' },
+    { key: 'storytelling', label: 'Storytelling' }
+  ])
+  const [submittingTemplate, setSubmittingTemplate] = useState(false)
 
   const tabs = [
     { key: 'dashboard', label: t('editorialBoard.dashboard'), icon: <LayoutDashboard className="size-3.5" /> },
@@ -246,19 +268,23 @@ export function EditorialBoardPortalPage() {
     { key: 'meetings', label: t('editorialBoard.meetingsTab', 'Meetings'), icon: <Calendar className="size-3.5" /> },
     { key: 'rankings', label: t('editorialBoard.seriesRankings'), icon: <Trophy className="size-3.5" /> },
     { key: 'input', label: t('editorialBoard.inputVotes'), icon: <BarChart3 className="size-3.5" /> },
+    ...(user?.isEbHead ? [{ key: 'rubrics', label: 'Rubric Criteria', icon: <Palette className="size-3.5" /> }] : []),
   ]
 
   /* ── data fetching ── */
   const fetchData = useCallback(async () => {
     try {
-      const [pendingRes, rankingsRes, dashboardRes, meetingsRes] = await Promise.all([
-        ebAPI.getPending().catch(() => ({ data: { series: [] } })),
+      const [pendingRes, rankingsRes, dashboardRes, meetingsRes, rubricsRes] = await Promise.all([
+        ebAPI.getPending().catch(() => ({ data: { series: [], activeTemplate: null } })),
         dashboardAPI.getRankings().catch(() => ({ data: { rankings: [] } })),
-        ebAPI.getDashboard().catch(() => ({ data: { stats: { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 }, atRiskSeries: [], recentDecisions: [] } })),
+        ebAPI.getDashboard().catch(() => ({ data: { stats: { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 }, atRiskSeries: [], recentDecisions: [], overdueChapters: [] } })),
         meetingAPI.getAll().catch(() => ({ data: { meetings: [] } })),
+        rubricTemplateAPI.getAll().catch(() => ({ data: { rubrics: [] } })),
       ])
 
       setPendingSeries(pendingRes.data.series || [])
+      setActiveTemplate(pendingRes.data.activeTemplate || null)
+      setRubricTemplates(rubricsRes.data?.rubrics || [])
 
       const rankedSeries = (rankingsRes.data.rankings || []).map((s: SeriesItem, idx: number) => ({
         ...s,
@@ -266,10 +292,12 @@ export function EditorialBoardPortalPage() {
       }))
       setRankings(rankedSeries)
 
-      setDashboardStats(dashboardRes.data.stats || { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0 })
+      setDashboardStats(dashboardRes.data.stats || { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 })
       setAtRiskSeries(dashboardRes.data.atRiskSeries || [])
       setRecentDecisions(dashboardRes.data.recentDecisions || [])
       setLowRatingChapters(dashboardRes.data.lowRatingChapters || [])
+      setOverdueChapters(dashboardRes.data.overdueChapters || [])
+      
       const formattedMeetings: MeetingItem[] = (meetingsRes.data.meetings || []).map((m: MeetingItem) => ({
         ...m,
         isUpcoming: new Date(m.dateTime).getTime() > Date.now(),
@@ -280,7 +308,7 @@ export function EditorialBoardPortalPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])
@@ -292,21 +320,11 @@ export function EditorialBoardPortalPage() {
       await ebAPI.castVote(seriesId, {
         decision,
         comments: voteComments,
-        rubric: {
-          artStyle: rubricArtStyle,
-          storytelling: rubricStorytelling,
-          characterDesign: rubricCharacterDesign,
-          pacing: rubricPacing,
-          commercialPotential: rubricCommercialPotential,
-        },
+        rubric: rubricScores,
       })
       setVotingSeriesId(null)
       setVoteComments('')
-      setRubricArtStyle(5)
-      setRubricStorytelling(5)
-      setRubricCharacterDesign(5)
-      setRubricPacing(5)
-      setRubricCommercialPotential(5)
+      setRubricScores({})
       fetchData()
     } catch (err) {
       console.error('Failed to cast vote:', err)
@@ -318,6 +336,13 @@ export function EditorialBoardPortalPage() {
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0) return
+
+    const uniqueCount = new Set([...meetingParticipants, user?._id]).size
+    if (uniqueCount % 2 === 0) {
+      alert(t('editorialBoard.evenParticipantsError', 'The total number of participants (including yourself as the organizer) must be an odd number to avoid voting ties. Current count: ' + uniqueCount + '.'))
+      return
+    }
+
     setSubmittingMeeting(true)
     try {
       await meetingAPI.create({
@@ -325,8 +350,9 @@ export function EditorialBoardPortalPage() {
         description: meetingDesc,
         dateTime: meetingDateTime,
         location: meetingLoc,
-        seriesId: meetingSeriesId || undefined,
+        seriesIds: meetingSeriesIds,
         participants: meetingParticipants,
+        rubricTemplateId: meetingRubricTemplateId || undefined,
       })
       setShowMeetingForm(false)
       // Reset form
@@ -334,11 +360,13 @@ export function EditorialBoardPortalPage() {
       setMeetingDesc('')
       setMeetingDateTime('')
       setMeetingLoc('')
-      setMeetingSeriesId('')
+      setMeetingSeriesIds([])
       setMeetingParticipants([])
+      setMeetingRubricTemplateId('')
       fetchData()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create meeting:', err)
+      alert(err.response?.data?.error || 'Failed to create meeting.')
     } finally {
       setSubmittingMeeting(false)
     }
@@ -374,19 +402,14 @@ export function EditorialBoardPortalPage() {
     setVotingSeriesId(series._id)
     setDecisionSeriesId(null)
     setVoteComments('')
-    if (series.userVoteRubric) {
-      setRubricArtStyle(series.userVoteRubric.artStyle || 5)
-      setRubricStorytelling(series.userVoteRubric.storytelling || 5)
-      setRubricCharacterDesign(series.userVoteRubric.characterDesign || 5)
-      setRubricPacing(series.userVoteRubric.pacing || 5)
-      setRubricCommercialPotential(series.userVoteRubric.commercialPotential || 5)
-    } else {
-      setRubricArtStyle(5)
-      setRubricStorytelling(5)
-      setRubricCharacterDesign(5)
-      setRubricPacing(5)
-      setRubricCommercialPotential(5)
-    }
+    
+    const initialScores: Record<string, number> = {}
+    const seriesTemplate = (series as any).rubricTemplate || activeTemplate
+    const criteria = seriesTemplate ? seriesTemplate.criteria : DEFAULT_CRITERIA
+    criteria.forEach((c: any) => {
+      initialScores[c.key] = (series.userVoteRubric as any)?.[c.key] || 5
+    })
+    setRubricScores(initialScores)
   }
 
   const handleFinalDecision = async (seriesId: string, decision: 'approved' | 'rejected') => {
@@ -442,6 +465,59 @@ export function EditorialBoardPortalPage() {
     }
   }
 
+  const loadRubricTemplates = async () => {
+    try {
+      const res = await rubricTemplateAPI.getAll()
+      setRubricTemplates(res.data.templates || [])
+    } catch (err) {
+      console.error('Failed to load rubric templates:', err)
+    }
+  }
+
+  const handleActivateTemplate = async (id: string) => {
+    try {
+      await rubricTemplateAPI.activate(id)
+      alert('Rubric template activated successfully!')
+      await loadRubricTemplates()
+      await fetchData()
+    } catch (err) {
+      console.error('Failed to activate template:', err)
+      alert('Failed to activate template.')
+    }
+  }
+
+  const handleCreateTemplate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTemplateName.trim() || newTemplateCriteria.length === 0) return
+    setSubmittingTemplate(true)
+    try {
+      await rubricTemplateAPI.create({
+        name: newTemplateName,
+        criteria: newTemplateCriteria
+      })
+      setNewTemplateName('')
+      setNewTemplateCriteria([
+        { key: 'artStyle', label: 'Art Style' },
+        { key: 'storytelling', label: 'Storytelling' }
+      ])
+      setShowCreateRubricModal(false)
+      await loadRubricTemplates()
+    } catch (err) {
+      console.error('Failed to create template:', err)
+      alert('Failed to create template.')
+    } finally {
+      setSubmittingTemplate(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'rubrics') {
+      Promise.resolve().then(() => {
+        loadRubricTemplates()
+      })
+    }
+  }, [activeTab])
+
   /* ── helpers ── */
   const getRankBadge = (rank: number) => {
     if (rank === 1) return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 shadow-3xs"><Medal className="size-3.5 text-amber-500 shrink-0 fill-amber-100" /> Top 1</span>
@@ -488,11 +564,12 @@ export function EditorialBoardPortalPage() {
       </div>
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { label: t('editorialBoard.pendingVotes'), value: dashboardStats.pendingCount, icon: Clock, gradient: 'from-amber-500 to-orange-500', shadow: 'shadow-amber-200' },
           { label: t('editorialBoard.activeSeries'), value: dashboardStats.activeCount, icon: TrendingUp, gradient: 'from-emerald-500 to-teal-500', shadow: 'shadow-emerald-200' },
           { label: t('editorialBoard.cancellationRisk'), value: dashboardStats.cancellationRiskCount, icon: AlertTriangle, gradient: 'from-red-500 to-rose-500', shadow: 'shadow-red-200' },
+          { label: 'Overdue Publishing', value: dashboardStats.overdueCount || 0, icon: Clock, gradient: 'from-rose-600 to-red-650', shadow: 'shadow-rose-200' },
           { label: t('editorialBoard.myDecisions'), value: dashboardStats.totalDecisions, icon: Trophy, gradient: 'from-indigo-500 to-blue-500', shadow: 'shadow-indigo-200' },
         ].map(({ label, value, icon: Icon, gradient, shadow }) => (
           <Card key={label} className="overflow-hidden">
@@ -717,6 +794,49 @@ export function EditorialBoardPortalPage() {
             </Card>
           )}
 
+          {/* Overdue Publication Deadlines Alerts */}
+          {overdueChapters && overdueChapters.length > 0 && (
+            <Card className="overflow-hidden border border-rose-200">
+              <CardContent className="p-0">
+                <div className="border-b border-neutral-100 bg-gradient-to-r from-rose-50/60 to-red-50/30 px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-rose-500" />
+                    <h3 className="text-sm font-semibold text-neutral-950">Overdue Publication Deadlines</h3>
+                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold text-rose-700">
+                      {overdueChapters.length} chapters
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-neutral-500">Chapters that have missed their scheduled publication deadline. Review with Mangaka and Tantou Editor.</p>
+                </div>
+                <div className="divide-y divide-neutral-50">
+                  {overdueChapters.map((item: any) => (
+                    <div key={item._id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-rose-50/10 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-rose-50 border border-rose-100 text-rose-500">
+                          <Clock className="size-4.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-neutral-900 truncate">
+                            Ch.{item.chapterNumber}: {item.title}
+                          </p>
+                          <p className="text-xs text-neutral-550 truncate">{item.seriesId?.title || 'Unknown series'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-bold text-rose-650 bg-rose-50 border border-rose-150 px-2.5 py-1 rounded-lg">
+                          Deadline: {new Date(item.publicationDeadline).toLocaleDateString()}
+                        </span>
+                        <Badge variant="default" className="text-[10px] uppercase text-neutral-450 border-neutral-200">
+                          {item.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Low Rating Alerts */}
           {lowRatingChapters.length > 0 && (
             <Card className="overflow-hidden">
@@ -857,8 +977,14 @@ export function EditorialBoardPortalPage() {
                     {/* Action Block & Interactive Evaluation (Right Side or Collapsed) */}
                     <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-neutral-100 bg-neutral-50/40 p-6 flex flex-col justify-between">
                       {votingSeriesId === series._id ? (() => {
-                        const currentAverage = (rubricArtStyle + rubricStorytelling + rubricCharacterDesign + rubricPacing + rubricCommercialPotential) / 5;
-                        const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected';
+                        const seriesTemplate = (series as any).rubricTemplate || activeTemplate
+                        const criteria = seriesTemplate?.criteria || DEFAULT_CRITERIA
+                        let sum = 0
+                        criteria.forEach((c: any) => {
+                          sum += rubricScores[c.key] ?? 5
+                        })
+                        const currentAverage = criteria.length > 0 ? sum / criteria.length : 5
+                        const autoDecision = currentAverage >= 5 ? 'approved' : 'rejected'
 
                         return (
                           <div className="space-y-4 text-left animate-in fade-in duration-200">
@@ -870,31 +996,31 @@ export function EditorialBoardPortalPage() {
                               </h4>
                               
                               <div className="space-y-3">
-                                {[
-                                  { key: 'artStyle', label: t('editorialBoard.artStyle', 'Art Style'), val: rubricArtStyle, setVal: setRubricArtStyle },
-                                  { key: 'storytelling', label: t('editorialBoard.storytelling', 'Storytelling'), val: rubricStorytelling, setVal: setRubricStorytelling },
-                                  { key: 'characterDesign', label: t('editorialBoard.characterDesign', 'Character Design'), val: rubricCharacterDesign, setVal: setRubricCharacterDesign },
-                                  { key: 'pacing', label: t('editorialBoard.pacing', 'Pacing & Layout'), val: rubricPacing, setVal: setRubricPacing },
-                                  { key: 'commercialPotential', label: t('editorialBoard.commercialPotential', 'Commercial Potential'), val: rubricCommercialPotential, setVal: setRubricCommercialPotential },
-                                ].map(({ key, label, val, setVal }) => (
-                                  <div key={key} className="space-y-1">
-                                    <div className="flex justify-between text-xs font-bold">
-                                      <span className="text-neutral-700">{label}</span>
-                                      <span className="text-indigo-600">{val}/10</span>
+                                {criteria.map((c: any) => {
+                                  const score = rubricScores[c.key] ?? 5
+                                  return (
+                                    <div key={c.key} className="space-y-1">
+                                      <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-neutral-700">{c.label}</span>
+                                        <span className="text-indigo-600">{score}/10</span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min="1"
+                                        max="10"
+                                        value={score}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value)
+                                          setRubricScores((prev) => ({ ...prev, [c.key]: val }))
+                                        }}
+                                        className="w-full cursor-pointer h-2 bg-neutral-250 rounded-lg appearance-none accent-indigo-600 focus:outline-none"
+                                        style={{
+                                          background: `linear-gradient(to right, var(--color-indigo-500) 0%, var(--color-indigo-500) ${score * 10}%, var(--color-neutral-200) ${score * 10}%, var(--color-neutral-200) 100%)`
+                                        }}
+                                      />
                                     </div>
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max="10"
-                                      value={val}
-                                      onChange={(e) => setVal(parseInt(e.target.value))}
-                                      className="w-full cursor-pointer h-2 bg-neutral-250 rounded-lg appearance-none accent-indigo-600 focus:outline-none"
-                                      style={{
-                                        background: `linear-gradient(to right, var(--color-indigo-500) 0%, var(--color-indigo-500) ${val * 10}%, var(--color-neutral-200) ${val * 10}%, var(--color-neutral-200) 100%)`
-                                      }}
-                                    />
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </div>
 
@@ -1055,23 +1181,20 @@ export function EditorialBoardPortalPage() {
                             </div>
 
                             <div className="grid grid-cols-1 gap-2.5 text-[11px]">
-                              {[
-                                { label: t('editorialBoard.artStyle'), val: series.averageRubric.artStyle },
-                                { label: t('editorialBoard.storytelling'), val: series.averageRubric.storytelling },
-                                { label: t('editorialBoard.characterDesign'), val: series.averageRubric.characterDesign },
-                                { label: t('editorialBoard.pacing'), val: series.averageRubric.pacing },
-                                { label: t('editorialBoard.commercialPotential'), val: series.averageRubric.commercialPotential },
-                              ].map(({ label, val }) => (
-                                <div key={label} className="space-y-1">
-                                  <div className="flex justify-between font-bold text-neutral-600">
-                                    <span>{label}</span>
-                                    <span className="text-indigo-600">{val}/10</span>
+                              {(activeTemplate?.criteria || DEFAULT_CRITERIA).map((c: any) => {
+                                const val = (series.averageRubric as any)?.[c.key] || 0
+                                return (
+                                  <div key={c.key} className="space-y-1">
+                                    <div className="flex justify-between font-bold text-neutral-600">
+                                      <span>{c.label}</span>
+                                      <span className="text-indigo-600">{val.toFixed(1)}/10</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden border border-neutral-200/30">
+                                      <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${val * 10}%` }} />
+                                    </div>
                                   </div>
-                                  <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden border border-neutral-200/30">
-                                    <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${val * 10}%` }} />
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
 
                             {series.memberVotes && series.memberVotes.length > 0 && (
@@ -1100,11 +1223,12 @@ export function EditorialBoardPortalPage() {
                                           </div>
                                           {mv.rubric && (
                                             <div className="text-[9px] text-neutral-500 font-semibold flex flex-wrap gap-x-2.5 gap-y-0.5 py-1 border-t border-dashed border-neutral-200 items-center">
-                                              <span className="flex items-center gap-0.5"><Palette className="size-2.5 text-neutral-400" /> Art: {mv.rubric.artStyle}</span>
-                                              <span className="flex items-center gap-0.5"><BookOpen className="size-2.5 text-neutral-400" /> Story: {mv.rubric.storytelling}</span>
-                                              <span className="flex items-center gap-0.5"><User className="size-2.5 text-neutral-400" /> Char: {mv.rubric.characterDesign}</span>
-                                              <span className="flex items-center gap-0.5"><Clock className="size-2.5 text-neutral-400" /> Pace: {mv.rubric.pacing}</span>
-                                              <span className="flex items-center gap-0.5"><Coins className="size-2.5 text-neutral-400" /> Comm: {mv.rubric.commercialPotential}</span>
+                                              {(activeTemplate?.criteria || DEFAULT_CRITERIA).map((c: any) => (
+                                                <span key={c.key} className="flex items-center gap-0.5">
+                                                  <Palette className="size-2.5 text-neutral-400 shrink-0" />
+                                                  {c.label}: {(mv.rubric as any)?.[c.key] ?? 5}
+                                                </span>
+                                              ))}
                                             </div>
                                           )}
                                           {mv.comments && (
@@ -1371,21 +1495,59 @@ export function EditorialBoardPortalPage() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.selectRelatedSeries')}</label>
+                  <div className="space-y-1 text-left">
+                    <label className="text-xs font-bold text-neutral-700">Evaluation Rubric Template</label>
                     <select
-                      value={meetingSeriesId}
-                      onChange={(e) => setMeetingSeriesId(e.target.value)}
-                      className="w-full h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs outline-none focus:border-indigo-500 font-medium shadow-2xs"
+                      className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:border-indigo-500 font-medium cursor-pointer shadow-3xs"
+                      value={meetingRubricTemplateId}
+                      onChange={(e) => setMeetingRubricTemplateId(e.target.value)}
                     >
-                      <option value="">-- No Series --</option>
+                      <option value="">Default Active Rubric</option>
+                      {rubricTemplates.map((tpl: any) => (
+                        <option key={tpl._id} value={tpl._id}>
+                          {tpl.name} ({tpl.criteria?.length} categories)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-700 block">
+                      {t('editorialBoard.selectRelatedSeries')} <span className="text-indigo-600">({meetingSeriesIds.length} selected)</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-white border border-neutral-200 rounded-xl">
                       {[
                         ...pendingSeries.map((s) => ({ _id: s._id, title: `[Draft] ${s.title}` })),
                         ...rankings.map((s) => ({ _id: s._id, title: `[Active] ${s.title}` })),
-                      ].map((s) => (
-                        <option key={s._id} value={s._id}>{s.title}</option>
-                      ))}
-                    </select>
+                      ].map((s) => {
+                        const isSelected = meetingSeriesIds.includes(s._id)
+                        return (
+                          <div
+                            key={s._id}
+                            onClick={() => {
+                              setMeetingSeriesIds((prev) =>
+                                prev.includes(s._id) ? prev.filter((id) => id !== s._id) : [...prev, s._id]
+                              )
+                            }}
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-semibold'
+                                : 'border-neutral-100 hover:bg-neutral-50 text-neutral-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              readOnly
+                              className="accent-indigo-650"
+                            />
+                            <span className="truncate">{s.title}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -1403,6 +1565,12 @@ export function EditorialBoardPortalPage() {
                   <label className="text-xs font-bold text-neutral-700 block">
                     {t('editorialBoard.selectParticipants')} <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
                   </label>
+                  {/* Odd number participant validation feedback */}
+                  {new Set([...meetingParticipants, user?._id]).size % 2 === 0 && (
+                    <p className="text-[10px] font-semibold text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100 mb-1">
+                      ⚠️ Current total participants (including you): {new Set([...meetingParticipants, user?._id]).size} (Even). Please select an odd number of total participants to prevent voting ties.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 bg-white border border-neutral-200 rounded-xl">
                     {availableReviewers.length === 0 ? (
                       <div className="col-span-full py-4 text-center text-xs text-neutral-400">Loading reviewers...</div>
@@ -1504,14 +1672,30 @@ export function EditorialBoardPortalPage() {
                             <span className="truncate">{m.location}</span>
                           </div>
                         )}
-                        {m.seriesId && (
+                        {m.seriesIds && m.seriesIds.length > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-start gap-2">
+                              <BookOpen className="size-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                              <div className="flex flex-col">
+                                <span className="font-bold text-neutral-400 text-[10px] uppercase tracking-wider">Related Series:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {m.seriesIds.map((sObj: any) => (
+                                    <span key={sObj._id} className="bg-indigo-50/50 border border-indigo-150 text-indigo-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                                      {sObj.title}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : m.seriesId ? (
                           <div className="flex items-center gap-2">
                             <BookOpen className="size-3.5 text-indigo-500 shrink-0" />
                             <span className="font-semibold text-neutral-800">
                               Series: {m.seriesId?.title || 'Unknown Series'}
                             </span>
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="space-y-2 border-t border-neutral-100 pt-3 text-left">
@@ -1951,6 +2135,198 @@ export function EditorialBoardPortalPage() {
               </div>
             </div>
           </Card>
+        </div>
+      )}
+      {/* ────── RUBRICS TEMPLATES TAB ────── */}
+      {activeTab === 'rubrics' && user?.isEbHead && (
+        <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200 text-left">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900">Rubric Templates Configurator</h2>
+              <p className="text-xs text-neutral-500 mt-0.5">Create, preview and activate dynamic review rubric criteria across the workspace</p>
+            </div>
+            <Button
+              onClick={() => setShowCreateRubricModal(true)}
+              className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold px-4 py-2 shadow-sm"
+            >
+              + Create Template
+            </Button>
+          </div>
+
+          {/* Active Template Callout */}
+          <div className="bg-gradient-to-r from-indigo-50 to-blue-50/50 border border-indigo-150 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-3xs">
+            <div className="space-y-1">
+              <span className="text-[9px] font-bold text-indigo-650 uppercase tracking-widest bg-indigo-100/60 px-2 py-0.5 rounded-md">Currently Active Rubric</span>
+              <h3 className="text-base font-extrabold text-neutral-900 mt-1">{activeTemplate ? activeTemplate.name : 'Default Fallback Rubric'}</h3>
+              <p className="text-xs text-neutral-500 font-medium">This template is utilized system-wide for reviews, average calculations and scorecard outputs.</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-w-lg md:justify-end">
+              {(activeTemplate?.criteria || DEFAULT_CRITERIA).map((c: any) => (
+                <span key={c.key} className="bg-white border border-indigo-100 text-indigo-750 font-bold px-3 py-1 rounded-xl text-xs shadow-3xs">
+                  {c.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Templates Grid List */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {rubricTemplates.map((tpl) => {
+              const isActive = tpl.isActive
+              return (
+                <Card key={tpl._id} className={`p-5 flex flex-col justify-between border transition-all rounded-2xl bg-white shadow-2xs relative ${
+                  isActive ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-neutral-200 hover:border-neutral-350'
+                }`}>
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-extrabold text-sm text-neutral-900 tracking-tight">{tpl.name}</h3>
+                        <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mt-0.5">
+                          Created {new Date(tpl.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      {isActive ? (
+                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-neutral-50 text-neutral-450 border-neutral-200 text-[10px] font-semibold px-2.5 py-0.5 rounded-full">
+                          Inactive
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 border-t border-neutral-100 pt-3">
+                      {tpl.criteria.map((c: any) => (
+                        <span key={c.key} className="bg-neutral-50 border border-neutral-200/60 text-neutral-650 font-bold px-2 py-0.5 rounded-lg text-[10px]">
+                          {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {!isActive && (
+                    <div className="mt-4 pt-3 border-t border-neutral-100 flex justify-end">
+                      <Button
+                        size="sm"
+                        className="rounded-xl px-4 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-150 hover:bg-indigo-100 h-8"
+                        onClick={() => handleActivateTemplate(tpl._id)}
+                      >
+                        Activate Template
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Create Rubric Modal */}
+          {showCreateRubricModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4 border border-neutral-100">
+                <div>
+                  <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Palette className="size-4 text-indigo-500" />
+                    New Rubric Template
+                  </h3>
+                  <p className="text-xs text-neutral-500 mt-1">Define review scoring categories. Criteria keys must be camelCase alphanumeric, labels can be any display string.</p>
+                </div>
+
+                <form onSubmit={handleCreateTemplate} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Template Name</label>
+                    <Input
+                      type="text"
+                      required
+                      className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-neutral-50 focus:bg-white outline-none focus:border-indigo-500 font-bold transition-all shadow-xs"
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      placeholder="e.g. FY27 Standard Performance Rubric"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400 flex justify-between items-center">
+                      <span>Criteria List ({newTemplateCriteria.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewTemplateCriteria(prev => [...prev, { key: `customField${Date.now()}`, label: 'New Metric' }])
+                        }}
+                        className="text-[9px] font-extrabold text-indigo-650 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded hover:bg-indigo-100"
+                      >
+                        + Add Metric
+                      </button>
+                    </label>
+
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {newTemplateCriteria.map((item, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <Input
+                            type="text"
+                            required
+                            placeholder="camelCaseKey"
+                            className="flex-1 rounded-xl text-xs bg-neutral-50"
+                            value={item.key}
+                            onChange={(e) => {
+                              const updated = [...newTemplateCriteria]
+                              updated[idx].key = e.target.value.replace(/[^a-zA-Z0-9]/g, '')
+                              setNewTemplateCriteria(updated)
+                            }}
+                          />
+                          <Input
+                            type="text"
+                            required
+                            placeholder="Display Label"
+                            className="flex-1 rounded-xl text-xs bg-neutral-50"
+                            value={item.label}
+                            onChange={(e) => {
+                              const updated = [...newTemplateCriteria]
+                              updated[idx].label = e.target.value
+                              setNewTemplateCriteria(updated)
+                            }}
+                          />
+                          {newTemplateCriteria.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewTemplateCriteria(prev => prev.filter((_, i) => i !== idx))
+                              }}
+                              className="text-rose-650 hover:text-rose-800 p-1 text-xs font-bold"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl px-4 text-xs font-semibold border-neutral-200"
+                      onClick={() => setShowCreateRubricModal(false)}
+                      disabled={submittingTemplate}
+                    >
+                      {t('common.cancel', 'Cancel')}
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="rounded-xl px-4 text-xs font-semibold bg-indigo-600 hover:bg-indigo-755 text-white"
+                      disabled={submittingTemplate || !newTemplateName.trim() || newTemplateCriteria.length === 0}
+                    >
+                      {submittingTemplate ? 'Saving...' : 'Save Template'}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

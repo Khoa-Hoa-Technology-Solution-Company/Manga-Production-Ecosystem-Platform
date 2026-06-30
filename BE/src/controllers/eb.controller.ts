@@ -5,6 +5,8 @@ import { User } from '../models/User';
 import { Chapter } from '../models/Chapter';
 import { Vote } from '../models/Vote';
 import { Meeting } from '../models/Meeting';
+import { RubricTemplate } from '../models/RubricTemplate';
+import { DEFAULT_CRITERIA } from './rubric-template.controller';
 import {
   notifySeriesPublished,
   notifySeriesEBRejected,
@@ -20,6 +22,9 @@ const CANCELLATION_RISK_THRESHOLD = 10;
  */
 export async function getPendingReview(req: Request, res: Response): Promise<void> {
   try {
+    const activeTemplate = await RubricTemplate.findOne({ isActive: true });
+    const criteriaList = activeTemplate ? activeTemplate.criteria : DEFAULT_CRITERIA;
+
     const seriesList = await Series.find({ status: 'Pending_EB' })
       .populate('mangakaId', 'displayName avatar')
       .populate('editorId', 'displayName avatar')
@@ -30,8 +35,13 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
         const [votes, chapterCount, meeting] = await Promise.all([
           EBVote.find({ seriesId: s._id }).populate('memberId', 'displayName avatar role'),
           Chapter.countDocuments({ seriesId: s._id }),
-          Meeting.findOne({ seriesId: s._id }).populate('participants', 'displayName email avatar role'),
+          Meeting.findOne({ seriesIds: s._id })
+            .populate('participants', 'displayName email avatar role')
+            .populate('rubricTemplateId'),
         ]);
+
+        const seriesTemplate = (meeting?.rubricTemplateId as any) || activeTemplate;
+        const seriesCriteriaList = seriesTemplate ? seriesTemplate.criteria : DEFAULT_CRITERIA;
 
         const votesFor = votes.filter((v) => v.decision === 'approved').length;
         const votesAgainst = votes.filter((v) => v.decision === 'rejected').length;
@@ -39,35 +49,37 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
         const userVote = userVoteObj ? userVoteObj.decision : null;
         const userVoteRubric = userVoteObj ? userVoteObj.rubric : null;
 
-        let artStyleSum = 0;
-        let storytellingSum = 0;
-        let characterDesignSum = 0;
-        let pacingSum = 0;
-        let commercialPotentialSum = 0;
+        const sums: Record<string, number> = {};
+        seriesCriteriaList.forEach((c: any) => { sums[c.key] = 0; });
         let votesWithRubricCount = 0;
 
         votes.forEach((v) => {
           if (v.rubric) {
-            artStyleSum += v.rubric.artStyle;
-            storytellingSum += v.rubric.storytelling;
-            characterDesignSum += v.rubric.characterDesign;
-            pacingSum += v.rubric.pacing;
-            commercialPotentialSum += v.rubric.commercialPotential;
-            votesWithRubricCount++;
+            let hasAny = false;
+            seriesCriteriaList.forEach((c: any) => {
+              const val = v.rubric?.[c.key];
+              if (typeof val === 'number') {
+                sums[c.key] += val;
+                hasAny = true;
+              }
+            });
+            if (hasAny) votesWithRubricCount++;
           }
         });
 
-        const averageRubric = votesWithRubricCount > 0 ? {
-          artStyle: Math.round((artStyleSum / votesWithRubricCount) * 10) / 10,
-          storytelling: Math.round((storytellingSum / votesWithRubricCount) * 10) / 10,
-          characterDesign: Math.round((characterDesignSum / votesWithRubricCount) * 10) / 10,
-          pacing: Math.round((pacingSum / votesWithRubricCount) * 10) / 10,
-          commercialPotential: Math.round((commercialPotentialSum / votesWithRubricCount) * 10) / 10,
-        } : null;
+        const averageRubric: Record<string, number> = {};
+        let totalSum = 0;
+        let totalCount = 0;
+        if (votesWithRubricCount > 0) {
+          seriesCriteriaList.forEach((c: any) => {
+            const avg = Math.round((sums[c.key] / votesWithRubricCount) * 10) / 10;
+            averageRubric[c.key] = avg;
+            totalSum += avg;
+            totalCount++;
+          });
+        }
 
-        const totalAverage = averageRubric
-          ? Math.round(((averageRubric.artStyle + averageRubric.storytelling + averageRubric.characterDesign + averageRubric.pacing + averageRubric.commercialPotential) / 5) * 10) / 10
-          : null;
+        const totalAverage = totalCount > 0 ? Math.round((totalSum / totalCount) * 10) / 10 : null;
 
         const memberVotes = votes.map((v) => ({
           _id: v._id,
@@ -89,8 +101,9 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
           totalChapters: chapterCount,
           userVote,
           userVoteRubric,
-          averageRubric: averageRubric ? { ...averageRubric, totalAverage } : null,
+          averageRubric: totalCount > 0 ? { ...averageRubric, totalAverage } : null,
           memberVotes,
+          rubricTemplate: seriesTemplate || { name: 'Default Rubric', criteria: DEFAULT_CRITERIA },
           meeting: meeting ? {
             _id: meeting._id,
             title: meeting.title,
@@ -104,7 +117,10 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
       })
     );
 
-    res.json({ series: enriched });
+    res.json({
+      series: enriched,
+      activeTemplate: activeTemplate || { name: 'Default Rubric', criteria: DEFAULT_CRITERIA }
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -182,16 +198,27 @@ export async function getDashboard(req: Request, res: Response): Promise<void> {
       })
     ).then((results) => results.filter(Boolean));
 
+    // Overdue chapters (status is NOT Published, and publicationDeadline is in the past)
+    const overdueChapters = await Chapter.find({
+      status: { $ne: 'Published' },
+      publicationDeadline: { $lt: new Date() }
+    })
+      .populate('seriesId', 'title coverImage')
+      .sort({ publicationDeadline: 1 })
+      .lean();
+
     res.json({
       stats: {
         pendingCount,
         activeCount,
         cancellationRiskCount,
         totalDecisions,
+        overdueCount: overdueChapters.length
       },
       atRiskSeries,
       recentDecisions,
       lowRatingChapters,
+      overdueChapters
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -207,20 +234,28 @@ export async function castVote(req: Request, res: Response): Promise<void> {
     const { seriesId } = req.params;
     const { decision, comments, rubric } = req.body;
     let finalDecision = decision;
+
+    const meeting = await Meeting.findOne({ seriesIds: seriesId }).populate('rubricTemplateId');
+    const meetingTemplate = meeting?.rubricTemplateId as any;
+    const activeTemplate = meetingTemplate || await RubricTemplate.findOne({ isActive: true });
+    const criteriaList = activeTemplate ? activeTemplate.criteria : DEFAULT_CRITERIA;
+
     if (rubric) {
-      const { artStyle, storytelling, characterDesign, pacing, commercialPotential } = rubric;
+      let sum = 0;
+      let count = 0;
       const checkVal = (val: any) => typeof val === 'number' && val >= 1 && val <= 10;
-      if (
-        !checkVal(artStyle) ||
-        !checkVal(storytelling) ||
-        !checkVal(characterDesign) ||
-        !checkVal(pacing) ||
-        !checkVal(commercialPotential)
-      ) {
-        res.status(400).json({ error: 'All rubric criteria scores must be numbers between 1 and 10.' });
-        return;
+
+      for (const criterion of criteriaList) {
+        const val = rubric[criterion.key];
+        if (!checkVal(val)) {
+          res.status(400).json({ error: `Rubric score for "${criterion.label}" must be a number between 1 and 10.` });
+          return;
+        }
+        sum += val;
+        count++;
       }
-      const average = (artStyle + storytelling + characterDesign + pacing + commercialPotential) / 5;
+
+      const average = count > 0 ? sum / count : 5;
       finalDecision = average >= 5 ? 'approved' : 'rejected';
     }
 
@@ -240,7 +275,6 @@ export async function castVote(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const meeting = await Meeting.findOne({ seriesId: series._id });
     if (!meeting) {
       res.status(400).json({ error: 'Voting is not allowed until a review meeting is scheduled for this series.' });
       return;
@@ -295,7 +329,7 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       return;
     }
 
-    const meeting = await Meeting.findOne({ seriesId: series._id });
+    const meeting = await Meeting.findOne({ seriesIds: series._id });
     if (!meeting) {
       res.status(400).json({ error: 'Voting cannot be finalized because no review meeting has been scheduled for this series.' });
       return;
