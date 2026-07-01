@@ -55,12 +55,25 @@ type ZoneData = {
   progress: number
 }
 
+type StandaloneLayer = {
+  _id: string
+  name: string
+  imageUrl: string
+  createdBy: string
+}
+
 type PageData = {
   _id: string
   pageNumber: number
   originalImage: string
   width: number
   height: number
+  layerOrder?: Array<{
+    taskId?: string
+    layerId?: StandaloneLayer | null
+    position: number
+  }>
+  updatedAt?: string
 }
 
 type TaskData = {
@@ -76,6 +89,7 @@ type TaskData = {
   assignmentLevel?: 'chapter' | 'page'
   pageId?: any
   submittedFile?: string
+  updatedAt?: string
 }
 
 /* ── Canvas annotation parser ────────────────────────── */
@@ -280,6 +294,15 @@ function StudioWorkspacePageContent() {
   const [selectedLayersForTask, setSelectedLayersForTask] = useState<string[]>([])
   const [canvasToken, setCanvasToken] = useState(0)
 
+  // ── Standalone Layer states ────────────────────────
+  const [showAddLayerDialog, setShowAddLayerDialog] = useState(false)
+  const [newLayerName, setNewLayerName] = useState('')
+  const [newLayerFile, setNewLayerFile] = useState<File | null>(null)
+  const [addingLayer, setAddingLayer] = useState(false)
+  const [showDeleteLayerConfirm, setShowDeleteLayerConfirm] = useState<{ id: string; type: 'task' | 'standalone'; name: string } | null>(null)
+  const [deletingLayer, setDeletingLayer] = useState(false)
+  const [unpublishingChapter, setUnpublishingChapter] = useState(false)
+
   // ── Fabric.js refs ────────────────────────────────
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const canvasElRef = useRef<HTMLCanvasElement>(null)
@@ -364,6 +387,17 @@ function StudioWorkspacePageContent() {
   // Series was recently rejected (has rejection notes)
   const wasRejected = !!currentSeries?.rejectionNotes
 
+  // Chapter is locked when published (but ONLY for mangaka or assistant role)
+  const isPublishedLocked = currentChapter?.status === 'Published' && (user?.role === 'mangaka' || user?.role === 'assistant')
+  // Chapter is locked when under review, approved, or published (but ONLY for mangaka or assistant role)
+  const isChapterLocked =
+    (currentChapter?.status === 'Reviewing' ||
+      currentChapter?.status === 'Approved' ||
+      currentChapter?.status === 'Published') &&
+    (user?.role === 'mangaka' || user?.role === 'assistant')
+  const isStudioLocked = isReviewLocked || isChapterLocked
+  const canUnpublish = currentChapter?.status === 'Published' && (user?.role === 'editor' || user?.role === 'editorial_board')
+
   // ── Enhanced Layer effects & handlers ──────────────
   // Trigger Submit Review dialog if requested via URL params
   useEffect(() => {
@@ -380,7 +414,7 @@ function StudioWorkspacePageContent() {
   // Synchronize layer order from database or defaults
   useEffect(() => {
     if (!currentPage) return
-    const orderedFromDb = (currentPage as any).layerOrder || []
+    const orderedFromDb = currentPage.layerOrder || []
 
     const layerTasks = pageTasks.filter(
       (t) =>
@@ -391,25 +425,55 @@ function StudioWorkspacePageContent() {
           t.pageId === currentPage?._id)
     )
 
-    const defaultIds = ['base', ...layerTasks.map(t => t._id)]
+    const standaloneLayers = (currentPage.layerOrder || [])
+      .map(item => item.layerId)
+      .filter((layer): layer is StandaloneLayer => !!layer && typeof layer === 'object')
+
+    const defaultIds = [
+      'base',
+      ...layerTasks.map(t => t._id),
+      ...standaloneLayers.map(l => l._id)
+    ]
 
     if (orderedFromDb.length > 0) {
-      const sortedDbTaskIds = [...orderedFromDb]
+      const sortedDbIds = [...orderedFromDb]
         .sort((a, b) => a.position - b.position)
-        .map(item => item.taskId ? item.taskId.toString() : 'base')
+        .map(item => {
+          if (item.taskId) return item.taskId.toString()
+          if (item.layerId) {
+            const lVal = item.layerId as any
+            return typeof lVal === 'object' && lVal ? lVal._id.toString() : String(lVal)
+          }
+          return 'base'
+        })
 
-      const existingDbIds = sortedDbTaskIds.filter(id => id === 'base' || layerTasks.some(t => t._id === id))
+      const existingDbIds = sortedDbIds.filter(id => 
+        id === 'base' || 
+        layerTasks.some(t => t._id === id) || 
+        standaloneLayers.some(l => l._id === id)
+      )
 
       if (!existingDbIds.includes('base')) {
         existingDbIds.unshift('base')
       }
 
-      const missingIds = defaultIds.filter(id => !existingDbIds.includes(id))
+      const missingIds = defaultIds.filter(id => {
+        if (existingDbIds.includes(id)) return false
+        if (id === 'base') return false
+
+        const task = layerTasks.find(t => t._id === id)
+        if (task && currentPage && task.updatedAt && currentPage.updatedAt) {
+          const taskTime = new Date(task.updatedAt).getTime()
+          const pageTime = new Date(currentPage.updatedAt).getTime()
+          return taskTime > pageTime
+        }
+        return true
+      })
       setLayerOrderList([...existingDbIds, ...missingIds])
     } else {
       setLayerOrderList(defaultIds)
     }
-  }, [currentPage?._id, pageTasks])
+  }, [currentPage?._id, pageTasks, currentPage?.layerOrder])
 
   // Fast-path: sync visibility/opacity by iterating actual canvas objects
   useEffect(() => {
@@ -437,7 +501,7 @@ function StudioWorkspacePageContent() {
 
       if (seen.has(taskId)) {
         // Duplicate — remove it
-        console.warn('Fast-path: removing duplicate canvas object for task', taskId)
+        console.warn('Fast-path: removing duplicate canvas object for task/layer', taskId)
         fc.remove(obj)
         continue
       }
@@ -492,10 +556,14 @@ function StudioWorkspacePageContent() {
 
     if (isMangaka && currentPage?._id) {
       try {
-        const payload = newOrderList.map((id, pos) => ({
-          taskId: id === 'base' ? null : id,
-          position: pos
-        }))
+        const payload = newOrderList.map((id, pos) => {
+          const isTask = pageTasks.some(t => t._id === id)
+          return {
+            taskId: isTask ? id : null,
+            layerId: !isTask && id !== 'base' ? id : null,
+            position: pos
+          }
+        })
         await pagesAPI.updateLayerOrder(currentPage._id, payload as any)
       } catch (err) {
         console.error('Failed to save layer order:', err)
@@ -552,8 +620,30 @@ function StudioWorkspacePageContent() {
             (t.assignmentLevel === 'chapter' ||
               t.pageId?._id === page._id ||
               t.pageId === page._id)
-        )
-        initialSelection[page._id] = pageLayers.map(l => l._id)
+        ).filter((t) => {
+          const inLayerOrder = page.layerOrder && page.layerOrder.some((item: any) => {
+            const taskIdStr = item.taskId ? String(item.taskId._id || item.taskId) : null
+            return taskIdStr === t._id
+          })
+          if (inLayerOrder) return true
+
+          if (page.layerOrder && page.layerOrder.length > 0 && page.updatedAt && t.updatedAt) {
+            const taskTime = new Date(t.updatedAt).getTime()
+            const pageTime = new Date(page.updatedAt).getTime()
+            return taskTime > pageTime
+          }
+          return true
+        }).map(l => l._id)
+
+        const standaloneLayers = (page.layerOrder || [])
+          .map(item => item.layerId)
+          .filter((layer): layer is any => {
+            const lVal = layer as any
+            return !!lVal && typeof lVal === 'object'
+          })
+          .map(l => l._id)
+
+        initialSelection[page._id] = [...pageLayers, ...standaloneLayers]
       })
       setSubmitReviewSelection(initialSelection)
     }
@@ -564,9 +654,18 @@ function StudioWorkspacePageContent() {
     setSubmittingReview(true)
     try {
       const payload = Object.entries(submitReviewSelection).map(([pageId, taskIds]) => {
-        // Sort selected layers according to current layerOrderList to preserve the Mangaka's layer layout
+        // Sort selected layers according to that specific page's layerOrder to preserve layout sequence
+        const pageObj = pages.find(p => p._id === pageId)
+        const orderList = pageObj
+          ? (pageObj.layerOrder || []).map((item: any) => {
+              if (item.taskId) return String(item.taskId._id || item.taskId)
+              if (item.layerId) return String(item.layerId._id || item.layerId)
+              return ''
+            })
+          : []
+
         const sortedIds = [...taskIds].sort((a, b) => {
-          return layerOrderList.indexOf(a) - layerOrderList.indexOf(b)
+          return orderList.indexOf(a) - orderList.indexOf(b)
         })
         return {
           pageId,
@@ -1384,8 +1483,18 @@ function StudioWorkspacePageContent() {
             t.pageId === currentPage?._id)
       )
 
+      const standaloneLayers = (currentPage?.layerOrder || [])
+        .map(item => item.layerId)
+        .filter((layer): layer is StandaloneLayer => !!layer && typeof layer === 'object')
+
+      // Unified array of active layer overlays (tasks and standalone layers)
+      const layersToRender = [
+        ...layerTasks.map((t) => ({ id: t._id, url: t.submittedFile!, title: t.title })),
+        ...standaloneLayers.map((l) => ({ id: l._id, url: l.imageUrl, title: l.name })),
+      ].filter((item) => layerOrderList.includes(item.id))
+
       // Remove obsolete layers
-      const activeTaskIds = new Set(layerTasks.map((t) => t._id))
+      const activeTaskIds = new Set(layersToRender.map((item) => item.id))
       Object.keys(layerImagesRef.current).forEach((taskId) => {
         if (!activeTaskIds.has(taskId)) {
           fc.remove(layerImagesRef.current[taskId])
@@ -1398,8 +1507,8 @@ function StudioWorkspacePageContent() {
       const bgScaleX = bg.scaleX || 1
       const bgScaleY = bg.scaleY || 1
 
-      layerTasks.forEach((task) => {
-        const taskId = task._id
+      layersToRender.forEach((layerItem) => {
+        const taskId = layerItem.id
         const config = layersConfig[taskId] || { visible: true, opacity: 100 }
         const isVisible = config.visible !== false
         const opacity = (config.opacity ?? 100) / 100
@@ -1414,9 +1523,9 @@ function StudioWorkspacePageContent() {
           existingImg.dirty = true
           if (!fc.getObjects().includes(existingImg)) fc.add(existingImg)
         } else {
-          const layerUrl = task.submittedFile!.startsWith('http')
-            ? task.submittedFile!
-            : `${apiBase}${task.submittedFile}`
+          const layerUrl = layerItem.url.startsWith('http')
+            ? layerItem.url
+            : `${apiBase}${layerItem.url}`
 
           FabricImage.fromURL(layerUrl, { crossOrigin: 'anonymous' })
             .then((img) => {
@@ -1433,12 +1542,12 @@ function StudioWorkspacePageContent() {
                 opacity, visible: isVisible,
                 selectable: false, evented: false, hoverCursor: 'default',
               })
-                ; (img as any)._layerTaskId = taskId
+              ; (img as any)._layerTaskId = taskId
               layerImagesRef.current[taskId] = img
               fc.add(img)
               syncCanvasLayersOrder(bg)
             })
-            .catch((err) => console.error(`Failed to load layer for task ${taskId}:`, err))
+            .catch((err) => console.error(`Failed to load layer ${layerItem.title} (${taskId}):`, err))
         }
       })
 
@@ -2178,6 +2287,82 @@ function StudioWorkspacePageContent() {
     } catch (e) { console.error(e) }
   }
 
+  const handleAddLayer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentPage?._id || !newLayerFile) return
+
+    setAddingLayer(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', newLayerFile)
+      formData.append('name', newLayerName.trim())
+
+      await pagesAPI.addLayer(currentPage._id, formData)
+      
+      if (selectedChapterId) {
+        const pagesRes = await pagesAPI.getByChapter(selectedChapterId)
+        setPages(pagesRes.data.pages || [])
+      }
+
+      alert(t('studio.layerAdded', 'Layer added successfully!'))
+      setShowAddLayerDialog(false)
+      setNewLayerName('')
+      setNewLayerFile(null)
+    } catch (err: any) {
+      console.error(err)
+      alert(err.response?.data?.error || 'Failed to add layer')
+    } finally {
+      setAddingLayer(false)
+    }
+  }
+
+  const handleDeleteLayerConfirm = async () => {
+    if (!currentPage?._id || !showDeleteLayerConfirm) return
+
+    setDeletingLayer(true)
+    try {
+      const { id, type } = showDeleteLayerConfirm
+      await pagesAPI.removeLayer(currentPage._id, id, type)
+
+      if (selectedChapterId) {
+        const pagesRes = await pagesAPI.getByChapter(selectedChapterId)
+        setPages(pagesRes.data.pages || [])
+      }
+
+      alert(t('studio.layerDeleted', 'Layer removed successfully!'))
+      setShowDeleteLayerConfirm(null)
+    } catch (err: any) {
+      console.error(err)
+      alert(err.response?.data?.error || 'Failed to remove layer')
+    } finally {
+      setDeletingLayer(false)
+    }
+  }
+
+  const handleUnpublishChapter = async () => {
+    if (!currentChapter?._id) return
+    if (!window.confirm(t('studio.unpublishConfirm', 'Are you sure you want to unpublish this chapter? This will set it back to Draft status.'))) {
+      return
+    }
+
+    setUnpublishingChapter(true)
+    try {
+      await chaptersAPI.updateStatus(currentChapter._id, 'Draft')
+      alert(t('studio.unpublishSuccess', 'Chapter unpublished successfully! It is now in Draft mode.'))
+      
+      // Update selected chapter in state to reflect the status change
+      setChapters(prev => prev.map(c => c._id === currentChapter._id ? { ...c, status: 'Draft' } : c))
+      
+      // Reload studio workspace data and canvas layers
+      handleReloadData()
+    } catch (err: any) {
+      console.error(err)
+      alert(err.response?.data?.error || 'Failed to unpublish chapter')
+    } finally {
+      setUnpublishingChapter(false)
+    }
+  }
+
   useEffect(() => {
     const timer = setTimeout(async () => {
       const q = shareUserQuery.trim()
@@ -2324,13 +2509,23 @@ function StudioWorkspacePageContent() {
         {/* Tools */}
         <div className="flex items-center gap-1 shrink-0">
           {tools.map(({ icon: Icon, label, key }) => {
-            // When series is locked for review, only allow select & pan
-            const isToolLocked = isReviewLocked && (key === 'zone' || key === 'draw' || key === 'text')
+            // When studio is locked, only allow select & pan
+            const isToolLocked = isStudioLocked && (key === 'zone' || key === 'draw' || key === 'text')
+            let lockReason = ''
+            if (isReviewLocked) {
+              lockReason = 'series under review'
+            } else if (currentChapter?.status === 'Reviewing') {
+              lockReason = 'chapter under review'
+            } else if (currentChapter?.status === 'Approved') {
+              lockReason = 'chapter approved'
+            } else if (currentChapter?.status === 'Published') {
+              lockReason = 'chapter is published'
+            }
             return (
               <button
                 key={key}
                 type="button"
-                title={isToolLocked ? `${label} (Locked — series under review)` : label}
+                title={isToolLocked ? `${label} (Locked — ${lockReason})` : label}
                 className={`grid size-8 place-items-center rounded-lg transition-colors ${isToolLocked
                   ? 'text-neutral-300 cursor-not-allowed'
                   : activeTool === key
@@ -2408,7 +2603,7 @@ function StudioWorkspacePageContent() {
             <Trash2 className="size-4" />
           </button>
 
-          {isMangaka && !isReviewLocked && (
+          {isMangaka && !isStudioLocked && (
             <>
               <div className="mx-2 h-5 w-px bg-neutral-200" />
               <label className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 cursor-pointer" title="Upload page">
@@ -2505,6 +2700,67 @@ function StudioWorkspacePageContent() {
         </div>
       )}
 
+      {/* ── Chapter Review Lock Banner (for Mangakas and Assistants) ───────────── */}
+      {!isReviewLocked && (currentChapter?.status === 'Reviewing' || currentChapter?.status === 'Approved') && (user?.role === 'mangaka' || user?.role === 'assistant') && (
+        <div className="flex items-center gap-2.5 border-b border-amber-200 bg-amber-50 px-4 py-2 shrink-0">
+          <div className="grid size-6 place-items-center rounded-lg bg-amber-100">
+            <AlertCircle className="size-3.5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-800">
+              {currentChapter?.status === 'Approved'
+                ? t('studio.chapterApprovedLocked', 'Chapter is approved — Studio editing locked')
+                : t('studio.chapterReviewLocked', 'Chapter is under review — Studio editing temporarily locked')}
+            </p>
+            <p className="text-[10px] text-amber-600 mt-0.5">
+              {t('studio.chapterReviewLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit layers until the review is complete.')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Published Lock Banner (for Mangakas and Assistants) ────────────────── */}
+      {isPublishedLocked && (
+        <div className="flex items-center gap-2.5 border-b border-blue-200 bg-blue-50 px-4 py-2 shrink-0">
+          <div className="grid size-6 place-items-center rounded-lg bg-blue-100">
+            <AlertCircle className="size-3.5 text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-blue-800">
+              {t('studio.publishedLockedTitle', 'Chapter has been published — Studio editing locked')}
+            </p>
+            <p className="text-[10px] text-blue-600 mt-0.5">
+              {t('studio.publishedLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit layers for published chapters.')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Editor Published Info Banner (for Editors/EB with Unpublish) ────────── */}
+      {!isPublishedLocked && currentChapter?.status === 'Published' && canUnpublish && (
+        <div className="flex items-center gap-2.5 border-b border-indigo-200 bg-indigo-50 px-4 py-2 shrink-0">
+          <div className="grid size-6 place-items-center rounded-lg bg-indigo-100">
+            <AlertCircle className="size-3.5 text-indigo-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-indigo-800">
+              {t('studio.publishedEditorInfoTitle', 'Chapter has been published — Editor access active')}
+            </p>
+            <p className="text-[10px] text-indigo-600 mt-0.5">
+              {t('studio.publishedEditorInfoDescription', 'Editing is unlocked for editors. You can edit the canvas, manage tasks, or unpublish the chapter to return it to Draft status.')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleUnpublishChapter}
+            disabled={unpublishingChapter}
+            className="px-2.5 py-1 text-[10px] font-semibold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 rounded transition-colors disabled:opacity-50"
+          >
+            {unpublishingChapter ? t('studio.unpublishing', 'Unpublishing...') : t('studio.unpublish', 'Unpublish')}
+          </button>
+        </div>
+      )}
+
       {/* ── Rejection Warning Banner ──────────────────── */}
       {wasRejected && (
         <div className="flex items-center gap-2.5 border-b border-red-200 bg-red-50 px-4 py-2 shrink-0">
@@ -2547,7 +2803,7 @@ function StudioWorkspacePageContent() {
                     ? t('studio.uploadHint', 'Upload manga pages to get started.')
                     : t('studio.waitHint', 'Waiting for mangaka to upload pages.')}
                 </p>
-                {isMangaka && !isReviewLocked && (
+                {isMangaka && !isStudioLocked && (
                   <label className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-900 text-white px-4 py-2 text-xs font-medium cursor-pointer hover:bg-neutral-800 transition-colors">
                     <Upload className="size-3.5" />
                     {t('studio.uploadPage', 'Upload Page')}
@@ -2624,7 +2880,7 @@ function StudioWorkspacePageContent() {
               tabs={[
                 { key: 'zones', label: t('studio.zones', 'Zones') },
                 { key: 'tasks', label: t('studio.tasks', 'Tasks'), count: pageTasks.filter(t => t.status !== 'done').length },
-                { key: 'layers', label: t('studio.layers', 'Layers'), count: pageTasks.filter(t => t.submittedFile && (t.status === 'review' || t.status === 'done') && (t.assignmentLevel === 'chapter' || t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id)).length },
+                { key: 'layers', label: t('studio.layers', 'Layers'), count: layerOrderList.length },
                 { key: 'annotations', label: t('studio.editorFeedback', 'Feedback'), count: pageAnnotations.filter(a => a.pageId === currentPage?._id && a.status === 'open').length },
                 { key: 'pages', label: t('studio.pages', 'Pages') },
                 { key: 'access', label: 'Access' },
@@ -2774,7 +3030,7 @@ function StudioWorkspacePageContent() {
                         <Layers className="size-4 text-neutral-500" />
                         <span className="text-xs font-semibold text-neutral-700">{t('studio.pageZones', 'Page Zones')}</span>
                       </div>
-                      {isMangaka && !isReviewLocked && (
+                      {isMangaka && !isStudioLocked && (
                         <Button
                           variant="ghost" size="sm" className="size-6 p-0 rounded-md"
                           onClick={() => setActiveTool('zone')}
@@ -2814,7 +3070,7 @@ function StudioWorkspacePageContent() {
                               >
                                 {zoneVisibility[zone._id] ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
                               </button>
-                              {isMangaka && !isReviewLocked && (
+                              {isMangaka && !isStudioLocked && (
                                 <button
                                   type="button"
                                   className="grid size-5 place-items-center rounded text-neutral-400 hover:text-red-500 transition-colors"
@@ -2852,7 +3108,7 @@ function StudioWorkspacePageContent() {
             {/* ── Tasks tab ───────────────────────────── */}
             {rightTab === 'tasks' && (
               <div className="space-y-3">
-                {isMangaka && !isReviewLocked && (
+                {isMangaka && !isStudioLocked && (
                   <div className="space-y-2">
                     {seriesStatus !== 'Active' ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-left space-y-1">
@@ -2998,7 +3254,7 @@ function StudioWorkspacePageContent() {
                             )}
                           </div>
 
-                          {task.status === 'review' && isMangaka && !isReviewLocked && (
+                          {task.status === 'review' && isMangaka && !isStudioLocked && (
                             <Button
                               size="sm"
                               onClick={() => handleOpenReview(task)}
@@ -3009,7 +3265,7 @@ function StudioWorkspacePageContent() {
                             </Button>
                           )}
 
-                          {task.status === 'open' && isMangaka && !isReviewLocked && (
+                          {task.status === 'open' && isMangaka && !isStudioLocked && (
                             <div className="flex gap-1.5 mt-2">
                               <Button
                                 size="sm"
@@ -3031,7 +3287,7 @@ function StudioWorkspacePageContent() {
                             </div>
                           )}
 
-                          {task.status === 'assigned' && isMangaka && !isReviewLocked && (
+                          {task.status === 'assigned' && isMangaka && !isStudioLocked && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -3186,7 +3442,7 @@ function StudioWorkspacePageContent() {
                       <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] py-0.5 text-center">
                         {p.pageNumber}
                       </span>
-                      {isMangaka && !isReviewLocked && (
+                      {isMangaka && !isStudioLocked && (
                         <button
                           type="button"
                           className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-black/50 text-white opacity-0 transition-all hover:bg-red-500 group-hover:opacity-100"
@@ -3210,9 +3466,25 @@ function StudioWorkspacePageContent() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
                   <span className="text-xs font-semibold text-neutral-700">{t('studio.pageLayers', 'Page Layers')}</span>
-                  <span className="text-[10px] text-neutral-500">
-                    {layerOrderList.length} layers
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-neutral-500">
+                      {layerOrderList.length} layers
+                    </span>
+                    {isMangaka && !isStudioLocked && (
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setNewLayerName('')
+                          setNewLayerFile(null)
+                          setShowAddLayerDialog(true)
+                        }}
+                        className="h-6 px-2 text-[10px] bg-neutral-900 text-white hover:bg-neutral-800 flex items-center gap-1"
+                      >
+                        <Plus className="size-3" />
+                        {t('studio.addLayer', 'Add')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -3325,16 +3597,27 @@ function StudioWorkspacePageContent() {
                         )
                       }
 
-                      // Render Assistant Layer Card
+                      // Render Assistant or Standalone Layer Card
                       const task = pageTasks.find(t => t._id === id)
-                      if (!task || !task.submittedFile) return null
+                      const standaloneLayers = (currentPage?.layerOrder || [])
+                        .map(item => item.layerId)
+                        .filter((layer): layer is StandaloneLayer => !!layer && typeof layer === 'object')
+                      const standaloneLayer = standaloneLayers.find(l => l._id === id)
 
-                      const taskId = task._id
+                      if (!task && !standaloneLayer) return null
+
+                      const isStandalone = !!standaloneLayer
+                      const taskId = id
                       const config = layersConfig[taskId] || { visible: true, opacity: 100 }
                       const isVisible = config.visible !== false
                       const opacity = config.opacity ?? 100
                       const isDragged = draggedLayerIdx === actualIndex
                       const isDragOver = dragOverLayerIdx === actualIndex
+
+                      const layerTitle = standaloneLayer ? standaloneLayer.name : task!.title
+                      const layerTypeLabel = standaloneLayer ? t('studio.standaloneLayer', 'Standalone Layer') : `${task!.type} Layer`
+                      const layerSubtitle = standaloneLayer ? t('studio.uploadedLayer', 'Uploaded Layer') : (task!.assignedTo?.displayName || 'Assistant')
+                      const layerFileUrl = standaloneLayer ? standaloneLayer.imageUrl : task!.submittedFile!
 
                       return (
                         <div
@@ -3356,21 +3639,21 @@ function StudioWorkspacePageContent() {
                               <div
                                 className="drag-handle p-1 hover:bg-neutral-100 rounded cursor-grab active:cursor-grabbing shrink-0 flex items-center justify-center"
                                 onMouseDown={() => setDragReadyIdx(actualIndex)}
-                                onMouseUp={() => setDragReadyIdx(null)}
+                                  onMouseUp={() => setDragReadyIdx(null)}
                               >
                                 <GripVertical className="size-4 text-neutral-400" />
                               </div>
                               <div className="size-8 rounded bg-neutral-100 overflow-hidden shrink-0 border border-neutral-200 flex items-center justify-center">
                                 <img
-                                  src={task.submittedFile.startsWith('http') ? task.submittedFile : `${apiBase}${task.submittedFile}`}
-                                  alt={task.title}
+                                  src={layerFileUrl.startsWith('http') ? layerFileUrl : `${apiBase}${layerFileUrl}`}
+                                  alt={layerTitle}
                                   className="h-full w-full object-contain bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22 viewBox=%220 0 8 8%22><rect width=%224%22 height=%224%22 fill=%22%23eee%22/><rect x=%224%22 y=%224%22 width=%224%22 height=%224%22 fill=%22%23eee%22/></svg>')] bg-[size:8px_8px]"
                                 />
                               </div>
                               <div className="min-w-0">
-                                <p className="text-xs font-semibold truncate">{task.title}</p>
+                                <p className="text-xs font-semibold truncate">{layerTitle}</p>
                                 <p className="text-[9px] text-neutral-400 capitalize">
-                                  {task.type} Layer · {task.assignedTo?.displayName || 'Assistant'}
+                                  {layerTypeLabel} · {layerSubtitle}
                                 </p>
                               </div>
                             </div>
@@ -3420,6 +3703,24 @@ function StudioWorkspacePageContent() {
                               >
                                 {isVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
                               </button>
+
+                              {/* Delete Layer button (visible only to Mangaka) */}
+                              {isMangaka && !isStudioLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowDeleteLayerConfirm({
+                                      id: taskId,
+                                      type: isStandalone ? 'standalone' : 'task',
+                                      name: layerTitle,
+                                    })
+                                  }}
+                                  className="p-1.5 rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all"
+                                  title={t('studio.deleteLayer', 'Remove Layer')}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -3433,14 +3734,14 @@ function StudioWorkspacePageContent() {
                               value={opacity}
                               onChange={(e) => {
                                 const newOpacity = Number(e.target.value)
-                                setLayersConfig((prev) => ({
-                                  ...prev,
-                                  [taskId]: { ...config, opacity: newOpacity },
-                                }))
+                                  setLayersConfig((prev) => ({
+                                    ...prev,
+                                    [taskId]: { ...config, opacity: newOpacity },
+                                  }))
                               }}
                               className="flex-1 h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
                               disabled={!isVisible}
-                              aria-label={`${task.title} Opacity`}
+                              aria-label={`${layerTitle} Opacity`}
                             />
                             <span className="font-medium text-neutral-800 w-8 text-right shrink-0">
                               {opacity}%
@@ -3458,12 +3759,12 @@ function StudioWorkspacePageContent() {
               <div className="space-y-3">
                 <div>
                   <div className="text-xs font-semibold text-neutral-700 mb-2">Share access</div>
-                  <div className={`space-y-2 rounded-xl border border-neutral-200 p-3 ${isReviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <div className={`space-y-2 rounded-xl border border-neutral-200 p-3 ${isStudioLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <Input
                       placeholder="Search user by name or email"
                       value={shareUserQuery}
                       onChange={(e) => setShareUserQuery(e.target.value)}
-                      disabled={isReviewLocked}
+                      disabled={isStudioLocked}
                     />
                     {shareError && <div className="text-[10px] text-red-500">{shareError}</div>}
                     <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-100 p-1">
@@ -3484,7 +3785,7 @@ function StudioWorkspacePageContent() {
                               setShareRole('assistant')
                             }
                           }}
-                          disabled={isReviewLocked}
+                          disabled={isStudioLocked}
                         >
                           <div className="font-medium">{u.displayName}</div>
                           <div className="text-[10px] text-neutral-500">{u.email} · {u.role}</div>
@@ -3510,13 +3811,13 @@ function StudioWorkspacePageContent() {
                     )}
                     <div className="grid grid-cols-3 gap-2 text-[10px]">
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} disabled={isReviewLocked} /> edit
+                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} disabled={isStudioLocked} /> edit
                       </label>
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} disabled={isReviewLocked} /> comment
+                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} disabled={isStudioLocked} /> comment
                       </label>
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} disabled={isReviewLocked} /> invite
+                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} disabled={isStudioLocked} /> invite
                       </label>
                     </div>
                     {shareError && <div className="rounded-lg bg-red-50 px-2 py-1.5 text-[10px] text-red-600">{shareError}</div>}
@@ -3542,7 +3843,7 @@ function StudioWorkspacePageContent() {
                           </div>
                         </div>
                         {isMangaka && String(member.userId?._id || member.userId) !== String(user?._id) && (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))} disabled={isReviewLocked}>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))} disabled={isStudioLocked}>
                             Remove
                           </Button>
                         )}
@@ -4207,9 +4508,9 @@ function StudioWorkspacePageContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100 shrink-0">
-              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5 font-bold">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5 font-bold font-bold">
                 <Send className="size-4 text-neutral-800" />
-                Nộp Review Chương: Ch. {currentChapter?.chapterNumber} - {currentChapter?.title}
+                {t('studio.submitReviewTitle', 'Submit Chapter for Review')}: Ch. {currentChapter?.chapterNumber} - {currentChapter?.title}
               </h3>
               <button
                 onClick={() => setShowSubmitReviewDialog(false)}
@@ -4219,32 +4520,87 @@ function StudioWorkspacePageContent() {
                 <X className="size-4" />
               </button>
             </div>
-
+ 
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs leading-normal">
               <p className="text-neutral-500">
-                Chọn các layer (bản vẽ) muốn nộp từ assistants cho từng trang. Hệ thống sẽ tự động ghép (merge) các layer đã chọn thành một bức ảnh hoàn chỉnh cho mỗi trang để Editor duyệt.
+                {t('studio.submitReviewDescription', 'Select the assistant layers and standalone layers to submit for each page. The system will automatically composite the selected layers onto the base page for review.')}
               </p>
-
+ 
               <div className="space-y-4">
                 {pages.map((page) => {
-                  const pageLayers = pageTasks.filter(
+                  // Get assistant layers
+                  const assistantLayers = pageTasks.filter(
                     (t) =>
                       t.submittedFile &&
                       (t.status === 'review' || t.status === 'done') &&
                       (t.assignmentLevel === 'chapter' ||
                         t.pageId?._id === page._id ||
                         t.pageId === page._id)
-                  )
+                  ).filter((t) => {
+                    const inLayerOrder = page.layerOrder && page.layerOrder.some((item: any) => {
+                      const taskIdStr = item.taskId ? String(item.taskId._id || item.taskId) : null
+                      return taskIdStr === t._id
+                    })
+                    if (inLayerOrder) return true
+
+                    if (page.layerOrder && page.layerOrder.length > 0 && page.updatedAt && t.updatedAt) {
+                      const taskTime = new Date(t.updatedAt).getTime()
+                      const pageTime = new Date(page.updatedAt).getTime()
+                      return taskTime > pageTime
+                    }
+                    return true
+                  })
+
+                  // Combine them in correct z-index order based on page.layerOrder
+                  const combinedLayers: Array<{ id: string; title: string; subtitle: string; isStandalone: boolean }> = []
+                  for (const entry of page.layerOrder || []) {
+                    if (entry.taskId) {
+                      const task = assistantLayers.find(t => t._id === String(entry.taskId))
+                      if (task) {
+                        combinedLayers.push({
+                          id: task._id,
+                          title: task.title,
+                          subtitle: `${task.type || 'Assistant'} · ${task.assignedTo?.displayName || 'Assistant'}`,
+                          isStandalone: false
+                        })
+                      }
+                    } else if (entry.layerId) {
+                      const lVal = entry.layerId as any
+                      if (lVal && typeof lVal === 'object') {
+                        combinedLayers.push({
+                          id: lVal._id,
+                          title: lVal.name,
+                          subtitle: t('studio.standaloneLayer', 'Standalone Layer'),
+                          isStandalone: true
+                        })
+                      }
+                    }
+                  }
+
+                  // Append any assistant layers not in layerOrder
+                  const processedIds = new Set(combinedLayers.map(l => l.id))
+                  for (const task of assistantLayers) {
+                    if (!processedIds.has(task._id)) {
+                      combinedLayers.push({
+                        id: task._id,
+                        title: task.title,
+                        subtitle: `${task.type || 'Assistant'} · ${task.assignedTo?.displayName || 'Assistant'}`,
+                        isStandalone: false
+                      })
+                    }
+                  }
 
                   const selected = submitReviewSelection[page._id] || []
-
+ 
                   return (
                     <div key={page._id} className="p-3 border border-neutral-200 rounded-xl space-y-3 bg-neutral-50/50">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-neutral-800">Trang {page.pageNumber}</span>
-                        <span className="text-[10px] text-neutral-500 font-semibold">{pageLayers.length} layer trợ lý</span>
+                        <span className="font-bold text-neutral-800">{t('studio.pageLabel', 'Page {{num}}', { num: page.pageNumber })}</span>
+                        <span className="text-[10px] text-neutral-500 font-semibold">
+                          {t('studio.layerCountLabel', '{{count}} layers', { count: combinedLayers.length })}
+                        </span>
                       </div>
-
+ 
                       <div className="flex gap-4 items-start">
                         {/* Page Thumbnail */}
                         <div className="size-20 shrink-0 border border-neutral-300 rounded-lg overflow-hidden bg-neutral-200 shadow-sm">
@@ -4254,16 +4610,18 @@ function StudioWorkspacePageContent() {
                             className="w-full h-full object-cover"
                           />
                         </div>
-
+ 
                         {/* Layers List checkboxes */}
                         <div className="flex-1 space-y-2">
-                          {pageLayers.length === 0 ? (
-                            <p className="text-neutral-400 italic text-[11px] py-2">Không có layer assistant nào (chỉ nộp ảnh gốc).</p>
+                          {combinedLayers.length === 0 ? (
+                            <p className="text-neutral-400 italic text-[11px] py-2">
+                              {t('studio.noLayersPlaceholder', 'No assistant or standalone layers (original base page will be submitted).')}
+                            </p>
                           ) : (
-                            pageLayers.map((layer) => {
-                              const isChecked = selected.includes(layer._id)
+                            combinedLayers.map((layer) => {
+                              const isChecked = selected.includes(layer.id)
                               return (
-                                <label key={layer._id} className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-neutral-100 transition-colors">
+                                <label key={layer.id} className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-neutral-100 transition-colors">
                                   <input
                                     type="checkbox"
                                     checked={isChecked}
@@ -4272,8 +4630,8 @@ function StudioWorkspacePageContent() {
                                       setSubmitReviewSelection(prev => {
                                         const currentSel = prev[page._id] || []
                                         const updatedSel = isChecked
-                                          ? currentSel.filter(id => id !== layer._id)
-                                          : [...currentSel, layer._id]
+                                          ? currentSel.filter(id => id !== layer.id)
+                                          : [...currentSel, layer.id]
                                         return { ...prev, [page._id]: updatedSel }
                                       })
                                     }}
@@ -4281,7 +4639,7 @@ function StudioWorkspacePageContent() {
                                   />
                                   <div className="min-w-0">
                                     <span className="font-medium text-neutral-800 truncate block">{layer.title}</span>
-                                    <span className="text-[9px] text-neutral-400 capitalize block">{layer.type} · {layer.assignedTo?.displayName}</span>
+                                    <span className="text-[9px] text-neutral-400 capitalize block">{layer.subtitle}</span>
                                   </div>
                                 </label>
                               )
@@ -4294,7 +4652,7 @@ function StudioWorkspacePageContent() {
                 })}
               </div>
             </div>
-
+ 
             <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3 shrink-0">
               <Button
                 variant="outline"
@@ -4302,7 +4660,7 @@ function StudioWorkspacePageContent() {
                 onClick={() => setShowSubmitReviewDialog(false)}
                 disabled={submittingReview}
               >
-                Hủy
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button
                 size="sm"
@@ -4313,10 +4671,178 @@ function StudioWorkspacePageContent() {
                 {submittingReview ? (
                   <>
                     <div className="size-3 animate-spin rounded-full border border-white border-t-transparent" />
-                    Đang ghép và gửi...
+                    {t('studio.submittingReview', 'Submitting...')}
                   </>
                 ) : (
-                  'Xác nhận nộp review'
+                  t('studio.confirmSubmitReview', 'Confirm Submit')
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Standalone Layer Dialog ───────────────── */}
+      {showAddLayerDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <form onSubmit={handleAddLayer} className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5 font-bold">
+                <Plus className="size-4 text-neutral-800" />
+                {t('studio.addLayer', 'Add Standalone Layer')}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddLayerDialog(false)
+                  setNewLayerName('')
+                  setNewLayerFile(null)
+                }}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                disabled={addingLayer}
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
+                  {t('studio.layerName', 'Layer Name')}
+                </label>
+                <Input
+                  type="text"
+                  required
+                  placeholder={t('studio.layerNamePlaceholder', 'Enter layer name...')}
+                  value={newLayerName}
+                  onChange={(e) => setNewLayerName(e.target.value)}
+                  disabled={addingLayer}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
+                  {t('studio.uploadLayerFile', 'Upload Layer Image')}
+                </label>
+                <div className="flex items-center justify-center w-full">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-neutral-300 border-dashed rounded-xl cursor-pointer bg-neutral-50 hover:bg-neutral-100 transition-all">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="size-6 text-neutral-400 mb-2" />
+                      {newLayerFile ? (
+                        <span className="text-xs text-neutral-600 font-medium px-2 text-center truncate max-w-xs">{newLayerFile.name}</span>
+                      ) : (
+                        <p className="text-[10px] text-neutral-500 text-center px-4">
+                          <span className="font-semibold">Click to upload</span> or drag and drop PNG, JPG, WebP
+                        </p>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      required
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null
+                        setNewLayerFile(file)
+                        if (file && !newLayerName) {
+                          const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
+                          setNewLayerName(baseName)
+                        }
+                      }}
+                      disabled={addingLayer}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => {
+                  setShowAddLayerDialog(false)
+                  setNewLayerName('')
+                  setNewLayerFile(null)
+                }}
+                disabled={addingLayer}
+              >
+                {t('common.cancel', 'Cancel')}
+              </Button>
+              <Button
+                size="sm"
+                type="submit"
+                disabled={addingLayer || !newLayerFile}
+                className="bg-neutral-900 text-white hover:bg-neutral-800 flex items-center gap-1.5"
+              >
+                {addingLayer ? (
+                  <>
+                    <div className="size-3 animate-spin rounded-full border border-white border-t-transparent" />
+                    {t('studio.adding', 'Adding...')}
+                  </>
+                ) : (
+                  t('studio.addLayerConfirm', 'Add Layer')
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── Delete Layer Confirmation Dialog ───────────── */}
+      {showDeleteLayerConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5 font-bold">
+                <Trash2 className="size-4 text-rose-500" />
+                {t('studio.deleteLayerTitle', 'Remove Layer')}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowDeleteLayerConfirm(null)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                disabled={deletingLayer}
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <p className="text-neutral-600 leading-relaxed">
+                {showDeleteLayerConfirm.type === 'standalone'
+                  ? t('studio.deleteLayerWarningStandalone', 'Are you sure you want to permanently delete this standalone layer? This action cannot be undone.')
+                  : t('studio.deleteLayerWarningTask', 'Remove this assistant layer from the page compilation? The underlying task and assistant submission will NOT be deleted.')}
+              </p>
+              <div className="rounded-xl border border-neutral-200 p-2.5 bg-neutral-50/50 flex justify-between font-semibold text-neutral-800">
+                <span className="text-neutral-500 font-medium">Layer:</span>
+                <span>{showDeleteLayerConfirm.name}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDeleteLayerConfirm(null)}
+                disabled={deletingLayer}
+              >
+                {t('common.cancel', 'Cancel')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDeleteLayerConfirm}
+                disabled={deletingLayer}
+                className="bg-rose-600 text-white hover:bg-rose-700 flex items-center gap-1.5"
+              >
+                {deletingLayer ? (
+                  <>
+                    <div className="size-3 animate-spin rounded-full border border-white border-t-transparent" />
+                    {t('studio.deleting', 'Removing...')}
+                  </>
+                ) : (
+                  t('common.delete', 'Remove')
                 )}
               </Button>
             </div>

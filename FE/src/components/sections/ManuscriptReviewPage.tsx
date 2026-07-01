@@ -193,6 +193,27 @@ export function ManuscriptReviewPage() {
     }
   }
 
+  const handleUnpublishChapter = async () => {
+    if (!chapter?._id) return
+    if (!window.confirm(t('studio.unpublishConfirm', 'Are you sure you want to unpublish this chapter? This will set it back to Draft status.'))) return
+
+    setSubmittingAction(true)
+    try {
+      await chaptersAPI.updateStatus(chapter._id, 'Draft')
+      alert(t('studio.unpublishSuccess', 'Chapter unpublished successfully! It is now in Draft mode.'))
+      if (user?.role?.toLowerCase() === 'editorial_board') {
+        navigate('/editorial-board')
+      } else {
+        navigate('/editor')
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to unpublish chapter')
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
+
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
   const currentPage = pages[currentPageIdx]
@@ -237,7 +258,7 @@ export function ManuscriptReviewPage() {
                 setEbSeriesInfo(matched)
                 const activeTpl = (matched as any).rubricTemplate || ebPendingRes.data.activeTemplate
                 setActiveTemplate(activeTpl || null)
-                
+
                 const initialScores: Record<string, number> = {}
                 const criteria = activeTpl ? activeTpl.criteria : DEFAULT_CRITERIA
                 criteria.forEach((c: any) => {
@@ -260,7 +281,7 @@ export function ManuscriptReviewPage() {
         }
       }
       setPages(pagesRes.data.pages || [])
-      
+
       const rawAnns = annRes.data.annotations || []
       setAnnotations(rawAnns)
 
@@ -292,19 +313,19 @@ export function ManuscriptReviewPage() {
     try {
       const res = await annotationsAPI.getByChapter(chapterId)
       setAnnotations(res.data.annotations || [])
-      
+
       // Parse canvas annotations
       const parsedAnns: DraftAnnotationData[] = []
-      ;(res.data.annotations || []).forEach((a: AnnotationData) => {
-        if (a.note.startsWith('[CANVAS]')) {
-          try {
-            const data = JSON.parse(a.note.slice(8))
-            parsedAnns.push(data)
-          } catch {
-            // Ignore parse errors
+        ; (res.data.annotations || []).forEach((a: AnnotationData) => {
+          if (a.note.startsWith('[CANVAS]')) {
+            try {
+              const data = JSON.parse(a.note.slice(8))
+              parsedAnns.push(data)
+            } catch {
+              // Ignore parse errors
+            }
           }
-        }
-      })
+        })
       setDraftAnnotations(parsedAnns)
     } catch (err) {
       console.error(err)
@@ -454,11 +475,10 @@ export function ManuscriptReviewPage() {
           {series && (
             <button
               onClick={() => setShowSeriesDetails(!showSeriesDetails)}
-              className={`h-8 px-3.5 text-xs font-semibold border rounded-xl flex items-center gap-2 transition-all duration-300 hover:scale-102 active:scale-98 cursor-pointer bg-transparent ${
-                showSeriesDetails
+              className={`h-8 px-3.5 text-xs font-semibold border rounded-xl flex items-center gap-2 transition-all duration-300 hover:scale-102 active:scale-98 cursor-pointer bg-transparent ${showSeriesDetails
                   ? 'border-indigo-500/50 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 shadow-[0_0_12px_rgba(99,102,241,0.2)]'
                   : 'border-white/[0.08] text-neutral-300 hover:text-white hover:bg-white/[0.06]'
-              }`}
+                }`}
             >
               <BookOpen className="size-3.5" />
               <span>{showSeriesDetails ? 'Hide Details' : 'Series Details'}</span>
@@ -484,6 +504,16 @@ export function ManuscriptReviewPage() {
               </button>
             </>
           )}
+          {chapter && (chapter.status === 'Published' || chapter.status === 'Approved') && (
+            <button
+              onClick={handleUnpublishChapter}
+              disabled={submittingAction}
+              className="h-8 px-3.5 text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+            >
+              <AlertTriangle className="size-3.5" />
+              <span>{t('studio.unpublish', 'Unpublish')}</span>
+            </button>
+          )}
           <button
             onClick={() => setShowCanvas(true)}
             className="h-8 px-3.5 text-xs font-semibold border border-white/[0.08] text-neutral-300 hover:text-white hover:bg-white/[0.06] hover:scale-102 active:scale-98 rounded-xl flex items-center gap-2 transition-all bg-transparent cursor-pointer"
@@ -491,6 +521,33 @@ export function ManuscriptReviewPage() {
             <PenTool className="size-3.5" />
             <span>Draw on Canvas</span>
           </button>
+
+          {currentPage?.compositeImage && (
+            <div className="flex items-center gap-1 bg-[#131627] border border-white/[0.05] p-0.5 rounded-xl ml-2">
+              <button
+                type="button"
+                onClick={() => setShowOriginal(false)}
+                className={`h-7 px-3 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
+                  !showOriginal
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-neutral-400 hover:text-white bg-transparent'
+                }`}
+              >
+                Composite
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOriginal(true)}
+                className={`h-7 px-3 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
+                  showOriginal
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-neutral-400 hover:text-white bg-transparent'
+                }`}
+              >
+                Original
+              </button>
+            </div>
+          )}
 
           {/* Page navigation */}
           <div className="flex items-center gap-1 bg-[#131627] border border-white/[0.05] p-0.5 rounded-xl ml-2">
@@ -538,17 +595,16 @@ export function ManuscriptReviewPage() {
                 <button
                   key={p._id}
                   onClick={() => setCurrentPageIdx(idx)}
-                  className={`w-full text-left rounded-2xl overflow-hidden border transition-all duration-300 flex flex-col relative group ${
-                    isActive 
-                      ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-lg shadow-indigo-500/5' 
+                  className={`w-full text-left rounded-2xl overflow-hidden border transition-all duration-300 flex flex-col relative group ${isActive
+                      ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/20 shadow-lg shadow-indigo-500/5'
                       : 'border-white/[0.06] bg-[#141829]/50 hover:border-white/20 hover:scale-[1.02]'
-                  }`}
+                    }`}
                 >
                   <div className="aspect-[3/4] w-full relative overflow-hidden bg-[#07090F] flex items-center justify-center">
-                    <img 
-                      src={mediaUrl(p.compositeImage || p.processedImage || p.originalImage)} 
-                      alt={`Page ${idx + 1}`} 
-                      className={`h-full w-full object-cover transition-opacity duration-300 ${isActive ? 'opacity-85' : 'opacity-50 group-hover:opacity-70'}`} 
+                    <img
+                      src={mediaUrl(p.compositeImage || p.processedImage || p.originalImage)}
+                      alt={`Page ${idx + 1}`}
+                      className={`h-full w-full object-cover transition-opacity duration-300 ${isActive ? 'opacity-85' : 'opacity-50 group-hover:opacity-70'}`}
                     />
                     <span className="absolute left-2.5 top-2.5 bg-black/70 backdrop-blur-sm rounded-lg px-2 py-0.5 text-[9px] font-bold text-white border border-white/[0.05]">
                       Page {p.pageNumber}
@@ -567,9 +623,9 @@ export function ManuscriptReviewPage() {
         </div>
 
         {/* Large Manuscript Canvas Area */}
-        <div className="flex-1 relative overflow-y-auto bg-[#07090F] p-8 flex items-center justify-center">
+        <div className="flex-1 relative overflow-auto bg-[#07090F] p-8 flex items-start justify-center">
           {loading ? (
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-3 m-auto">
               <div className="size-9 animate-spin rounded-full border-4 border-white/10 border-t-indigo-500" />
               <span className="text-xs text-neutral-400">Loading drawing canvas...</span>
             </div>
@@ -577,34 +633,9 @@ export function ManuscriptReviewPage() {
             <div
               ref={imageContainerRef}
               onClick={handleImageClick}
-              className="relative aspect-[3/4] max-h-[78vh] bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] cursor-crosshair overflow-hidden border border-white/[0.08] select-none transition-all duration-300 hover:shadow-indigo-500/[0.02] hover:border-white/[0.12]"
+              className="relative shrink-0 bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] cursor-crosshair border border-white/[0.08] select-none transition-all duration-300 hover:shadow-indigo-500/[0.02] hover:border-white/[0.12]"
             >
-              {currentPage.compositeImage && (
-                <div className="absolute top-4 right-4 z-30 flex bg-[#0E111F]/80 backdrop-blur-md border border-white/10 rounded-xl p-1 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => setShowOriginal(false)}
-                    className={`px-3 py-1 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
-                      !showOriginal
-                        ? 'bg-indigo-600 text-white shadow'
-                        : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    Composite
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowOriginal(true)}
-                    className={`px-3 py-1 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
-                      showOriginal
-                        ? 'bg-indigo-600 text-white shadow'
-                        : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    Original
-                  </button>
-                </div>
-              )}
+
 
               <img
                 src={mediaUrl(
@@ -613,7 +644,7 @@ export function ManuscriptReviewPage() {
                     : (currentPage.processedImage || currentPage.originalImage)
                 )}
                 alt={`Page ${currentPage.pageNumber}`}
-                className="h-full w-full object-contain pointer-events-none"
+                className="block rounded-2xl max-h-[80vh] pointer-events-none"
               />
 
               {/* Glowing Coordinate Annotation Pins Overlay */}
@@ -715,7 +746,7 @@ export function ManuscriptReviewPage() {
                   <X className="size-3.5" />
                 </button>
               </div>
-              
+
               {series.coverImage && (
                 <img
                   src={mediaUrl(series.coverImage)}
@@ -723,18 +754,18 @@ export function ManuscriptReviewPage() {
                   className="w-full h-32 object-cover rounded-xl border border-white/[0.08]"
                 />
               )}
-              
+
               <div>
                 <h4 className="font-bold text-white text-sm leading-snug">{series.title}</h4>
                 <p className="text-[10px] text-neutral-400 mt-0.5">by {series.mangakaId?.displayName || 'Unknown'}</p>
               </div>
-              
+
               {series.description && (
                 <p className="text-[10px] leading-relaxed text-neutral-300 max-h-24 overflow-y-auto pr-1">
                   {series.description}
                 </p>
               )}
-              
+
               <div className="flex flex-wrap gap-1">
                 {series.genre && (Array.isArray(series.genre) ? series.genre : String(series.genre).split(',')).map((g: string) => {
                   const cleaned = g.trim().replaceAll('[', '').replaceAll(']', '').replaceAll('"', '')
@@ -746,7 +777,7 @@ export function ManuscriptReviewPage() {
                   )
                 })}
               </div>
-              
+
               <div className="border-t border-white/[0.06] pt-2.5 space-y-1.5 text-[10px] text-neutral-400">
                 <div className="flex justify-between">
                   <span>Status:</span>
@@ -775,7 +806,7 @@ export function ManuscriptReviewPage() {
                 <Gavel className="size-3" />
                 {t('editorialBoard.title', 'Editorial Evaluation')}
               </span>
-              
+
               {(() => {
                 const canVote = ebSeriesInfo.meeting && ebSeriesInfo.meeting.isParticipant;
                 return (
@@ -854,11 +885,10 @@ export function ManuscriptReviewPage() {
                             type="button"
                             disabled={submittingVote || !canVote}
                             onClick={() => handleVote(ebSeriesInfo._id, autoDecision)}
-                            className={`w-full py-2 px-3 text-xs font-semibold rounded-xl text-white transition-all border-none cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 ${
-                              autoDecision === 'approved'
+                            className={`w-full py-2 px-3 text-xs font-semibold rounded-xl text-white transition-all border-none cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 ${autoDecision === 'approved'
                                 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/20'
                                 : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-rose-500 shadow-md shadow-rose-950/20'
-                            }`}
+                              }`}
                           >
                             {submittingVote ? (
                               <div className="size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
@@ -868,8 +898,8 @@ export function ManuscriptReviewPage() {
                               <ThumbsDown className="size-3.5" />
                             )}
                             <span>
-                              {ebSeriesInfo.userVote 
-                                ? 'Update Evaluation Vote' 
+                              {ebSeriesInfo.userVote
+                                ? 'Update Evaluation Vote'
                                 : 'Submit Evaluation Vote'
                               }
                             </span>
@@ -931,22 +961,20 @@ export function ManuscriptReviewPage() {
                 return (
                   <div
                     key={ann._id}
-                    className={`p-3.5 rounded-2xl border leading-normal space-y-2 relative transition-all duration-300 hover:shadow-md ${
-                      !isAnnVisible 
-                        ? 'opacity-35 border-white/[0.02] bg-[#0E111F]/10' 
-                        : isOpen 
-                          ? 'border-rose-500/25 bg-gradient-to-r from-rose-500/[0.06] via-rose-500/[0.02] to-transparent shadow-[inset_0_1px_1px_rgba(244,63,94,0.05)]' 
+                    className={`p-3.5 rounded-2xl border leading-normal space-y-2 relative transition-all duration-300 hover:shadow-md ${!isAnnVisible
+                        ? 'opacity-35 border-white/[0.02] bg-[#0E111F]/10'
+                        : isOpen
+                          ? 'border-rose-500/25 bg-gradient-to-r from-rose-500/[0.06] via-rose-500/[0.02] to-transparent shadow-[inset_0_1px_1px_rgba(244,63,94,0.05)]'
                           : 'border-white/[0.06] bg-white/[0.02] opacity-65'
-                    }`}
+                      }`}
                   >
                     <div className="flex justify-between items-start gap-2">
-                      <span className={`text-[8px] font-bold uppercase tracking-wider ${
-                        !isAnnVisible 
-                          ? 'text-neutral-500' 
-                          : isOpen 
-                            ? 'text-rose-400' 
+                      <span className={`text-[8px] font-bold uppercase tracking-wider ${!isAnnVisible
+                          ? 'text-neutral-500'
+                          : isOpen
+                            ? 'text-rose-400'
                             : 'text-neutral-400'
-                      }`}>
+                        }`}>
                         {isOpen ? 'Open Correction' : 'Resolved'}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">

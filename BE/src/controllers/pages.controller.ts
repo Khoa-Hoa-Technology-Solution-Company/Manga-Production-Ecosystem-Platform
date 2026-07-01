@@ -5,11 +5,13 @@ import sharp from 'sharp';
 import { Page } from '../models/Page';
 import { Chapter } from '../models/Chapter';
 import { Task } from '../models/Task';
+import { Layer } from '../models/Layer';
 import { env } from '../config/env';
 
 export async function getByChapterId(req: Request, res: Response): Promise<void> {
   try {
     const pages = await Page.find({ chapterId: req.params.chapterId })
+      .populate('layerOrder.layerId')
       .sort({ pageNumber: 1 });
     res.json({ pages });
   } catch (error: any) {
@@ -84,7 +86,8 @@ export async function updateLayerOrder(req: Request, res: Response): Promise<voi
     }
 
     page.layerOrder = layerOrder.map((item: any) => ({
-      taskId: item.taskId,
+      taskId: item.taskId || undefined,
+      layerId: item.layerId || undefined,
       position: Number(item.position),
     }));
 
@@ -113,16 +116,22 @@ export async function downloadLayer(req: Request, res: Response): Promise<void> 
       fileName = `page-${page.pageNumber}-base`;
     } else {
       const task = await Task.findById(taskId);
-      if (!task) {
-        res.status(404).json({ error: 'Task not found.' });
-        return;
+      if (task) {
+        if (!task.submittedFile) {
+          res.status(400).json({ error: 'No file submitted for this task yet.' });
+          return;
+        }
+        imageUrl = task.submittedFile;
+        fileName = `page-${pageId}-layer-${task.type}`;
+      } else {
+        const layer = await Layer.findById(taskId);
+        if (!layer) {
+          res.status(404).json({ error: 'Layer or Task not found.' });
+          return;
+        }
+        imageUrl = layer.imageUrl;
+        fileName = `page-${pageId}-layer-${layer.name.replace(/\s+/g, '-')}`;
       }
-      if (!task.submittedFile) {
-        res.status(400).json({ error: 'No file submitted for this task yet.' });
-        return;
-      }
-      imageUrl = task.submittedFile;
-      fileName = `page-${pageId}-layer-${task.type}`;
     }
 
     // Get image buffer
@@ -188,6 +197,110 @@ export async function downloadLayer(req: Request, res: Response): Promise<void> 
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}.${fileExtension}"`);
       res.send(buffer);
     }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function addLayer(req: Request, res: Response): Promise<void> {
+  try {
+    const { pageId } = req.params;
+    const { name } = req.body;
+
+    if (!req.file) {
+      res.status(400).json({ error: 'Layer image file is required.' });
+      return;
+    }
+
+    const page = await Page.findById(pageId);
+    if (!page) {
+      res.status(404).json({ error: 'Page not found.' });
+      return;
+    }
+
+    const fileUrl = await uploadToR2(req.file, 'layers');
+    const newLayerName = name || `Layer ${page.layerOrder.length + 1}`;
+
+    const layer = await Layer.create({
+      pageId,
+      name: newLayerName,
+      imageUrl: fileUrl,
+      createdBy: req.user?._id,
+    });
+
+    const position = page.layerOrder.length;
+    page.layerOrder.push({
+      layerId: layer._id as any,
+      position,
+    });
+
+    await page.save();
+
+    res.status(201).json({ layer, layerOrder: page.layerOrder });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function removeLayer(req: Request, res: Response): Promise<void> {
+  try {
+    const { pageId, layerId } = req.params;
+    const { layerType } = req.query; // 'task' or 'standalone'
+
+    const page = await Page.findById(pageId);
+    if (!page) {
+      res.status(404).json({ error: 'Page not found.' });
+      return;
+    }
+
+    if (!page.layerOrder || page.layerOrder.length === 0) {
+      // 1. Get all task layers
+      const taskLayers = await Task.find({
+        $or: [
+          { pageId: page._id },
+          { chapterId: page.chapterId, assignmentLevel: 'chapter' }
+        ],
+        submittedFile: { $exists: true, $ne: '' },
+        status: { $in: ['review', 'done'] }
+      });
+
+      // 2. Get all standalone layers
+      const standaloneLayers = await Layer.find({ pageId: page._id });
+
+      // Build default layer order (including the base layer at position 0)
+      const defaultOrder = [
+        { taskId: undefined, layerId: undefined, position: 0 },
+        ...taskLayers.map(t => ({ taskId: t._id, layerId: undefined, position: 0 })),
+        ...standaloneLayers.map(l => ({ taskId: undefined, layerId: l._id, position: 0 }))
+      ];
+
+      page.layerOrder = defaultOrder.map((item, idx) => ({
+        ...item,
+        position: idx
+      }));
+    }
+
+    if (layerType === 'standalone') {
+      page.layerOrder = page.layerOrder.filter(
+        (item) => !item.layerId || item.layerId.toString() !== layerId
+      );
+      await Layer.findByIdAndDelete(layerId);
+    } else {
+      page.layerOrder = page.layerOrder.filter(
+        (item) => !item.taskId || item.taskId.toString() !== layerId
+      );
+    }
+
+    // Recalculate positions
+    page.layerOrder = page.layerOrder.map((item, index) => ({
+      taskId: item.taskId,
+      layerId: item.layerId,
+      position: index,
+    }));
+
+    await page.save();
+
+    res.json({ message: 'Layer removed successfully.', layerOrder: page.layerOrder });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
