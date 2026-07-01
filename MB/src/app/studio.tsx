@@ -164,53 +164,49 @@ function StudioScreen() {
         const flow = data.workflow || {};
         const mappedKanban: any[] = [];
         
-        if (flow.Draft) {
-          flow.Draft.forEach((c: any) => {
-            mappedKanban.push({
-              id: c._id,
-              title: c.title || `Chương ${c.chapterNumber}`,
-              role: c.seriesId?.title || 'Tác phẩm',
-              status: 'To Do',
-              note: `Chương số ${c.chapterNumber} đang phác thảo.`,
-            });
+        const draftItems = Array.isArray(flow.Draft) ? flow.Draft : (flow.Draft?.items || []);
+        draftItems.forEach((c: any) => {
+          mappedKanban.push({
+            id: c._id,
+            title: c.title || `Chương ${c.chapterNumber}`,
+            role: c.seriesId?.title || 'Tác phẩm',
+            status: 'To Do',
+            note: `Chương số ${c.chapterNumber} đang phác thảo.`,
           });
-        }
-        
-        if (flow.Reviewing) {
-          flow.Reviewing.forEach((c: any) => {
-            mappedKanban.push({
-              id: c._id,
-              title: c.title || `Chương ${c.chapterNumber}`,
-              role: c.seriesId?.title || 'Tác phẩm',
-              status: 'In Progress',
-              note: `Đang kiểm duyệt chất lượng chương truyện.`,
-            });
+        });
+
+        const reviewingItems = Array.isArray(flow.Reviewing) ? flow.Reviewing : (flow.Reviewing?.items || []);
+        reviewingItems.forEach((c: any) => {
+          mappedKanban.push({
+            id: c._id,
+            title: c.title || `Chương ${c.chapterNumber}`,
+            role: c.seriesId?.title || 'Tác phẩm',
+            status: 'In Progress',
+            note: `Đang kiểm duyệt chất lượng chương truyện.`,
           });
-        }
-        
-        if (flow.Approved) {
-          flow.Approved.forEach((c: any) => {
-            mappedKanban.push({
-              id: c._id,
-              title: c.title || `Chương ${c.chapterNumber}`,
-              role: c.seriesId?.title || 'Tác phẩm',
-              status: 'Review',
-              note: `Đã duyệt. Sắp xếp để phát hành lên hệ thống.`,
-            });
+        });
+
+        const approvedItems = Array.isArray(flow.Approved) ? flow.Approved : (flow.Approved?.items || []);
+        approvedItems.forEach((c: any) => {
+          mappedKanban.push({
+            id: c._id,
+            title: c.title || `Chương ${c.chapterNumber}`,
+            role: c.seriesId?.title || 'Tác phẩm',
+            status: 'Review',
+            note: `Đã duyệt. Sắp xếp để phát hành lên hệ thống.`,
           });
-        }
-        
-        if (flow.Published) {
-          flow.Published.forEach((c: any) => {
-            mappedKanban.push({
-              id: c._id,
-              title: c.title || `Chương ${c.chapterNumber}`,
-              role: c.seriesId?.title || 'Tác phẩm',
-              status: 'Approved',
-              note: `Đã phát hành và mở khóa cho độc giả đọc.`,
-            });
+        });
+
+        const publishedItems = Array.isArray(flow.Published) ? flow.Published : (flow.Published?.items || []);
+        publishedItems.forEach((c: any) => {
+          mappedKanban.push({
+            id: c._id,
+            title: c.title || `Chương ${c.chapterNumber}`,
+            role: c.seriesId?.title || 'Tác phẩm',
+            status: 'Approved',
+            note: `Đã phát hành và mở khóa cho độc giả đọc.`,
           });
-        }
+        });
         
         setKanbanTasks(mappedKanban);
       })

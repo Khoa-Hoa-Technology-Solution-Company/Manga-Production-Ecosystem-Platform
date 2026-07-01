@@ -9,14 +9,16 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bell, BellOff, Check, CheckCheck } from 'lucide-react-native';
+import { Bell, BellOff, Check, CheckCheck, ChevronRight } from 'lucide-react-native';
+import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { notificationsAPI } from '@/lib/api';
+import { notificationsAPI, tasksAPI, chaptersAPI } from '@/lib/api';
 import { socketService } from '@/lib/socket';
+import { useAuth } from '@/lib/auth';
 
 interface Notification {
   _id: string;
@@ -25,6 +27,8 @@ interface Notification {
   read: boolean;
   createdAt: string;
   type?: string;
+  relatedId?: string;
+  relatedType?: string;
 }
 
 function timeAgo(dateStr: string): string {
@@ -43,6 +47,7 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
+  const { user } = useAuth();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,9 +120,109 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handleNotificationPress = async (notif: Notification) => {
+    // Mark read
+    if (!notif.read) {
+      handleMarkRead(notif._id);
+    }
+
+    if (!notif.relatedId) return;
+
+    try {
+      if (notif.type === 'task_assigned' || notif.type === 'task_revision') {
+        router.push('/tasks');
+      } else if (notif.type === 'task_submitted' || notif.type === 'task_declined') {
+        if (user?.role === 'mangaka') {
+          try {
+            const res = await tasksAPI.getById(notif.relatedId);
+            const task = res?.task;
+            if (task) {
+              router.push({
+                pathname: '/studio',
+                params: { seriesId: task.seriesId, chapterId: task.chapterId, pageId: task.pageId || '' },
+              });
+            } else {
+              router.push('/studio');
+            }
+          } catch {
+            router.push('/studio');
+          }
+        } else {
+          router.push('/tasks');
+        }
+      } else if (notif.type === 'chapter_status') {
+        if (user?.role === 'reader') {
+          try {
+            const res = await chaptersAPI.getById(notif.relatedId);
+            const chapter = res?.chapter;
+            if (chapter) {
+              const chaptersRes = await chaptersAPI.getBySeries(chapter.seriesId);
+              const chapters = chaptersRes?.chapters || [];
+              const idx = chapters.findIndex((c: any) => c._id === chapter._id);
+              router.push({
+                pathname: `/read/${chapter.seriesId}`,
+                params: { chapterIndex: idx !== -1 ? String(idx) : '0' },
+              });
+            } else {
+              router.push('/explore');
+            }
+          } catch {
+            router.push('/explore');
+          }
+        } else {
+          try {
+            const res = await chaptersAPI.getById(notif.relatedId);
+            const chapter = res?.chapter;
+            if (chapter) {
+              router.push({
+                pathname: '/studio',
+                params: { seriesId: chapter.seriesId, chapterId: chapter._id },
+              });
+            } else {
+              router.push('/studio');
+            }
+          } catch {
+            router.push('/studio');
+          }
+        }
+      } else if (notif.relatedType === 'Series') {
+        if (user?.role === 'editor') {
+          router.push('/editor');
+        } else if (user?.role === 'editorial_board') {
+          router.push('/board');
+        } else if (user?.role === 'reader') {
+          router.push('/explore');
+        } else {
+          router.push('/manage');
+        }
+      } else if (notif.relatedType === 'Meeting') {
+        if (user?.role === 'editor') {
+          router.push('/editor');
+        } else if (user?.role === 'editorial_board') {
+          router.push('/board');
+        }
+      } else {
+        // Fallback by role
+        if (user?.role === 'editorial_board') {
+          router.push('/board');
+        } else if (user?.role === 'editor') {
+          router.push('/editor');
+        } else if (user?.role === 'assistant') {
+          router.push('/tasks');
+        } else if (user?.role === 'mangaka') {
+          router.push('/manage');
+        } else {
+          router.push('/explore');
+        }
+      }
+    } catch (err) {
+      console.error('Notification navigation failed', err);
+    }
+  };
+
   const renderItem = ({ item }: { item: Notification }) => (
     <Pressable
-      onPress={() => !item.read && handleMarkRead(item._id)}
+      onPress={() => handleNotificationPress(item)}
       style={[
         styles.card,
         {
@@ -163,11 +268,15 @@ export default function NotificationsScreen() {
         </ThemedText>
       </View>
 
-      {!item.read && (
+      {item.relatedId ? (
+        <View style={styles.cardAction}>
+          <ChevronRight size={16} color={theme.textSecondary} style={{ opacity: 0.7 }} />
+        </View>
+      ) : !item.read ? (
         <View style={styles.cardAction}>
           <Check size={14} color="#fb7185" />
         </View>
-      )}
+      ) : null}
     </Pressable>
   );
 
