@@ -281,6 +281,60 @@ export async function incrementView(req: Request, res: Response): Promise<void> 
   }
 }
 
+export async function submitReview(req: Request, res: Response): Promise<void> {
+  try {
+    const chapterId = req.params.id;
+    const { selectedLayers = [] } = req.body;
+
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+
+    if (req.user?.role !== 'mangaka') {
+      res.status(403).json({ error: 'Only mangaka can submit chapters for review.' });
+      return;
+    }
+
+    const { Page } = await import('../models/Page');
+    const pages = await Page.find({ chapterId }).sort({ pageNumber: 1 });
+
+    const selectedLayersMap = new Map<string, string[]>();
+    if (Array.isArray(selectedLayers)) {
+      for (const item of selectedLayers) {
+        if (item && item.pageId) {
+          selectedLayersMap.set(String(item.pageId), Array.isArray(item.taskIds) ? item.taskIds : []);
+        }
+      }
+    }
+
+    const { compositePageLayers } = await import('../services/composite.service');
+
+    // Sequentially process each page to composite layers
+    for (const page of pages) {
+      const taskIds = selectedLayersMap.get(String(page._id)) || [];
+      await compositePageLayers(String(page._id), taskIds);
+    }
+
+    // Transition chapter status to Reviewing
+    const updatedChapter = await transitionChapterStatus(
+      String(chapterId),
+      'Reviewing',
+      String(req.user?._id),
+      String(req.user?.role)
+    );
+
+    res.json({
+      chapter: updatedChapter,
+      message: 'Chapter pages composited and submitted for review successfully.'
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+
 
 
 

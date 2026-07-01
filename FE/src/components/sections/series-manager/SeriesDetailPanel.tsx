@@ -16,7 +16,6 @@ interface SeriesDetailPanelProps {
   onInviteEditorClick: () => void
   onSubmitForApprovalClick: () => void
   onNewChapterClick: () => void
-  onSubmitChapterReview: (chapterId: string) => Promise<void>
   onEditChapter: (chapter: ChapterData) => void
   onDeleteChapter: (chapterId: string) => Promise<void>
 }
@@ -30,7 +29,6 @@ export function SeriesDetailPanel({
   onInviteEditorClick,
   onSubmitForApprovalClick,
   onNewChapterClick,
-  onSubmitChapterReview,
   onEditChapter,
   onDeleteChapter,
 }: SeriesDetailPanelProps) {
@@ -338,7 +336,6 @@ export function SeriesDetailPanel({
                 chapter={chapter}
                 selectedSeries={selectedSeries}
                 saving={saving}
-                onSubmitReview={onSubmitChapterReview}
                 onEdit={onEditChapter}
                 onDelete={onDeleteChapter}
               />

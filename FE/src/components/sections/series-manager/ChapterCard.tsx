@@ -1,6 +1,7 @@
 import { Pencil, Trash2, Send, BookOpen, Users, HelpCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Progress } from '../../ui'
 import { type ChapterData, type SeriesData } from './utils'
 
@@ -8,7 +9,6 @@ interface ChapterCardProps {
   chapter: ChapterData
   selectedSeries: SeriesData | null
   saving: boolean
-  onSubmitReview: (chapterId: string) => Promise<void>
   onEdit: (chapter: ChapterData) => void
   onDelete: (chapterId: string) => Promise<void>
 }
@@ -17,11 +17,11 @@ export function ChapterCard({
   chapter,
   selectedSeries,
   saving,
-  onSubmitReview,
   onEdit,
   onDelete,
 }: ChapterCardProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
 
   const isLocked = ['Pending_Editor', 'Pending_EB'].includes(selectedSeries?.status || '')
@@ -136,7 +136,7 @@ export function ChapterCard({
                 size="sm"
                 className="border-neutral-200 hover:border-neutral-300 text-neutral-800 h-8 rounded-xl px-3 text-xs font-semibold"
                 disabled={isLocked || saving}
-                onClick={() => onSubmitReview(chapter._id)}
+                onClick={() => navigate(`/studio?seriesId=${selectedSeries?._id}&chapterId=${chapter._id}&submitReview=true`)}
               >
                 <Send className="mr-1.5 size-3.5" />
                 {t('seriesManager.submitReview', 'Submit for Review')}
@@ -146,8 +146,19 @@ export function ChapterCard({
               variant="outline"
               size="sm"
               className="border-neutral-200 hover:border-neutral-300 text-neutral-800 h-8 rounded-xl px-2.5 text-xs font-semibold"
+              disabled={isLocked}
+              onClick={() => navigate(`/studio?seriesId=${selectedSeries?._id}&chapterId=${chapter._id}`)}
+              title="Open in Studio Workspace"
+            >
+              <BookOpen className="size-3.5 text-neutral-600" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-neutral-200 hover:border-neutral-300 text-neutral-800 h-8 rounded-xl px-2.5 text-xs font-semibold"
               disabled={isLocked || saving}
               onClick={() => onEdit(chapter)}
+              title="Edit Chapter"
             >
               <Pencil className="size-3.5" />
             </Button>
@@ -157,6 +168,7 @@ export function ChapterCard({
               className="border-red-200 text-red-600 hover:bg-red-50 h-8 rounded-xl px-2.5 text-xs font-semibold"
               disabled={isLocked || saving}
               onClick={() => setShowConfirmDelete(true)}
+              title="Delete Chapter"
             >
               <Trash2 className="size-3.5" />
             </Button>

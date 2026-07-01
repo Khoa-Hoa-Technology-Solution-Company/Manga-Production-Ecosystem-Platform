@@ -29,6 +29,8 @@ type PageData = {
   _id: string
   pageNumber: number
   originalImage: string
+  processedImage?: string
+  compositeImage?: string
   width: number
   height: number
 }
@@ -173,9 +175,10 @@ export function DraftReviewCanvas({
     if (!fc || !currentPage) return
 
     setImageLoading(true)
-    const imgUrl = currentPage.originalImage.startsWith('http')
-      ? currentPage.originalImage
-      : `${apiBase}${currentPage.originalImage}`
+    const targetImage = currentPage.compositeImage || currentPage.processedImage || currentPage.originalImage
+    const imgUrl = targetImage.startsWith('http')
+      ? targetImage
+      : `${apiBase}${targetImage}`
 
     FabricImage.fromURL(imgUrl).then((img) => {
       // Remove old background
@@ -216,7 +219,7 @@ export function DraftReviewCanvas({
       console.error('Failed to load page image:', err)
       setImageLoading(false)
     })
-  }, [currentPageIdx, currentPage?._id, currentPage?.originalImage, apiBase])
+  }, [currentPageIdx, currentPage?._id, currentPage?.originalImage, currentPage?.compositeImage, currentPage?.processedImage, apiBase])
 
   /* ──── Render annotation objects on canvas ──── */
   const renderAnnotations = useCallback((fc: FabricCanvas, bg: FabricImage) => {
@@ -723,11 +726,21 @@ export function DraftReviewCanvas({
   }, [zoom])
 
   const handleResetView = useCallback(() => {
+    console.log('DraftReviewCanvas: handleResetView clicked!')
     const fc = fabricRef.current
-    if (!fc) return
-    fc.setViewportTransform([1, 0, 0, 1, 0, 0])
-    setZoom(100)
-    fc.requestRenderAll()
+    if (!fc) {
+      console.warn('DraftReviewCanvas: fabricRef.current is null!')
+      return
+    }
+    console.log('DraftReviewCanvas: current vpt:', fc.viewportTransform)
+    try {
+      fc.setViewportTransform([1, 0, 0, 1, 0, 0])
+      setZoom(100)
+      fc.requestRenderAll()
+      console.log('DraftReviewCanvas: reset viewport successfully')
+    } catch (err) {
+      console.error('DraftReviewCanvas: reset viewport error:', err)
+    }
   }, [])
 
   /* ──── Delete selected annotation ──── */

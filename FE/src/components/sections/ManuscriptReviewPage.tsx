@@ -31,6 +31,7 @@ interface PageData {
   pageNumber: number
   originalImage: string
   processedImage?: string
+  compositeImage?: string
   width: number
   height: number
 }
@@ -110,6 +111,7 @@ export function ManuscriptReviewPage() {
   const [loading, setLoading] = useState(true)
   const [showFeedbackPins, setShowFeedbackPins] = useState(true)
   const [annotationVisibility, setAnnotationVisibility] = useState<Record<string, boolean>>({})
+  const [showOriginal, setShowOriginal] = useState(false)
 
   // Draft Canvas
   const [showCanvas, setShowCanvas] = useState(false)
@@ -541,7 +543,7 @@ export function ManuscriptReviewPage() {
                 >
                   <div className="aspect-[3/4] w-full relative overflow-hidden bg-[#07090F] flex items-center justify-center">
                     <img 
-                      src={mediaUrl(p.originalImage)} 
+                      src={mediaUrl(p.compositeImage || p.processedImage || p.originalImage)} 
                       alt={`Page ${idx + 1}`} 
                       className={`h-full w-full object-cover transition-opacity duration-300 ${isActive ? 'opacity-85' : 'opacity-50 group-hover:opacity-70'}`} 
                     />
@@ -574,8 +576,39 @@ export function ManuscriptReviewPage() {
               onClick={handleImageClick}
               className="relative aspect-[3/4] max-h-[78vh] bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] cursor-crosshair overflow-hidden border border-white/[0.08] select-none transition-all duration-300 hover:shadow-indigo-500/[0.02] hover:border-white/[0.12]"
             >
+              {currentPage.compositeImage && (
+                <div className="absolute top-4 right-4 z-30 flex bg-[#0E111F]/80 backdrop-blur-md border border-white/10 rounded-xl p-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => setShowOriginal(false)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
+                      !showOriginal
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    Composite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowOriginal(true)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
+                      showOriginal
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    Original
+                  </button>
+                </div>
+              )}
+
               <img
-                src={mediaUrl(currentPage.originalImage)}
+                src={mediaUrl(
+                  currentPage.compositeImage
+                    ? (showOriginal ? currentPage.originalImage : currentPage.compositeImage)
+                    : (currentPage.processedImage || currentPage.originalImage)
+                )}
                 alt={`Page ${currentPage.pageNumber}`}
                 className="h-full w-full object-contain pointer-events-none"
               />

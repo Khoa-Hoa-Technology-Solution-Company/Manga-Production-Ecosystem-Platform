@@ -40,7 +40,7 @@ async function syncChapterProgress(chapterId: any): Promise<void> {
         if (chapter.status === 'Published') progress = 100;
         else if (chapter.status === 'Approved') progress = 95;
         else if (chapter.status === 'Reviewing') progress = 80;
-        
+
         if (chapter.progress !== progress) {
           chapter.progress = progress;
           await chapter.save();
@@ -236,6 +236,19 @@ export async function create(req: Request, res: Response): Promise<void> {
     }
     // Remove zoneId if accidentally passed
     delete taskData.zoneId;
+
+    // Check if there are selected layers to merge for a reference image
+    if (assignmentLevel === 'page' && pageId && Array.isArray(req.body.selectedLayers) && req.body.selectedLayers.length > 0) {
+      try {
+        const { compositePageLayers } = await import('../services/composite.service');
+        console.log(`Creating reference composite for task on page ${pageId} with layers: ${req.body.selectedLayers}`);
+        const referenceUrl = await compositePageLayers(pageId, req.body.selectedLayers, false);
+        taskData.referenceImage = referenceUrl;
+      } catch (err: any) {
+        console.error('Failed to generate reference image for task:', err.message);
+      }
+    }
+    delete taskData.selectedLayers;
 
     const task = await Task.create(taskData);
 
@@ -470,11 +483,11 @@ export async function update(req: Request, res: Response): Promise<void> {
     // Trigger revision notification if status goes from 'review' to 'in_progress' OR (status is 'in_progress' and reviewNotes is modified/provided)
     const isStatusRevision = oldTask.status === 'review' && task.status === 'in_progress';
     const isNotesUpdatedForRevision = task.status === 'in_progress' && req.body.reviewNotes !== undefined && req.body.reviewNotes !== oldTask.reviewNotes;
-    
+
     if ((isStatusRevision || isNotesUpdatedForRevision) && task.assignedTo) {
       const assigneeObj = task.assignedTo as any;
       const assistantId = assigneeObj._id ? assigneeObj._id.toString() : assigneeObj.toString();
-      
+
       const { notifyTaskRevision } = await import('../services/notification.service');
       await notifyTaskRevision(
         assistantId,
@@ -496,12 +509,12 @@ export async function declineTask(req: Request, res: Response): Promise<void> {
   try {
     const task = await Task.findById(req.params.id);
     if (!task) { res.status(404).json({ error: 'Task not found.' }); return; }
-    
+
     if (task.assignedTo?.toString() !== req.user?._id) {
       res.status(403).json({ error: 'Only the assigned assistant can decline.' });
       return;
     }
-    
+
     if (task.status !== 'assigned') {
       res.status(400).json({ error: 'Only designated tasks can be declined.' });
       return;

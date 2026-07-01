@@ -512,7 +512,7 @@ export function AssistantPortalPage() {
                                   <div key={page._id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-neutral-100 bg-neutral-50/50 text-[10px]">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <div className="size-6 rounded overflow-hidden bg-neutral-200 shrink-0">
-                                        <img src={page.originalImage.startsWith('http') ? page.originalImage : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`} className="h-full w-full object-cover" />
+                                        <img src={(page.compositeImage || page.originalImage).startsWith('http') ? (page.compositeImage || page.originalImage) : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.compositeImage || page.originalImage}`} className="h-full w-full object-cover" />
                                       </div>
                                       <span className="truncate">Page {page.pageNumber}</span>
                                     </div>
@@ -530,10 +530,11 @@ export function AssistantPortalPage() {
                                       <button
                                         title={t('assistant.downloadDraft', 'Download Draft')}
                                         onClick={() => {
-                                          const url = page.originalImage.startsWith('http')
-                                            ? page.originalImage
-                                            : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.originalImage}`;
-                                          const ext = page.originalImage.split('.').pop() || 'png';
+                                          const rawSrc = page.compositeImage || page.originalImage;
+                                          const url = rawSrc.startsWith('http')
+                                            ? rawSrc
+                                            : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${rawSrc}`;
+                                          const ext = rawSrc.split('.').pop() || 'png';
                                           const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${page.pageNumber}.${ext}`;
                                           handleDownload(url, filename);
                                         }}
@@ -577,16 +578,17 @@ export function AssistantPortalPage() {
                                 {t('assistant.viewManuscript', 'View Manuscript')}
                               </Button>
                               <div className="flex gap-2 w-full">
-                                {task.pageId?.originalImage && (
+                                {(task.referenceImage || task.pageId?.originalImage) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      const url = task.pageId.originalImage.startsWith('http')
-                                        ? task.pageId.originalImage
-                                        : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${task.pageId.originalImage}`;
-                                      const ext = task.pageId.originalImage.split('.').pop() || 'png';
-                                      const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${task.pageId.pageNumber || 'X'}.${ext}`;
+                                      const rawSrc = task.referenceImage || task.pageId.originalImage;
+                                      const url = rawSrc.startsWith('http')
+                                        ? rawSrc
+                                        : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${rawSrc}`;
+                                      const ext = rawSrc.split('.').pop() || 'png';
+                                      const filename = `${task.seriesId?.title || 'series'}_Ch${task.chapterId?.chapterNumber || ''}_Page${task.pageId?.pageNumber || 'X'}_Ref.${ext}`;
                                       handleDownload(url, filename);
                                     }}
                                     className="flex-1 h-7 text-xs rounded-lg border-neutral-200 text-neutral-700 hover:bg-neutral-50 flex items-center justify-center gap-1.5"
@@ -711,9 +713,10 @@ function ManuscriptViewerModal({
 
   const selectedZone = zones.find(z => z._id === selectedZoneId)
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
-  const imgUrl = page.originalImage.startsWith('http')
-    ? page.originalImage
-    : `${apiBase}${page.originalImage}`
+  const rawSrc = task?.referenceImage || page.compositeImage || page.originalImage
+  const imgUrl = rawSrc.startsWith('http')
+    ? rawSrc
+    : `${apiBase}${rawSrc}`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
