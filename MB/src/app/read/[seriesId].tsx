@@ -8,8 +8,8 @@ import {
   Animated,
   Dimensions,
   TextInput,
-  GestureResponderEvent,
   Alert,
+  PanResponder,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -167,6 +167,12 @@ export default function ReaderScreen() {
   const { seriesId, chapterIndex: chapterIndexParam } = useLocalSearchParams<{ seriesId: string; chapterIndex?: string }>();
   const { width: screenWidth } = Dimensions.get('window');
 
+  // Reader refs (declared at top to avoid Temporal Dead Zone / ReferenceError)
+  const scrollViewRef = useRef<ScrollView>(null);
+  const cinemaScrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const autoScrollInterval = useRef<any>(null);
+
   const { user } = useAuth();
   const [subscribingSeries, setSubscribingSeries] = useState(false);
 
@@ -300,11 +306,7 @@ export default function ReaderScreen() {
         const fetchedPages = (pData.pages || [])
           .map((p: any) => getImageUrl(p.originalImage || p.processedImage || p.imageUrl))
           .filter((url): url is string => !!url);
-        setPages(fetchedPages.length > 0 ? fetchedPages : [
-          'https://picsum.photos/seed/p1/900/1200',
-          'https://picsum.photos/seed/p2/900/1200',
-          'https://picsum.photos/seed/p3/900/1200'
-        ]);
+        setPages(fetchedPages);
 
         const fetchedComments = (cData.comments || []).map((c: any) => ({
           id: c._id,
@@ -368,6 +370,21 @@ export default function ReaderScreen() {
     }
   }, [seriesData]);
 
+  // Synchronize horizontal ScrollView offset when currentPage changes programmatically (hotspots/thumbnails)
+  useEffect(() => {
+    if (readingMode === 'cinema' && cinemaScrollRef.current) {
+      cinemaScrollRef.current.scrollTo({ x: currentPage * screenWidth, animated: true });
+    }
+  }, [currentPage, readingMode, screenWidth]);
+
+  // Reset scroll offset immediately and show UI when chapter changes
+  useEffect(() => {
+    setImmersiveMode(false);
+    if (readingMode === 'cinema' && cinemaScrollRef.current) {
+      cinemaScrollRef.current.scrollTo({ x: 0, animated: false });
+    }
+  }, [activeChapterIndex, readingMode]);
+
   const handleNextChapter = () => {
     if (activeChapterIndex < chapters.length - 1) {
       setActiveChapterIndex((idx) => idx + 1);
@@ -378,13 +395,68 @@ export default function ReaderScreen() {
     }
   };
 
-  // Auto-scroll loop engine
-  const scrollViewRef = useRef<ScrollView>(null);
-  const scrollYRef = useRef(0);
-  const autoScrollInterval = useRef<any>(null);
+  const handlePrevChapter = () => {
+    if (activeChapterIndex > 0) {
+      setActiveChapterIndex((idx) => idx - 1);
+      setCurrentPage(0);
+      setScrollProgress(0);
+      scrollYRef.current = 0;
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  };
 
-  // Touch gesture swiping variables for Cinema Mode
-  const touchStartX = useRef(0);
+  // Refs to avoid stale closures in PanResponder
+  const activeChapterIndexRef = useRef(activeChapterIndex);
+  activeChapterIndexRef.current = activeChapterIndex;
+  const chaptersRef = useRef(chapters);
+  chaptersRef.current = chapters;
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+  const readingModeRef = useRef(readingMode);
+  readingModeRef.current = readingMode;
+
+  const handleNextChapterRef = useRef(handleNextChapter);
+  handleNextChapterRef.current = handleNextChapter;
+  const handlePrevChapterRef = useRef(handlePrevChapter);
+  handlePrevChapterRef.current = handlePrevChapter;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        const { dx, dy } = gestureState;
+        const isHorizontalSwipe = Math.abs(dx) > 35 && Math.abs(dx) > Math.abs(dy) * 1.5;
+        if (!isHorizontalSwipe) return false;
+
+        const currentMode = readingModeRef.current;
+        const curPage = currentPageRef.current;
+        const totalPages = pagesRef.current.length;
+        const activeIdx = activeChapterIndexRef.current;
+        const totalChapters = chaptersRef.current.length;
+
+        if (currentMode === 'scroll') {
+          return true;
+        } else {
+          if (dx > 35 && curPage === 0) {
+            return activeIdx > 0;
+          }
+          if (dx < -35 && curPage === totalPages - 1) {
+            return activeIdx < totalChapters - 1;
+          }
+        }
+        return false;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx } = gestureState;
+        if (dx < -60) {
+          handleNextChapterRef.current();
+        } else if (dx > 60) {
+          handlePrevChapterRef.current();
+        }
+      },
+    })
+  ).current;
 
   const currentTheme = themes[bgTheme];
 
@@ -419,22 +491,7 @@ export default function ReaderScreen() {
     };
   }, [autoScroll, scrollSpeed, readingMode]);
 
-  // Touch Swipe Handlers for Cinema Mode
-  const handleTouchStart = (e: GestureResponderEvent) => {
-    touchStartX.current = e.nativeEvent.pageX;
-  };
 
-  const handleTouchEnd = (e: GestureResponderEvent) => {
-    const touchEndX = e.nativeEvent.pageX;
-    const deltaX = touchEndX - touchStartX.current;
-    if (deltaX > 60) {
-      // Swipe Right -> Turn to previous page
-      setCurrentPage((p) => Math.max(0, p - 1));
-    } else if (deltaX < -60) {
-      // Swipe Left -> Turn to next page
-      setCurrentPage((p) => Math.min(pages.length - 1, p + 1));
-    }
-  };
 
   // Animated Floating Reactions
   const [activeFloatingReactions, setActiveFloatingReactions] = useState<
@@ -552,10 +609,10 @@ export default function ReaderScreen() {
     );
   };
 
-  const showUI = !immersiveMode;
+  const showUI = readingMode === 'scroll' ? true : !immersiveMode;
 
   return (
-    <ThemedView style={[styles.screen, { backgroundColor: currentTheme.bg }]}>
+    <ThemedView style={[styles.screen, { backgroundColor: currentTheme.bg }]} {...panResponder.panHandlers}>
       {/* Background glow lines */}
       <LinearGradient colors={currentTheme.glowColors} style={StyleSheet.absoluteFillObject} />
 
@@ -722,23 +779,32 @@ export default function ReaderScreen() {
 
               {/* Pages Cascade */}
               <View style={styles.pagesCascade}>
-                {pages.map((url, idx) => (
-                  <Pressable
-                    key={idx}
-                    onPress={() => setImmersiveMode((prev) => !prev)}
-                    style={[styles.pageCard, { backgroundColor: currentTheme.bg, borderColor: currentTheme.cardBorder }]}
-                  >
-                    <Image
-                      source={{ uri: url }}
-                      style={[styles.pageImage, { transform: [{ scale: zoomScale }] }]}
-                      contentFit="contain"
-                    />
-                    <LinearGradient colors={['rgba(255,255,255,0.02)', 'transparent']} style={StyleSheet.absoluteFillObject} />
-                    <View style={styles.pageNumberBadge}>
-                      <ThemedText style={styles.pageNumberText}>{idx + 1} / {pages.length}</ThemedText>
-                    </View>
-                  </Pressable>
-                ))}
+                {pages.length === 0 ? (
+                  <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
+                    <BookOpen size={48} color={currentTheme.subText} style={{ marginBottom: 12, opacity: 0.5 }} />
+                    <ThemedText style={{ color: currentTheme.subText, fontSize: 14, textAlign: 'center' }}>
+                      Chương này chưa có trang truyện nào.
+                    </ThemedText>
+                  </View>
+                ) : (
+                  pages.map((url, idx) => (
+                    <Pressable
+                      key={idx}
+                      onPress={() => setImmersiveMode((prev) => !prev)}
+                      style={[styles.pageCard, { backgroundColor: currentTheme.bg, borderColor: currentTheme.cardBorder }]}
+                    >
+                      <Image
+                        source={{ uri: url }}
+                        style={[styles.pageImage, { transform: [{ scale: zoomScale }] }]}
+                        contentFit="contain"
+                      />
+                      <LinearGradient colors={['rgba(255,255,255,0.02)', 'transparent']} style={StyleSheet.absoluteFillObject} />
+                      <View style={styles.pageNumberBadge}>
+                        <ThemedText style={styles.pageNumberText}>{idx + 1} / {pages.length}</ThemedText>
+                      </View>
+                    </Pressable>
+                  ))
+                )}
               </View>
 
               {/* Reader Interaction Footers */}
@@ -796,40 +862,69 @@ export default function ReaderScreen() {
             /* Cinema Swiping Mode */
             <View
               style={[styles.cinemaContainer, { backgroundColor: currentTheme.bg }]}
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
             >
               <View style={styles.cinemaViewPager}>
-                <Image
-                  source={{ uri: pages[currentPage] }}
-                  style={[styles.cinemaImage, { transform: [{ scale: zoomScale }] }]}
-                  contentFit="contain"
-                />
-                <LinearGradient colors={['transparent', 'rgba(10,5,22,0.65)']} style={StyleSheet.absoluteFillObject} />
+                {pages.length === 0 ? (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                    <BookOpen size={48} color={currentTheme.subText} style={{ marginBottom: 12, opacity: 0.5 }} />
+                    <ThemedText style={{ color: currentTheme.subText, fontSize: 14, textAlign: 'center' }}>
+                      Chương này chưa có trang truyện nào.
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <>
+                    <ScrollView
+                      ref={cinemaScrollRef}
+                      horizontal
+                      pagingEnabled
+                      showsHorizontalScrollIndicator={false}
+                      onMomentumScrollEnd={(e) => {
+                        const newPage = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+                        if (newPage !== currentPage) {
+                          setCurrentPage(newPage);
+                        }
+                      }}
+                      style={StyleSheet.absoluteFillObject}
+                    >
+                      {pages.map((url, idx) => (
+                        <Pressable
+                          key={idx}
+                          onPress={(e) => {
+                            const clickX = e.nativeEvent.locationX;
+                            if (clickX < screenWidth / 3) {
+                              // Tap Left -> previous page
+                              setCurrentPage((p) => Math.max(0, p - 1));
+                            } else if (clickX > (screenWidth * 2) / 3) {
+                              // Tap Right -> next page
+                              setCurrentPage((p) => Math.min(pages.length - 1, p + 1));
+                            } else {
+                              // Tap Middle -> toggle immersive mode
+                              setImmersiveMode((prev) => !prev);
+                            }
+                          }}
+                          style={{ width: screenWidth, height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                        >
+                          <Image
+                            source={{ uri: url }}
+                            style={[styles.cinemaImage, { transform: [{ scale: zoomScale }] }]}
+                            contentFit="contain"
+                          />
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    <LinearGradient colors={['transparent', 'rgba(10,5,22,0.65)']} style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]} />
 
-                {/* Page Overlays Left/Right/Center touch hotspots */}
-                <Pressable
-                  style={[styles.cinemaHotspot, { left: 0 }]}
-                  onPress={() => setCurrentPage((p) => Math.max(0, p - 1))}
-                />
-                <Pressable
-                  style={[styles.cinemaHotspot, { left: screenWidth / 3, right: screenWidth / 3, width: screenWidth / 3 }]}
-                  onPress={() => setImmersiveMode((prev) => !prev)}
-                />
-                <Pressable
-                  style={[styles.cinemaHotspot, { right: 0 }]}
-                  onPress={() => setCurrentPage((p) => Math.min(pages.length - 1, p + 1))}
-                />
-
-                <View style={styles.cinemaPagerBadge}>
-                  <ThemedText style={styles.cinemaPageText}>
-                    Trang {currentPage + 1} / {pages.length}
-                  </ThemedText>
-                </View>
+                    <View style={styles.cinemaPagerBadge}>
+                      <ThemedText style={styles.cinemaPageText}>
+                        Trang {currentPage + 1} / {pages.length}
+                      </ThemedText>
+                    </View>
+                  </>
+                )}
               </View>
 
               {/* Bottom horizontal slider thumbnails bar */}
-              {showUI && (
+              {showUI && pages.length > 0 && (
                 <View style={[styles.cinemaThumbnailsBar, { backgroundColor: currentTheme.bg, borderTopColor: currentTheme.cardBorder }]}>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cinemaThumbRow}>
                     {pages.map((p, idx) => (
