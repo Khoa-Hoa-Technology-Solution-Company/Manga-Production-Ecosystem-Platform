@@ -347,7 +347,7 @@ export const editorAPI = {
 export const ebAPI = {
   getPending: () => apiFetch<{ series: any[] }>('/eb/pending'),
   getDashboard: () => apiFetch<{ dashboard: any }>('/eb/dashboard'),
-  castVote: (seriesId: string, data: { decision: string; comments?: string }) =>
+  castVote: (seriesId: string, data: { decision: string; comments?: string; rubric?: Record<string, number> }) =>
     apiFetch(`/eb/vote/${seriesId}`, { method: 'POST', body: data }),
   makeFinalDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
     apiFetch(`/eb/decision/${seriesId}`, { method: 'PATCH', body: data }),

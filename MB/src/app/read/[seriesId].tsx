@@ -5,11 +5,11 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  Animated,
   Dimensions,
   TextInput,
   Alert,
   PanResponder,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,64 +54,7 @@ import { useAuth } from '@/lib/auth';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const quickReactions = [
-  { emoji: '🔥', label: 'Fire' },
-  { emoji: '❤️', label: 'Love' },
-  { emoji: '😮', label: 'Shock' },
-  { emoji: '😭', label: 'Sad' },
-  { emoji: '👏', label: 'Clap' },
-];
 
-function FloatingEmoji({ emoji, onComplete }: { emoji: string; onComplete: () => void }) {
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 1600,
-      useNativeDriver: true,
-    }).start(onComplete);
-  }, []);
-
-  const translateY = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -220],
-  });
-
-  const translateX = anim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0, Math.random() > 0.5 ? 20 : -20, Math.random() > 0.5 ? 40 : -40],
-  });
-
-  const opacity = anim.interpolate({
-    inputRange: [0, 0.7, 1],
-    outputRange: [1, 1, 0],
-  });
-
-  const scale = anim.interpolate({
-    inputRange: [0, 0.15, 1],
-    outputRange: [0.5, 1.3, 0.7],
-  });
-
-  const rotate = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', Math.random() > 0.5 ? '25deg' : '-25deg'],
-  });
-
-  return (
-    <Animated.View
-      style={[
-        styles.floatingEmojiContainer,
-        {
-          transform: [{ translateY }, { translateX }, { scale }, { rotate }],
-          opacity,
-        },
-      ]}
-    >
-      <ThemedText style={{ fontSize: 32 }}>{emoji}</ThemedText>
-    </Animated.View>
-  );
-}
 
 // Curated Harmonies / Premium Design Themes
 const themes = {
@@ -493,19 +436,7 @@ export default function ReaderScreen() {
 
 
 
-  // Animated Floating Reactions
-  const [activeFloatingReactions, setActiveFloatingReactions] = useState<
-    { id: string; emoji: string }[]
-  >([]);
 
-  const triggerReaction = (emoji: string) => {
-    const newId = Date.now().toString() + Math.random().toString();
-    setActiveFloatingReactions((prev) => [...prev, { id: newId, emoji }]);
-  };
-
-  const removeFloatingReaction = (id: string) => {
-    setActiveFloatingReactions((prev) => prev.filter((r) => r.id !== id));
-  };
 
   const handleVote = () => {
     const currentChapter = chapters[activeChapterIndex];
@@ -647,19 +578,19 @@ export default function ReaderScreen() {
             <View style={styles.topActions}>
               <Pressable
                 onPress={() => setShowSettings(true)}
-                style={[styles.iconCircle, { width: 36 }]}
+                style={styles.iconCircle}
               >
-                <Settings size={16} color={currentTheme.primary} />
+                <Settings size={20} color={currentTheme.primary} />
               </Pressable>
 
               {user && (
                 <Pressable
                   onPress={handleToggleSeriesSubscribe}
                   disabled={subscribingSeries}
-                  style={[styles.iconCircle, { width: 52, height: 52, borderRadius: 26 }]}
+                  style={styles.iconCircle}
                 >
                   <Bell
-                    size={32}
+                    size={20}
                     color={
                       seriesData?.subscribers?.includes(user._id)
                         ? '#6366f1'
@@ -675,27 +606,18 @@ export default function ReaderScreen() {
               )}
 
               <Pressable onPress={() => setBookmarked(!bookmarked)} style={styles.iconCircle}>
-                <Heart size={16} color={bookmarked ? '#f43f5e' : currentTheme.text} fill={bookmarked ? '#f43f5e' : 'none'} />
+                <Heart size={20} color={bookmarked ? '#f43f5e' : currentTheme.text} fill={bookmarked ? '#f43f5e' : 'none'} />
               </Pressable>
 
               <Pressable onPress={() => setShowCommentsTray(true)} style={styles.iconCircle}>
-                <MessageCircle size={16} color={currentTheme.text} />
+                <MessageCircle size={20} color={currentTheme.text} />
                 <View style={styles.commentsDot} />
               </Pressable>
             </View>
           </View>
         )}
 
-        {/* Floating Bubble Canvas Overlay */}
-        <View style={styles.bubbleOverlay} pointerEvents="none">
-          {activeFloatingReactions.map((reaction) => (
-            <FloatingEmoji
-              key={reaction.id}
-              emoji={reaction.emoji}
-              onComplete={() => removeFloatingReaction(reaction.id)}
-            />
-          ))}
-        </View>
+
 
         {/* Floating Zoom Panel */}
         {showUI && (
@@ -733,7 +655,14 @@ export default function ReaderScreen() {
 
         {/* Reader Display Area */}
         <View style={styles.displayArea}>
-          {error ? (
+          {loading || loadingPages ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+              <ActivityIndicator size="large" color={currentTheme.primary} />
+              <ThemedText style={{ color: currentTheme.subText, fontSize: 13 }}>
+                Đang tải trang truyện...
+              </ThemedText>
+            </View>
+          ) : error ? (
             <View style={styles.fullscreenErrorWrap}>
               <Sparkles size={36} color="#fb7185" style={{ marginBottom: 12 }} />
               <ThemedText style={styles.fullscreenErrorTitle}>Không thể tải nội dung</ThemedText>
@@ -959,21 +888,7 @@ export default function ReaderScreen() {
           />
         </View>
 
-        {/* Quick Reactions Bar fixed above comments trigger */}
-        {showUI && (
-          <View style={[styles.reactionsBarWrap, { backgroundColor: currentTheme.bg, borderTopColor: currentTheme.cardBorder }]}>
-            <LinearGradient colors={[currentTheme.cardBg, 'rgba(39,29,74,0.3)']} style={[styles.reactionsBar, { borderColor: currentTheme.cardBorder }]}>
-              <ThemedText style={[styles.reactionLabel, { color: currentTheme.subText }]}>Biểu cảm nhanh:</ThemedText>
-              <View style={styles.reactionEmojis}>
-                {quickReactions.map((r) => (
-                  <Pressable key={r.label} onPress={() => triggerReaction(r.emoji)} style={styles.reactionEmojiBtn}>
-                    <ThemedText style={styles.emojiText}>{r.emoji}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </LinearGradient>
-          </View>
-        )}
+
 
         {/* Live Nested Comments Bottom Drawer Overlay */}
         {showCommentsTray && (
@@ -1314,14 +1229,7 @@ const styles = StyleSheet.create({
   cinemaThumbFrame: { width: 44, height: 52, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
   cinemaThumbFrameActive: { borderColor: '#fb7185' },
   cinemaThumbImage: { width: '100%', height: '100%', opacity: 0.6 },
-  reactionsBarWrap: { borderTopWidth: 1, paddingVertical: 10, paddingHorizontal: 12, zIndex: 10 },
-  reactionsBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1 },
-  reactionLabel: { fontSize: 11, fontWeight: '800' },
-  reactionEmojis: { flexDirection: 'row', gap: 12 },
-  reactionEmojiBtn: { padding: 4 },
-  emojiText: { fontSize: 22 },
-  bubbleOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 50 },
-  floatingEmojiContainer: { position: 'absolute', bottom: 50, right: 40, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+
   drawerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   drawerDismissHotspot: { ...StyleSheet.absoluteFillObject },
   drawerContentCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, height: '70%', borderWidth: 1 },

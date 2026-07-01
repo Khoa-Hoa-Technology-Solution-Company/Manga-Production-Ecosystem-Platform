@@ -188,6 +188,20 @@ export default function AppTabs() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="editor/review/[chapterId]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="editor/review/[id]"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

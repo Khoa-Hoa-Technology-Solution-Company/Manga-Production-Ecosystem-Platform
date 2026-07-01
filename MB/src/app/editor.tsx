@@ -30,13 +30,18 @@ function EditorScreen() {
     setError(null);
     try {
       const [workflowRes, portfolioRes] = await Promise.all([
-        dashboardAPI.getWorkflow().catch(() => ({ workflow: { Reviewing: [] } })),
+        dashboardAPI.getWorkflow().catch(() => ({ workflow: { Reviewing: { items: [], count: 0 } } })),
         editorAPI.getPortfolio().catch(() => ({ portfolio: [] }))
       ]);
-      setPendingReviews(workflowRes.workflow?.Reviewing || []);
+
+      const reviewingData = workflowRes.workflow?.Reviewing;
+      const reviewingItems = Array.isArray(reviewingData) ? reviewingData : (reviewingData?.items || []);
+      const pendingCount = Array.isArray(reviewingData) ? reviewingData.length : (reviewingData?.count || reviewingItems.length || 0);
+
+      setPendingReviews(reviewingItems);
       setAnalytics({
         activeSeries: portfolioRes.portfolio?.length || 0,
-        pendingCount: workflowRes.workflow?.Reviewing?.length || 0,
+        pendingCount: pendingCount,
         approvedCount: 15, // Mock historical stat
         rating: 4.8
       });
