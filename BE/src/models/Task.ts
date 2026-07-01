@@ -20,6 +20,7 @@ export interface ITask extends Document {
   wage?: number;
   deadline: Date;
   submittedFile?: string;
+  referenceImage?: string;
   reviewNotes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +42,7 @@ const taskSchema = new Schema<ITask>(
     wage: { type: Number, default: 0 },
     deadline: { type: Date, required: true },
     submittedFile: { type: String },
+    referenceImage: { type: String },
     reviewNotes: { type: String },
   },
   { timestamps: true }

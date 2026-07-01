@@ -348,20 +348,6 @@ export function MangakaSeriesManagerPage() {
     }
   }
 
-  const handleSubmitChapterForReview = async (chapterId: string) => {
-    setSaving(true)
-    try {
-      await chaptersAPI.updateStatus(chapterId, 'Reviewing')
-      alert(t('seriesManager.chapterSubmittedSuccess', 'Chapter submitted for review successfully!'))
-      await loadData(selectedSeriesId)
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } }
-      alert(error.response?.data?.error || t('seriesManager.chapterSubmitFailed', 'Failed to submit chapter.'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // Assistant management
   const handleSearchAssistants = async (query: string) => {
     setAssistantSearchQuery(query)
@@ -537,7 +523,6 @@ export function MangakaSeriesManagerPage() {
             onInviteEditorClick={handleOpenInviteModal}
             onSubmitForApprovalClick={handleOpenSubmitModal}
             onNewChapterClick={handleOpenNewChapter}
-            onSubmitChapterReview={handleSubmitChapterForReview}
             onEditChapter={handleOpenEditChapter}
             onDeleteChapter={handleDeleteChapter}
           />

@@ -6,6 +6,9 @@ import { Canvas as FabricCanvas, Rect, Circle, Path, FabricImage, IText, PencilB
 import {
   ChevronLeft,
   ChevronRight,
+  GripVertical,
+  Download,
+  Send,
   Eye,
   EyeOff,
   Hand,
@@ -158,7 +161,6 @@ function StudioWorkspacePageContent() {
   const [selectedSeriesId, setSelectedSeriesId] = useState(paramSeriesId || '')
   const [selectedChapterId, setSelectedChapterId] = useState(paramChapterId || '')
   const [currentPageIdx, setCurrentPageIdx] = useState(0)
-  const [bgLoaded, setBgLoaded] = useState(false)
 
   const [layersConfig, setLayersConfig] = useState<Record<string, { visible: boolean; opacity: number }>>({})
 
@@ -265,12 +267,26 @@ function StudioWorkspacePageContent() {
     assignmentLevel: 'page' as 'chapter' | 'page',
   })
 
+  // ── Enhanced Layer states ──────────────────────────
+  const [baseLayerVisible, setBaseLayerVisible] = useState(true)
+  const [baseLayerOpacity, setBaseLayerOpacity] = useState(100)
+  const [layerOrderList, setLayerOrderList] = useState<string[]>([])
+  const [downloadingLayerId, setDownloadingLayerId] = useState<string | null>(null)
+  const [showSubmitReviewDialog, setShowSubmitReviewDialog] = useState(false)
+  const [submitReviewSelection, setSubmitReviewSelection] = useState<Record<string, string[]>>({})
+  const [draggedLayerIdx, setDraggedLayerIdx] = useState<number | null>(null)
+  const [dragOverLayerIdx, setDragOverLayerIdx] = useState<number | null>(null)
+  const [dragReadyIdx, setDragReadyIdx] = useState<number | null>(null)
+  const [selectedLayersForTask, setSelectedLayersForTask] = useState<string[]>([])
+  const [canvasToken, setCanvasToken] = useState(0)
+
   // ── Fabric.js refs ────────────────────────────────
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
   const bgImageRef = useRef<FabricImage | null>(null)
   const layerImagesRef = useRef<Record<string, FabricImage>>({})
+  const bgLoadIdRef = useRef(0)
   const isPanning = useRef(false)
   const lastPanPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const isApplyingRemoteChange = useRef(false)
@@ -347,6 +363,228 @@ function StudioWorkspacePageContent() {
   const isReviewLocked = seriesStatus === 'Pending_Editor' || seriesStatus === 'Pending_EB'
   // Series was recently rejected (has rejection notes)
   const wasRejected = !!currentSeries?.rejectionNotes
+
+  // ── Enhanced Layer effects & handlers ──────────────
+  // Trigger Submit Review dialog if requested via URL params
+  useEffect(() => {
+    const paramSubmitReview = searchParams.get('submitReview')
+    if (paramSubmitReview === 'true' && currentChapter && currentChapter.status === 'Draft') {
+      setShowSubmitReviewDialog(true)
+      setSearchParams(prev => {
+        prev.delete('submitReview')
+        return prev
+      }, { replace: true })
+    }
+  }, [searchParams, currentChapter])
+
+  // Synchronize layer order from database or defaults
+  useEffect(() => {
+    if (!currentPage) return
+    const orderedFromDb = (currentPage as any).layerOrder || []
+
+    const layerTasks = pageTasks.filter(
+      (t) =>
+        t.submittedFile &&
+        (t.status === 'review' || t.status === 'done') &&
+        (t.assignmentLevel === 'chapter' ||
+          t.pageId?._id === currentPage?._id ||
+          t.pageId === currentPage?._id)
+    )
+
+    const defaultIds = ['base', ...layerTasks.map(t => t._id)]
+
+    if (orderedFromDb.length > 0) {
+      const sortedDbTaskIds = [...orderedFromDb]
+        .sort((a, b) => a.position - b.position)
+        .map(item => item.taskId ? item.taskId.toString() : 'base')
+
+      const existingDbIds = sortedDbTaskIds.filter(id => id === 'base' || layerTasks.some(t => t._id === id))
+
+      if (!existingDbIds.includes('base')) {
+        existingDbIds.unshift('base')
+      }
+
+      const missingIds = defaultIds.filter(id => !existingDbIds.includes(id))
+      setLayerOrderList([...existingDbIds, ...missingIds])
+    } else {
+      setLayerOrderList(defaultIds)
+    }
+  }, [currentPage?._id, pageTasks])
+
+  // Fast-path: sync visibility/opacity by iterating actual canvas objects
+  useEffect(() => {
+    const fc = fabricRef.current
+    if (!fc) return
+
+    // Sync base layer
+    const bg = bgImageRef.current
+    if (bg) {
+      bg.opacity = baseLayerOpacity / 100
+      bg.visible = baseLayerVisible
+      bg.dirty = true
+    }
+
+    // Sync assistant layers — find objects ON the canvas by _layerTaskId
+    // This avoids stale-ref issues where layerImagesRef points to a different object
+    const canvasObjects = fc.getObjects()
+    const seen = new Set<string>()
+
+    // Walk backwards so we can safely remove duplicates
+    for (let i = canvasObjects.length - 1; i >= 0; i--) {
+      const obj = canvasObjects[i] as any
+      const taskId = obj._layerTaskId
+      if (!taskId) continue
+
+      if (seen.has(taskId)) {
+        // Duplicate — remove it
+        console.warn('Fast-path: removing duplicate canvas object for task', taskId)
+        fc.remove(obj)
+        continue
+      }
+      seen.add(taskId)
+
+      const config = layersConfig[taskId] || { visible: true, opacity: 100 }
+      const isVisible = config.visible !== false
+      const opacity = (config.opacity ?? 100) / 100
+      obj.opacity = opacity
+      obj.visible = isVisible
+      obj.dirty = true
+
+      // Keep layerImagesRef in sync with the actual canvas object
+      layerImagesRef.current[taskId] = obj
+    }
+
+    fc.renderAll()
+  }, [layersConfig, baseLayerVisible, baseLayerOpacity])
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedLayerIdx(index)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedLayerIdx !== index) {
+      setDragOverLayerIdx(index)
+    }
+  }
+
+  const handleDragEnd = () => {
+    setDraggedLayerIdx(null)
+    setDragOverLayerIdx(null)
+    setDragReadyIdx(null)
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault()
+    if (draggedLayerIdx === null || draggedLayerIdx === targetIndex) {
+      setDraggedLayerIdx(null)
+      setDragOverLayerIdx(null)
+      return
+    }
+
+    const newOrderList = [...layerOrderList]
+    const [removed] = newOrderList.splice(draggedLayerIdx, 1)
+    newOrderList.splice(targetIndex, 0, removed)
+    setLayerOrderList(newOrderList)
+    setDraggedLayerIdx(null)
+    setDragOverLayerIdx(null)
+
+    if (isMangaka && currentPage?._id) {
+      try {
+        const payload = newOrderList.map((id, pos) => ({
+          taskId: id === 'base' ? null : id,
+          position: pos
+        }))
+        await pagesAPI.updateLayerOrder(currentPage._id, payload as any)
+      } catch (err) {
+        console.error('Failed to save layer order:', err)
+      }
+    }
+  }
+
+  const handleDownloadLayer = async (taskId: string, asPng = false) => {
+    if (!currentPage?._id) return
+    setDownloadingLayerId(taskId)
+    try {
+      const res = await pagesAPI.downloadLayer(currentPage._id, taskId, asPng)
+
+      const contentDisposition = res.headers['content-disposition']
+      let fileName = taskId === 'base' ? 'base-layer.png' : 'layer.png'
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/)
+        if (match && match[1]) {
+          fileName = match[1]
+        }
+      } else {
+        fileName = taskId === 'base'
+          ? `page-${currentPage.pageNumber}-base.${asPng ? 'png' : 'png'}`
+          : `page-${currentPage.pageNumber}-layer-${taskId}.${asPng ? 'png' : 'png'}`
+      }
+
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', fileName)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Failed to download layer:', err)
+      alert('Failed to download layer')
+    } finally {
+      setDownloadingLayerId(null)
+    }
+  }
+
+  const [submittingReview, setSubmittingReview] = useState(false)
+
+  // Pre-populate layer selection for review submission dialog
+  useEffect(() => {
+    if (showSubmitReviewDialog && pages.length > 0) {
+      const initialSelection: Record<string, string[]> = {}
+      pages.forEach(page => {
+        const pageLayers = pageTasks.filter(
+          (t) =>
+            t.submittedFile &&
+            (t.status === 'review' || t.status === 'done') &&
+            (t.assignmentLevel === 'chapter' ||
+              t.pageId?._id === page._id ||
+              t.pageId === page._id)
+        )
+        initialSelection[page._id] = pageLayers.map(l => l._id)
+      })
+      setSubmitReviewSelection(initialSelection)
+    }
+  }, [showSubmitReviewDialog, pages, pageTasks])
+
+  const handleSubmitReview = async () => {
+    if (!selectedChapterId) return
+    setSubmittingReview(true)
+    try {
+      const payload = Object.entries(submitReviewSelection).map(([pageId, taskIds]) => {
+        // Sort selected layers according to current layerOrderList to preserve the Mangaka's layer layout
+        const sortedIds = [...taskIds].sort((a, b) => {
+          return layerOrderList.indexOf(a) - layerOrderList.indexOf(b)
+        })
+        return {
+          pageId,
+          taskIds: sortedIds
+        }
+      })
+
+      await chaptersAPI.submitForReview(selectedChapterId, payload)
+      alert(t('studio.submitReviewSuccess', 'Chapter composited and submitted for review successfully!'))
+      setShowSubmitReviewDialog(false)
+      window.location.reload()
+    } catch (err: any) {
+      console.error(err)
+      alert(err.response?.data?.error || 'Failed to submit chapter review')
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => socketService.connect(), 300)
@@ -754,10 +992,20 @@ function StudioWorkspacePageContent() {
   // Initialize Fabric canvas
   useEffect(() => {
     if (!currentPage || !canvasElRef.current) return
+
+    // Dispose existing canvas first if there is one to prevent detached canvas bugs
     if (fabricRef.current) {
-      console.log('Canvas Init: fabricRef.current already exists, skipping')
-      return
+      console.log('Canvas Init: disposing existing Canvas before creating new one')
+      try {
+        fabricRef.current.dispose()
+      } catch (e) {
+        console.error('Error disposing canvas:', e)
+      }
+      fabricRef.current = null
+      bgImageRef.current = null
+      layerImagesRef.current = {}
     }
+
     console.log('Canvas Init: creating new FabricCanvas for page:', currentPage?._id)
     const fc = new FabricCanvas(canvasElRef.current, {
       selection: true,
@@ -766,83 +1014,27 @@ function StudioWorkspacePageContent() {
     })
     fabricRef.current = fc
     resizeCanvas()
+    setCanvasToken(prev => prev + 1)
 
     return () => {
       console.log('Canvas Init: disposing FabricCanvas for page:', currentPage?._id)
-      fc.dispose()
-      fabricRef.current = null
-      bgImageRef.current = null // Clear background image ref
-      layerImagesRef.current = {} // Clear cached layers when canvas is disposed
+      try {
+        fc.dispose()
+      } catch (e) {
+        console.error('Error disposing canvas in cleanup:', e)
+      }
+      if (fabricRef.current === fc) {
+        fabricRef.current = null
+        bgImageRef.current = null // Clear background image ref
+        layerImagesRef.current = {} // Clear cached layers when canvas is disposed
+      }
     }
-  }, [currentPage, resizeCanvas])
+  }, [currentPage?._id, canvasElRef.current, resizeCanvas])
 
   useEffect(() => {
     window.addEventListener('resize', resizeCanvas)
     return () => window.removeEventListener('resize', resizeCanvas)
   }, [resizeCanvas])
-
-  // Load background image when page changes
-  useEffect(() => {
-    const fc = fabricRef.current
-    console.log('Bg Image Effect: running', { fcExists: !!fc, currentPageId: currentPage?._id })
-    if (!fc || !currentPage) return
-
-    setBgLoaded(false) // Reset background load state on change
-
-    const imgUrl = currentPage.originalImage.startsWith('http')
-      ? currentPage.originalImage
-      : `${apiBase}${currentPage.originalImage}`
-
-    console.log('Bg Image Effect: loading image from URL:', imgUrl)
-
-    FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' }).then((img) => {
-      console.log('Bg Image Effect: image loaded successfully from URL')
-      if (fc !== fabricRef.current) {
-        console.log('Bg Image Effect: canvas was disposed while loading, ignoring')
-        return
-      }
-      // Remove old background
-      if (bgImageRef.current) {
-        console.log('Bg Image Effect: removing old background image object')
-        fc.remove(bgImageRef.current)
-      }
-
-      // Scale image to fit canvas width while keeping aspect ratio
-      const canvasW = fc.getWidth()
-      const canvasH = fc.getHeight()
-      const imgW = img.width || 800
-      const imgH = img.height || 1200
-      const scale = Math.min(canvasW * 0.8 / imgW, canvasH * 0.9 / imgH)
-
-      img.set({
-        originX: 'left',
-        originY: 'top',
-        left: (canvasW - imgW * scale) / 2,
-        top: (canvasH - imgH * scale) / 2,
-        scaleX: scale,
-        scaleY: scale,
-        selectable: false,
-        evented: false,
-        hoverCursor: 'default',
-      })
-
-      bgImageRef.current = img
-      fc.insertAt(0, img)
-      console.log('Bg Image Effect: inserted background image at index 0')
-
-      // Reset viewport and history
-      fc.setViewportTransform([1, 0, 0, 1, 0, 0])
-      setZoom(100)
-      historyStack.current = []
-      redoStack.current = []
-      currentManualState.current = '[]'
-      setBgLoaded(true) // Mark as loaded
-      fc.requestRenderAll()
-    }).catch((err) => {
-      console.error('Bg Image Effect: failed to load image:', err)
-      setBgLoaded(false)
-    })
-  }, [currentPage?._id, currentPage?.originalImage, apiBase])
 
   // Render zone overlays when zones or visibility changes
   useEffect(() => {
@@ -909,7 +1101,7 @@ function StudioWorkspacePageContent() {
     })
 
     fc.requestRenderAll()
-  }, [zones, zoneVisibility, activeTool])
+  }, [zones, zoneVisibility, activeTool, canvasToken])
 
   // Render feedback annotations when annotations, visibility, or background changes
   useEffect(() => {
@@ -1148,135 +1340,172 @@ function StudioWorkspacePageContent() {
     })
 
     fc.requestRenderAll()
-  }, [pageAnnotations, showFeedbackPins, annotationVisibility, wasRejected, currentPage?._id, activeTool, rightTab, selectedAnnotationId])
+  }, [pageAnnotations, showFeedbackPins, annotationVisibility, wasRejected, currentPage?._id, activeTool, rightTab, selectedAnnotationId, canvasToken])
 
-  // Render assistant layer overlays on the canvas
+  // Render background image and assistant layer overlays on the canvas
   useEffect(() => {
     const fc = fabricRef.current
-    if (!fc) {
-      console.log('Layers Effect: canvas not ready')
-      return
+    if (!fc) return
+
+    const imgUrl = currentPage?.originalImage
+      ? currentPage.originalImage.startsWith('http')
+        ? currentPage.originalImage
+        : `${apiBase}${currentPage.originalImage}`
+      : ''
+
+    if (!imgUrl) return
+
+    // Helper to sync layer order by sorting canvas._objects
+    const syncCanvasLayersOrder = (bg: any) => {
+      fc._objects.sort((a: any, b: any) => {
+        const idA = a === bg ? 'base' : a._layerTaskId
+        const idB = b === bg ? 'base' : b._layerTaskId
+        const idxA = idA ? layerOrderList.indexOf(idA) : -1
+        const idxB = idB ? layerOrderList.indexOf(idB) : -1
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+        if (idxA !== -1) return -1
+        if (idxB !== -1) return 1
+        return 0
+      })
+      fc.requestRenderAll()
     }
 
-    const bg = bgImageRef.current
-    if (!bgLoaded || !bg) {
-      console.log('Layers Effect: background image not loaded yet')
-      return // Wait until background image is loaded and scaled
-    }
+    // Render layers using CURRENT closure values (pageTasks, layersConfig, etc.)
+    const renderLayers = (bg: any) => {
+      bg.set({ visible: baseLayerVisible, opacity: baseLayerOpacity / 100 })
+      if (!fc.getObjects().includes(bg)) fc.insertAt(0, bg)
 
-    // 1. Find all tasks with submitted files for this page
-    const layerTasks = pageTasks.filter(
-      (t) =>
-        t.submittedFile &&
-        (t.status === 'review' || t.status === 'done') &&
-        (t.assignmentLevel === 'chapter' ||
-          t.pageId?._id === currentPage?._id ||
-          t.pageId === currentPage?._id)
-    )
+      const layerTasks = pageTasks.filter(
+        (t) =>
+          t.submittedFile &&
+          (t.status === 'review' || t.status === 'done') &&
+          (t.assignmentLevel === 'chapter' ||
+            t.pageId?._id === currentPage?._id ||
+            t.pageId === currentPage?._id)
+      )
 
-    console.log('Layers Effect: active layer tasks:', layerTasks.length, layerTasks)
+      // Remove obsolete layers
+      const activeTaskIds = new Set(layerTasks.map((t) => t._id))
+      Object.keys(layerImagesRef.current).forEach((taskId) => {
+        if (!activeTaskIds.has(taskId)) {
+          fc.remove(layerImagesRef.current[taskId])
+          delete layerImagesRef.current[taskId]
+        }
+      })
 
-    // 2. Remove any layer images on the canvas that are no longer in layerTasks
-    const activeTaskIds = new Set(layerTasks.map((t) => t._id))
-    Object.keys(layerImagesRef.current).forEach((taskId) => {
-      if (!activeTaskIds.has(taskId)) {
-        console.log('Layers Effect: removing obsolete layer object for task:', taskId)
-        fc.remove(layerImagesRef.current[taskId])
-        delete layerImagesRef.current[taskId]
-      }
-    })
+      const bgLeft = bg.left || 0
+      const bgTop = bg.top || 0
+      const bgScaleX = bg.scaleX || 1
+      const bgScaleY = bg.scaleY || 1
 
-    // Get position and scaling of the background image
-    const bgLeft = bg.left || 0
-    const bgTop = bg.top || 0
-    const bgScaleX = bg.scaleX || 1
-    const bgScaleY = bg.scaleY || 1
+      layerTasks.forEach((task) => {
+        const taskId = task._id
+        const config = layersConfig[taskId] || { visible: true, opacity: 100 }
+        const isVisible = config.visible !== false
+        const opacity = (config.opacity ?? 100) / 100
 
-    console.log('Layers Effect: background dimensions:', { bgLeft, bgTop, bgScaleX, bgScaleY })
-    console.log('Layers Effect: canvas objects:', fc.getObjects().map((o: any) => ({
-      type: o.type,
-      left: o.left,
-      top: o.top,
-      scaleX: o.scaleX,
-      scaleY: o.scaleY,
-      width: o.width,
-      height: o.height,
-      visible: o.visible,
-      opacity: o.opacity,
-      layerTaskId: o._layerTaskId
-    })))
+        const existingImg = layerImagesRef.current[taskId]
+        if (existingImg) {
+          existingImg.set({
+            left: bgLeft, top: bgTop,
+            scaleX: bgScaleX, scaleY: bgScaleY,
+            opacity, visible: isVisible,
+          })
+          existingImg.dirty = true
+          if (!fc.getObjects().includes(existingImg)) fc.add(existingImg)
+        } else {
+          const layerUrl = task.submittedFile!.startsWith('http')
+            ? task.submittedFile!
+            : `${apiBase}${task.submittedFile}`
 
-    // 3. For each active task with a submitted file, load or update its FabricImage
-    layerTasks.forEach((task) => {
-      const taskId = task._id
-      const config = layersConfig[taskId] || { visible: true, opacity: 100 }
-      const isVisible = config.visible !== false
-      const opacity = (config.opacity ?? 100) / 100
-
-      console.log(`Layers Effect: processing task ${taskId} (${task.title}):`, { isVisible, opacity })
-
-      const existingImg = layerImagesRef.current[taskId]
-      if (existingImg) {
-        console.log(`Layers Effect: updating existing layer for task ${taskId}:`, { isVisible, opacity })
-        // Just update properties
-        existingImg.set({
-          left: bgLeft,
-          top: bgTop,
-          scaleX: bgScaleX,
-          scaleY: bgScaleY,
-          opacity: opacity,
-          visible: isVisible,
-        })
-        existingImg.dirty = true
-        fc.requestRenderAll()
-      } else {
-        // Load new image
-        const imgUrl = task.submittedFile!.startsWith('http')
-          ? task.submittedFile!
-          : `${apiBase}${task.submittedFile}`
-
-        console.log(`Layers Effect: loading new layer image from URL for task ${taskId}:`, imgUrl)
-
-        FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' })
-          .then((img) => {
-            console.log(`Layers Effect: successfully loaded layer image for task ${taskId}`)
-            // Check if this task is still active and hasn't been removed while loading
-            if (fc !== fabricRef.current) {
-              console.log('Layers Effect: canvas was disposed while loading layer, ignoring')
-              return
-            }
-            
-            img.set({
-              originX: 'left',
-              originY: 'top',
-              left: bgLeft,
-              top: bgTop,
-              scaleX: bgScaleX,
-              scaleY: bgScaleY,
-              opacity: opacity,
-              visible: isVisible,
-              selectable: false,
-              evented: false,
-              hoverCursor: 'default',
+          FabricImage.fromURL(layerUrl, { crossOrigin: 'anonymous' })
+            .then((img) => {
+              if (fabricRef.current !== fc) return
+              // Remove any existing image for this task (from a concurrent load)
+              const oldImg = layerImagesRef.current[taskId]
+              if (oldImg) {
+                fc.remove(oldImg)
+              }
+              img.set({
+                originX: 'left', originY: 'top',
+                left: bgLeft, top: bgTop,
+                scaleX: bgScaleX, scaleY: bgScaleY,
+                opacity, visible: isVisible,
+                selectable: false, evented: false, hoverCursor: 'default',
+              })
+                ; (img as any)._layerTaskId = taskId
+              layerImagesRef.current[taskId] = img
+              fc.add(img)
+              syncCanvasLayersOrder(bg)
             })
-            // Tag object so we can recognize it
-            ;(img as any)._layerTaskId = taskId
+            .catch((err) => console.error(`Failed to load layer for task ${taskId}:`, err))
+        }
+      })
 
-            layerImagesRef.current[taskId] = img
-            
-            // Insert it on top of the background image (index 1 + any other layer)
-            const bgIdx = fc.getObjects().indexOf(bg)
-            const insertIdx = bgIdx !== -1 ? bgIdx + 1 : 1
-            console.log(`Layers Effect: inserting layer for task ${taskId} at index ${insertIdx}`)
-            fc.insertAt(insertIdx, img)
-            fc.requestRenderAll()
-          })
-          .catch((err) => {
-            console.error(`Layers Effect: failed to load layer image for task ${taskId}:`, err)
-          })
+      syncCanvasLayersOrder(bg)
+    }
+
+    // ── Main logic ──
+    const existingBg = bgImageRef.current
+    if (existingBg && (existingBg as any)._pageId === currentPage?._id) {
+      // Background already loaded for this page — render layers synchronously
+      renderLayers(existingBg)
+    } else {
+      // Need to load background image — use loadId to cancel stale loads
+      const loadId = ++bgLoadIdRef.current
+      console.log('Studio Canvas Effect: loading background image (loadId:', loadId, ')')
+
+      if (existingBg) {
+        fc.remove(existingBg)
+        bgImageRef.current = null
       }
-    })
-  }, [pageTasks, layersConfig, currentPage?._id, apiBase, bgLoaded])
+
+      FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' })
+        .then((img) => {
+          // Guard: skip if canvas changed or a newer load was started
+          if (fabricRef.current !== fc || bgLoadIdRef.current !== loadId) {
+            console.log('Studio Canvas Effect: stale bg load (loadId:', loadId, ', current:', bgLoadIdRef.current, '), skipping')
+            return
+          }
+
+          const canvasW = fc.getWidth()
+          const canvasH = fc.getHeight()
+          const imgW = img.width || 800
+          const imgH = img.height || 1200
+          const scale = Math.min(canvasW * 0.8 / imgW, canvasH * 0.9 / imgH)
+
+          img.set({
+            originX: 'left', originY: 'top',
+            left: (canvasW - imgW * scale) / 2,
+            top: (canvasH - imgH * scale) / 2,
+            scaleX: scale, scaleY: scale,
+            selectable: false, evented: false, hoverCursor: 'default',
+          })
+            ; (img as any)._pageId = currentPage?._id
+          bgImageRef.current = img
+          fc.insertAt(0, img)
+
+          fc.setViewportTransform([1, 0, 0, 1, 0, 0])
+          setZoom(100)
+          historyStack.current = []
+          redoStack.current = []
+          currentManualState.current = '[]'
+
+          renderLayers(img)
+        })
+        .catch((err) => console.error('Failed to load background image:', err))
+    }
+  }, [
+    currentPage?._id,
+    currentPage?.originalImage,
+    pageTasks,
+    layersConfig,
+    layerOrderList,
+    baseLayerVisible,
+    baseLayerOpacity,
+    apiBase,
+    canvasToken
+  ])
 
   // ── Tool mode handling ────────────────────────────
   useEffect(() => {
@@ -1595,13 +1824,31 @@ function StudioWorkspacePageContent() {
     fc.requestRenderAll()
   }, [])
 
-  const handleResetView = useCallback(() => {
+
+
+  const handleReloadData = useCallback(() => {
+    console.log('Reloading studio workspace data and canvas layers...')
+    loadZones()
+    loadAnnotations()
+
+    if (selectedChapterId) {
+      tasksAPI.getAll({ chapterId: selectedChapterId }).then(res => {
+        if (!isMountedRef.current) return
+        setPageTasks(res.data.tasks || [])
+      }).catch(console.error)
+    }
+
     const fc = fabricRef.current
-    if (!fc) return
-    fc.setViewportTransform([1, 0, 0, 1, 0, 0])
-    setZoom(100)
-    fc.requestRenderAll()
-  }, [])
+    if (fc) {
+      // Remove all objects
+      fc.getObjects().forEach(obj => fc.remove(obj))
+      // Reset background image and layer image cache
+      bgImageRef.current = null
+      layerImagesRef.current = {}
+      // Increment canvasToken to force unified effect to reload image files
+      setCanvasToken(prev => prev + 1)
+    }
+  }, [loadZones, loadAnnotations, selectedChapterId])
 
   // ── Undo / Redo controls ──────────────────────────
   const handleUndo = useCallback(async () => {
@@ -1735,6 +1982,7 @@ function StudioWorkspacePageContent() {
       assistantType: 'freelance',
       assignmentLevel: level,
     })
+    setSelectedLayersForTask(level === 'page' ? [...layerOrderList] : [])
     loadAssistantRecommendations('background', 'freelance')
     setShowCreateTaskDialog(true)
   }
@@ -1751,6 +1999,7 @@ function StudioWorkspacePageContent() {
       assistantType: astType,
       assignmentLevel: task.assignmentLevel || 'page',
     })
+    setSelectedLayersForTask([])
     loadAssistantRecommendations(task.type, astType)
     setShowCreateTaskDialog(true)
   }
@@ -1787,6 +2036,7 @@ function StudioWorkspacePageContent() {
         }
         if (createTaskForm.assignmentLevel === 'page') {
           payload.pageId = currentPage._id
+          payload.selectedLayers = layerOrderList.filter(id => id !== 'base' && selectedLayersForTask.includes(id))
         }
         await tasksAPI.create(payload)
       }
@@ -2195,6 +2445,15 @@ function StudioWorkspacePageContent() {
           >
             New Chapter
           </button>
+          {isMangaka && currentChapter && currentChapter.status === 'Draft' && (
+            <button
+              type="button"
+              className="h-7 rounded-lg px-3.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 transition-colors shrink-0"
+              onClick={() => setShowSubmitReviewDialog(true)}
+            >
+              Submit for Review
+            </button>
+          )}
         </div>
 
         {/* Page navigation */}
@@ -2221,7 +2480,7 @@ function StudioWorkspacePageContent() {
           <button type="button" title="Zoom in" className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100" onClick={() => handleZoomChange(zoom + 25)}>
             <ZoomIn className="size-4" />
           </button>
-          <button type="button" title="Reset view" className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100" onClick={handleResetView}>
+          <button type="button" title="Reload workspace" className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100" onClick={handleReloadData}>
             <RotateCcw className="size-4" />
           </button>
         </div>
@@ -2952,66 +3211,158 @@ function StudioWorkspacePageContent() {
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
                   <span className="text-xs font-semibold text-neutral-700">{t('studio.pageLayers', 'Page Layers')}</span>
                   <span className="text-[10px] text-neutral-500">
-                    {pageTasks.filter(t => t.submittedFile && (t.status === 'review' || t.status === 'done') && (t.assignmentLevel === 'chapter' || t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id)).length} layers
+                    {layerOrderList.length} layers
                   </span>
                 </div>
 
                 <div className="space-y-3">
-                  {/* Background Layer (Original Draft) */}
-                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="size-8 rounded bg-neutral-200 overflow-hidden shrink-0 border border-neutral-300">
-                        {currentPage && (
-                          <img
-                            src={currentPage.originalImage.startsWith('http') ? currentPage.originalImage : `${apiBase}${currentPage.originalImage}`}
-                            alt="Background draft"
-                            className="h-full w-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold truncate">Original Draft (Background)</p>
-                        <p className="text-[9px] text-neutral-400">Locked Bottom Layer</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-200/50">Base</span>
-                  </div>
-
-                  {/* Assistant Uploaded Layers */}
                   {(() => {
-                    const layers = pageTasks.filter(
-                      (t) =>
-                        t.submittedFile &&
-                        (t.status === 'review' || t.status === 'done') &&
-                        (t.assignmentLevel === 'chapter' ||
-                          t.pageId?._id === currentPage?._id ||
-                          t.pageId === currentPage?._id)
-                    )
+                    const reversedList = [...layerOrderList].reverse()
+                    return reversedList.map((id, index) => {
+                      const actualIndex = layerOrderList.length - 1 - index
+                      if (id === 'base') {
+                        const isDragged = draggedLayerIdx === actualIndex
+                        const isDragOver = dragOverLayerIdx === actualIndex
+                        return (
+                          <div
+                            key="base-layer"
+                            draggable={dragReadyIdx === actualIndex}
+                            onDragStart={(e) => handleDragStart(e, actualIndex)}
+                            onDragOver={(e) => handleDragOver(e, actualIndex)}
+                            onDragEnd={handleDragEnd}
+                            onDrop={(e) => handleDrop(e, actualIndex)}
+                            className={`space-y-2 rounded-xl border p-2.5 transition-all select-none ${isDragged
+                                ? 'opacity-40 border-dashed border-indigo-300 bg-indigo-50/20'
+                                : isDragOver
+                                  ? 'border-indigo-500 bg-indigo-50/10 shadow-sm scale-[1.02]'
+                                  : 'border-neutral-200 bg-neutral-50/50 hover:border-neutral-300 hover:scale-[1.01]'
+                              }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div
+                                  className="drag-handle p-1 hover:bg-neutral-100 rounded cursor-grab active:cursor-grabbing shrink-0 flex items-center justify-center"
+                                  onMouseDown={() => setDragReadyIdx(actualIndex)}
+                                  onMouseUp={() => setDragReadyIdx(null)}
+                                >
+                                  <GripVertical className="size-4 text-neutral-400" />
+                                </div>
+                                <div className="size-8 rounded bg-neutral-200 overflow-hidden shrink-0 border border-neutral-300">
+                                  {currentPage && (
+                                    <img
+                                      src={currentPage.originalImage.startsWith('http') ? currentPage.originalImage : `${apiBase}${currentPage.originalImage}`}
+                                      alt="Background draft"
+                                      className="h-full w-full object-cover"
+                                    />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold truncate">Original Draft (Base)</p>
+                                  <p className="text-[9px] text-neutral-400">Base Page Layer</p>
+                                </div>
+                              </div>
 
-                    if (layers.length === 0) {
-                      return (
-                        <div className="text-center py-6 text-xs text-neutral-500 bg-neutral-50/50 border border-dashed border-neutral-200 rounded-xl">
-                          No assistant layers uploaded for this page yet.
-                        </div>
-                      )
-                    }
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* Download Options */}
+                                <div className="relative group">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadLayer('base', false)}
+                                    disabled={downloadingLayerId !== null}
+                                    className="p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+                                    title="Download Layer"
+                                  >
+                                    {downloadingLayerId === 'base' ? (
+                                      <div className="size-3 animate-spin rounded-full border border-neutral-400 border-t-transparent" />
+                                    ) : (
+                                      <Download className="size-3.5" />
+                                    )}
+                                  </button>
+                                  <div className="absolute right-0 bottom-full mb-1 hidden group-hover:block z-50 bg-white border border-neutral-200 rounded shadow-md p-1.5 whitespace-nowrap text-[10px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadLayer('base', true)}
+                                      className="block px-2.5 py-1.5 hover:bg-neutral-50 text-neutral-700 font-medium rounded transition-colors"
+                                    >
+                                      Download as PNG
+                                    </button>
+                                  </div>
+                                </div>
 
-                    return layers.map((task) => {
+                                {/* Visibility Toggle */}
+                                <button
+                                  type="button"
+                                  onClick={() => setBaseLayerVisible(!baseLayerVisible)}
+                                  className={`p-1.5 rounded-lg border transition-all ${baseLayerVisible
+                                      ? 'bg-neutral-900 text-white border-neutral-900'
+                                      : 'bg-white text-neutral-400 border-neutral-200 hover:text-neutral-600 hover:bg-neutral-50'
+                                    }`}
+                                  title={baseLayerVisible ? 'Hide Base Layer' : 'Show Base Layer'}
+                                >
+                                  {baseLayerVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Opacity slider */}
+                            <div className="flex items-center gap-3 border-t border-neutral-50 pt-2 text-[10px]">
+                              <span className="text-neutral-500 w-12 shrink-0">Opacity:</span>
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={baseLayerOpacity}
+                                onChange={(e) => setBaseLayerOpacity(Number(e.target.value))}
+                                className="flex-1 h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                                disabled={!baseLayerVisible}
+                                aria-label="Base Layer Opacity"
+                              />
+                              <span className="font-medium text-neutral-800 w-8 text-right shrink-0">
+                                {baseLayerOpacity}%
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      // Render Assistant Layer Card
+                      const task = pageTasks.find(t => t._id === id)
+                      if (!task || !task.submittedFile) return null
+
                       const taskId = task._id
                       const config = layersConfig[taskId] || { visible: true, opacity: 100 }
                       const isVisible = config.visible !== false
                       const opacity = config.opacity ?? 100
+                      const isDragged = draggedLayerIdx === actualIndex
+                      const isDragOver = dragOverLayerIdx === actualIndex
 
                       return (
                         <div
                           key={taskId}
-                          className="space-y-2 rounded-xl border border-neutral-200 p-2.5 hover:border-neutral-300 transition-colors"
+                          draggable={dragReadyIdx === actualIndex}
+                          onDragStart={(e) => handleDragStart(e, actualIndex)}
+                          onDragOver={(e) => handleDragOver(e, actualIndex)}
+                          onDragEnd={handleDragEnd}
+                          onDrop={(e) => handleDrop(e, actualIndex)}
+                          className={`space-y-2 rounded-xl border p-2.5 transition-all select-none ${isDragged
+                              ? 'opacity-40 border-dashed border-indigo-300 bg-indigo-50/20'
+                              : isDragOver
+                                ? 'border-indigo-500 bg-indigo-50/10 shadow-sm scale-[1.02]'
+                                : 'border-neutral-200 bg-white hover:border-neutral-300 hover:scale-[1.01]'
+                            }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
+                              <div
+                                className="drag-handle p-1 hover:bg-neutral-100 rounded cursor-grab active:cursor-grabbing shrink-0 flex items-center justify-center"
+                                onMouseDown={() => setDragReadyIdx(actualIndex)}
+                                onMouseUp={() => setDragReadyIdx(null)}
+                              >
+                                <GripVertical className="size-4 text-neutral-400" />
+                              </div>
                               <div className="size-8 rounded bg-neutral-100 overflow-hidden shrink-0 border border-neutral-200 flex items-center justify-center">
                                 <img
-                                  src={task.submittedFile?.startsWith('http') ? task.submittedFile : `${apiBase}${task.submittedFile || ''}`}
+                                  src={task.submittedFile.startsWith('http') ? task.submittedFile : `${apiBase}${task.submittedFile}`}
                                   alt={task.title}
                                   className="h-full w-full object-contain bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22 viewBox=%220 0 8 8%22><rect width=%224%22 height=%224%22 fill=%22%23eee%22/><rect x=%224%22 y=%224%22 width=%224%22 height=%224%22 fill=%22%23eee%22/></svg>')] bg-[size:8px_8px]"
                                 />
@@ -3023,26 +3374,53 @@ function StudioWorkspacePageContent() {
                                 </p>
                               </div>
                             </div>
-                            
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLayersConfig((prev) => ({
-                                  ...prev,
-                                  [taskId]: { ...config, visible: !isVisible },
-                                }))
-                              }}
-                              className={`p-1.5 rounded-lg border transition-all ${
-                                isVisible
-                                  ? 'bg-neutral-900 text-white border-neutral-900'
-                                  : 'bg-white text-neutral-400 border-neutral-200 hover:text-neutral-600 hover:bg-neutral-50'
-                              }`}
-                              title={isVisible ? 'Hide Layer' : 'Show Layer'}
-                              aria-label={isVisible ? 'Hide Layer' : 'Show Layer'}
-                              aria-pressed={isVisible}
-                            >
-                              {isVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-                            </button>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Download Options */}
+                              <div className="relative group">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadLayer(taskId, false)}
+                                  disabled={downloadingLayerId !== null}
+                                  className="p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+                                  title="Download Layer"
+                                >
+                                  {downloadingLayerId === taskId ? (
+                                    <div className="size-3 animate-spin rounded-full border border-neutral-400 border-t-transparent" />
+                                  ) : (
+                                    <Download className="size-3.5" />
+                                  )}
+                                </button>
+                                <div className="absolute right-0 bottom-full mb-1 hidden group-hover:block z-50 bg-white border border-neutral-200 rounded shadow-md p-1.5 whitespace-nowrap text-[10px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadLayer(taskId, true)}
+                                    className="block px-2.5 py-1.5 hover:bg-neutral-50 text-neutral-700 font-medium rounded transition-colors"
+                                  >
+                                    Download as PNG
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Visibility Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLayersConfig((prev) => ({
+                                    ...prev,
+                                    [taskId]: { ...config, visible: !isVisible },
+                                  }))
+                                }}
+                                className={`p-1.5 rounded-lg border transition-all ${isVisible
+                                    ? 'bg-neutral-900 text-white border-neutral-900'
+                                    : 'bg-white text-neutral-400 border-neutral-200 hover:text-neutral-600 hover:bg-neutral-50'
+                                  }`}
+                                title={isVisible ? 'Hide Layer' : 'Show Layer'}
+                                aria-pressed={isVisible}
+                              >
+                                {isVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                              </button>
+                            </div>
                           </div>
 
                           {/* Opacity slider */}
@@ -3485,6 +3863,51 @@ function StudioWorkspacePageContent() {
                 />
               </div>
 
+              {/* Layers selection for composite reference image */}
+              {!activeTaskToAssign && createTaskForm.assignmentLevel === 'page' && layerOrderList.length > 0 && (
+                <div className="space-y-2 border-t border-neutral-100 pt-3">
+                  <label className="text-xs font-bold text-neutral-700 block flex items-center justify-between">
+                    <span>{t('studio.referenceLayersTitle', 'Reference Draft Layers')}</span>
+                    <span className="text-[10px] text-neutral-400 font-normal">
+                      {t('studio.referenceLayersSubtitle', 'Select layers to merge into the assistant\'s draft')}
+                    </span>
+                  </label>
+
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto border border-neutral-200 rounded-xl p-2 bg-neutral-50/50">
+                    {[...layerOrderList].reverse().map((id) => {
+                      const isBase = id === 'base'
+                      const task = pageTasks.find(t => t._id === id)
+                      if (!isBase && (!task || !task.submittedFile)) return null
+
+                      const title = isBase ? 'Original Draft (Base)' : (task?.title || '')
+                      const isChecked = selectedLayersForTask.includes(id)
+
+                      return (
+                        <label
+                          key={id}
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-neutral-100/50 rounded-lg cursor-pointer transition-colors text-[11px] text-neutral-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedLayersForTask(prev =>
+                                isChecked ? prev.filter(x => x !== id) : [...prev, id]
+                              )
+                            }}
+                            className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
+                          />
+                          <span className="truncate flex-1 font-medium">{title}</span>
+                          <span className="text-[9px] text-neutral-400 capitalize shrink-0">
+                            {isBase ? 'Base' : (task?.type || '')}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Recommended / Dedicated Assistants section */}
               {createTaskForm.assistantType === 'freelance' ? (
                 <div className="space-y-2 border-t border-neutral-100 pt-3">
@@ -3773,6 +4196,128 @@ function StudioWorkspacePageContent() {
                 className="bg-rose-600 text-white hover:bg-rose-700"
               >
                 {t('studio.confirmCancelTask', 'Confirm Cancel')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Submit Review Dialog ──────────────────────── */}
+      {showSubmitReviewDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 shrink-0">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5 font-bold">
+                <Send className="size-4 text-neutral-800" />
+                Nộp Review Chương: Ch. {currentChapter?.chapterNumber} - {currentChapter?.title}
+              </h3>
+              <button
+                onClick={() => setShowSubmitReviewDialog(false)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                disabled={submittingReview}
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs leading-normal">
+              <p className="text-neutral-500">
+                Chọn các layer (bản vẽ) muốn nộp từ assistants cho từng trang. Hệ thống sẽ tự động ghép (merge) các layer đã chọn thành một bức ảnh hoàn chỉnh cho mỗi trang để Editor duyệt.
+              </p>
+
+              <div className="space-y-4">
+                {pages.map((page) => {
+                  const pageLayers = pageTasks.filter(
+                    (t) =>
+                      t.submittedFile &&
+                      (t.status === 'review' || t.status === 'done') &&
+                      (t.assignmentLevel === 'chapter' ||
+                        t.pageId?._id === page._id ||
+                        t.pageId === page._id)
+                  )
+
+                  const selected = submitReviewSelection[page._id] || []
+
+                  return (
+                    <div key={page._id} className="p-3 border border-neutral-200 rounded-xl space-y-3 bg-neutral-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-neutral-800">Trang {page.pageNumber}</span>
+                        <span className="text-[10px] text-neutral-500 font-semibold">{pageLayers.length} layer trợ lý</span>
+                      </div>
+
+                      <div className="flex gap-4 items-start">
+                        {/* Page Thumbnail */}
+                        <div className="size-20 shrink-0 border border-neutral-300 rounded-lg overflow-hidden bg-neutral-200 shadow-sm">
+                          <img
+                            src={page.originalImage.startsWith('http') ? page.originalImage : `${apiBase}${page.originalImage}`}
+                            alt={`Page ${page.pageNumber}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        {/* Layers List checkboxes */}
+                        <div className="flex-1 space-y-2">
+                          {pageLayers.length === 0 ? (
+                            <p className="text-neutral-400 italic text-[11px] py-2">Không có layer assistant nào (chỉ nộp ảnh gốc).</p>
+                          ) : (
+                            pageLayers.map((layer) => {
+                              const isChecked = selected.includes(layer._id)
+                              return (
+                                <label key={layer._id} className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-neutral-100 transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    disabled={submittingReview}
+                                    onChange={() => {
+                                      setSubmitReviewSelection(prev => {
+                                        const currentSel = prev[page._id] || []
+                                        const updatedSel = isChecked
+                                          ? currentSel.filter(id => id !== layer._id)
+                                          : [...currentSel, layer._id]
+                                        return { ...prev, [page._id]: updatedSel }
+                                      })
+                                    }}
+                                    className="rounded text-neutral-900 focus:ring-neutral-950 size-3.5"
+                                  />
+                                  <div className="min-w-0">
+                                    <span className="font-medium text-neutral-800 truncate block">{layer.title}</span>
+                                    <span className="text-[9px] text-neutral-400 capitalize block">{layer.type} · {layer.assignedTo?.displayName}</span>
+                                  </div>
+                                </label>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSubmitReviewDialog(false)}
+                disabled={submittingReview}
+              >
+                Hủy
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSubmitReview}
+                disabled={submittingReview}
+                className="bg-neutral-900 text-white hover:bg-neutral-800 flex items-center gap-1.5"
+              >
+                {submittingReview ? (
+                  <>
+                    <div className="size-3 animate-spin rounded-full border border-white border-t-transparent" />
+                    Đang ghép và gửi...
+                  </>
+                ) : (
+                  'Xác nhận nộp review'
+                )}
               </Button>
             </div>
           </div>

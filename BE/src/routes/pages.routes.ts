@@ -3,7 +3,7 @@ import * as ctrl from '../controllers/pages.controller';
 import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/rbac';
 import { upload } from '../middleware/upload';
-import { requireChapterAccess } from '../middleware/chapterAccess';
+import { requireChapterAccess, requirePageAccess } from '../middleware/chapterAccess';
 
 const router = Router();
 
@@ -16,6 +16,8 @@ router.post(
   upload.single('image'),
   ctrl.upload
 );
+router.patch('/:pageId/layer-order', requirePageAccess('edit'), ctrl.updateLayerOrder);
+router.get('/:pageId/download-layer/:taskId', requirePageAccess('read'), ctrl.downloadLayer);
 router.delete('/:id', authorize('mangaka'), ctrl.remove);
 
 export default router;

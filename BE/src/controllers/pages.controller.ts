@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
+import sharp from 'sharp';
 import { Page } from '../models/Page';
 import { Chapter } from '../models/Chapter';
+import { Task } from '../models/Task';
+import { env } from '../config/env';
 
 export async function getByChapterId(req: Request, res: Response): Promise<void> {
   try {
@@ -57,6 +62,132 @@ export async function remove(req: Request, res: Response): Promise<void> {
     await Chapter.findByIdAndUpdate(page.chapterId, { totalPages });
 
     res.json({ message: 'Page deleted.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function updateLayerOrder(req: Request, res: Response): Promise<void> {
+  try {
+    const { pageId } = req.params;
+    const { layerOrder } = req.body;
+
+    if (!Array.isArray(layerOrder)) {
+      res.status(400).json({ error: 'layerOrder must be an array.' });
+      return;
+    }
+
+    const page = await Page.findById(pageId);
+    if (!page) {
+      res.status(404).json({ error: 'Page not found.' });
+      return;
+    }
+
+    page.layerOrder = layerOrder.map((item: any) => ({
+      taskId: item.taskId,
+      position: Number(item.position),
+    }));
+
+    await page.save();
+    res.json({ message: 'Layer order updated successfully.', layerOrder: page.layerOrder });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function downloadLayer(req: Request, res: Response): Promise<void> {
+  try {
+    const { pageId, taskId } = req.params;
+    const asPng = req.query.png === 'true' || req.query.format === 'png';
+
+    let imageUrl = '';
+    let fileName = '';
+
+    if (taskId === 'base' || taskId === 'original') {
+      const page = await Page.findById(pageId);
+      if (!page) {
+        res.status(404).json({ error: 'Page not found.' });
+        return;
+      }
+      imageUrl = page.originalImage;
+      fileName = `page-${page.pageNumber}-base`;
+    } else {
+      const task = await Task.findById(taskId);
+      if (!task) {
+        res.status(404).json({ error: 'Task not found.' });
+        return;
+      }
+      if (!task.submittedFile) {
+        res.status(400).json({ error: 'No file submitted for this task yet.' });
+        return;
+      }
+      imageUrl = task.submittedFile;
+      fileName = `page-${pageId}-layer-${task.type}`;
+    }
+
+    // Get image buffer
+    const uploadsPattern = /\/uploads\/(.+)/;
+    const mangaPattern = /\/manga\/(.+)/;
+    let buffer: Buffer | null = null;
+    let fileExtension = 'png';
+
+    let match = imageUrl.match(uploadsPattern);
+    if (match) {
+      const filePath = path.join(process.cwd(), env.UPLOAD_DIR, match[1]);
+      if (fs.existsSync(filePath)) {
+        buffer = await fs.promises.readFile(filePath);
+        fileExtension = match[1].split('.').pop() || 'png';
+      }
+    }
+
+    if (!buffer) {
+      match = imageUrl.match(mangaPattern);
+      if (match) {
+        const filePath = path.join(process.cwd(), '..', 'FE', 'public', 'manga', match[1]);
+        if (fs.existsSync(filePath)) {
+          buffer = await fs.promises.readFile(filePath);
+          fileExtension = match[1].split('.').pop() || 'png';
+        }
+      }
+    }
+
+    if (!buffer) {
+      let fullUrl = imageUrl;
+      if (imageUrl.startsWith('/')) {
+        fullUrl = `http://localhost:${env.PORT}${imageUrl}`;
+      }
+      const response = await fetch(fullUrl);
+      if (!response.ok) {
+        res.status(500).json({ error: 'Failed to retrieve layer file from storage.' });
+        return;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+      fileExtension = imageUrl.split('?')[0].split('.').pop() || 'png';
+    }
+
+    if (asPng) {
+      const pngBuffer = await sharp(buffer)
+        .png()
+        .toBuffer();
+
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}.png"`);
+      res.send(pngBuffer);
+    } else {
+      let mimeType = 'image/png';
+      if (fileExtension.toLowerCase() === 'jpg' || fileExtension.toLowerCase() === 'jpeg') {
+        mimeType = 'image/jpeg';
+      } else if (fileExtension.toLowerCase() === 'webp') {
+        mimeType = 'image/webp';
+      } else if (fileExtension.toLowerCase() === 'gif') {
+        mimeType = 'image/gif';
+      }
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}.${fileExtension}"`);
+      res.send(buffer);
+    }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

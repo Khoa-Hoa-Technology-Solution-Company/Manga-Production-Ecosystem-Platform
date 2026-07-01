@@ -254,7 +254,9 @@ export function ReadingViewPage() {
     // Load chapter pages
     pagesAPI.getByChapter(chapterId)
       .then((res) => {
-        const p = (res.data.pages || []).map((page: any) => page.originalImage)
+        const p = (res.data.pages || []).map((page: any) => 
+          page.compositeImage || page.processedImage || page.originalImage
+        )
         if (p.length > 0) {
           setPagesList(p)
         } else {
