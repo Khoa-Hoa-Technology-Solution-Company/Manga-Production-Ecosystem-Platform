@@ -253,6 +253,33 @@ export async function removeLayer(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    if (!page.layerOrder || page.layerOrder.length === 0) {
+      // 1. Get all task layers
+      const taskLayers = await Task.find({
+        $or: [
+          { pageId: page._id },
+          { chapterId: page.chapterId, assignmentLevel: 'chapter' }
+        ],
+        submittedFile: { $exists: true, $ne: '' },
+        status: { $in: ['review', 'done'] }
+      });
+
+      // 2. Get all standalone layers
+      const standaloneLayers = await Layer.find({ pageId: page._id });
+
+      // Build default layer order (including the base layer at position 0)
+      const defaultOrder = [
+        { taskId: undefined, layerId: undefined, position: 0 },
+        ...taskLayers.map(t => ({ taskId: t._id, layerId: undefined, position: 0 })),
+        ...standaloneLayers.map(l => ({ taskId: undefined, layerId: l._id, position: 0 }))
+      ];
+
+      page.layerOrder = defaultOrder.map((item, idx) => ({
+        ...item,
+        position: idx
+      }));
+    }
+
     if (layerType === 'standalone') {
       page.layerOrder = page.layerOrder.filter(
         (item) => !item.layerId || item.layerId.toString() !== layerId

@@ -73,6 +73,7 @@ type PageData = {
     layerId?: StandaloneLayer | null
     position: number
   }>
+  updatedAt?: string
 }
 
 type TaskData = {
@@ -88,6 +89,7 @@ type TaskData = {
   assignmentLevel?: 'chapter' | 'page'
   pageId?: any
   submittedFile?: string
+  updatedAt?: string
 }
 
 /* ── Canvas annotation parser ────────────────────────── */
@@ -387,7 +389,13 @@ function StudioWorkspacePageContent() {
 
   // Chapter is locked when published (but ONLY for mangaka or assistant role)
   const isPublishedLocked = currentChapter?.status === 'Published' && (user?.role === 'mangaka' || user?.role === 'assistant')
-  const isStudioLocked = isReviewLocked || isPublishedLocked
+  // Chapter is locked when under review, approved, or published (but ONLY for mangaka or assistant role)
+  const isChapterLocked =
+    (currentChapter?.status === 'Reviewing' ||
+      currentChapter?.status === 'Approved' ||
+      currentChapter?.status === 'Published') &&
+    (user?.role === 'mangaka' || user?.role === 'assistant')
+  const isStudioLocked = isReviewLocked || isChapterLocked
   const canUnpublish = currentChapter?.status === 'Published' && (user?.role === 'editor' || user?.role === 'editorial_board')
 
   // ── Enhanced Layer effects & handlers ──────────────
@@ -449,7 +457,18 @@ function StudioWorkspacePageContent() {
         existingDbIds.unshift('base')
       }
 
-      const missingIds = defaultIds.filter(id => !existingDbIds.includes(id))
+      const missingIds = defaultIds.filter(id => {
+        if (existingDbIds.includes(id)) return false
+        if (id === 'base') return false
+
+        const task = layerTasks.find(t => t._id === id)
+        if (task && currentPage && task.updatedAt && currentPage.updatedAt) {
+          const taskTime = new Date(task.updatedAt).getTime()
+          const pageTime = new Date(currentPage.updatedAt).getTime()
+          return taskTime > pageTime
+        }
+        return true
+      })
       setLayerOrderList([...existingDbIds, ...missingIds])
     } else {
       setLayerOrderList(defaultIds)
@@ -601,7 +620,20 @@ function StudioWorkspacePageContent() {
             (t.assignmentLevel === 'chapter' ||
               t.pageId?._id === page._id ||
               t.pageId === page._id)
-        ).map(l => l._id)
+        ).filter((t) => {
+          const inLayerOrder = page.layerOrder && page.layerOrder.some((item: any) => {
+            const taskIdStr = item.taskId ? String(item.taskId._id || item.taskId) : null
+            return taskIdStr === t._id
+          })
+          if (inLayerOrder) return true
+
+          if (page.layerOrder && page.layerOrder.length > 0 && page.updatedAt && t.updatedAt) {
+            const taskTime = new Date(t.updatedAt).getTime()
+            const pageTime = new Date(page.updatedAt).getTime()
+            return taskTime > pageTime
+          }
+          return true
+        }).map(l => l._id)
 
         const standaloneLayers = (page.layerOrder || [])
           .map(item => item.layerId)
@@ -1459,7 +1491,7 @@ function StudioWorkspacePageContent() {
       const layersToRender = [
         ...layerTasks.map((t) => ({ id: t._id, url: t.submittedFile!, title: t.title })),
         ...standaloneLayers.map((l) => ({ id: l._id, url: l.imageUrl, title: l.name })),
-      ]
+      ].filter((item) => layerOrderList.includes(item.id))
 
       // Remove obsolete layers
       const activeTaskIds = new Set(layersToRender.map((item) => item.id))
@@ -2479,7 +2511,16 @@ function StudioWorkspacePageContent() {
           {tools.map(({ icon: Icon, label, key }) => {
             // When studio is locked, only allow select & pan
             const isToolLocked = isStudioLocked && (key === 'zone' || key === 'draw' || key === 'text')
-            const lockReason = isReviewLocked ? 'series under review' : 'chapter is published'
+            let lockReason = ''
+            if (isReviewLocked) {
+              lockReason = 'series under review'
+            } else if (currentChapter?.status === 'Reviewing') {
+              lockReason = 'chapter under review'
+            } else if (currentChapter?.status === 'Approved') {
+              lockReason = 'chapter approved'
+            } else if (currentChapter?.status === 'Published') {
+              lockReason = 'chapter is published'
+            }
             return (
               <button
                 key={key}
@@ -2654,6 +2695,25 @@ function StudioWorkspacePageContent() {
             </p>
             <p className="text-[10px] text-amber-600 mt-0.5">
               {t('studio.reviewLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit until the review is complete or draft is returned.')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Chapter Review Lock Banner (for Mangakas and Assistants) ───────────── */}
+      {!isReviewLocked && (currentChapter?.status === 'Reviewing' || currentChapter?.status === 'Approved') && (user?.role === 'mangaka' || user?.role === 'assistant') && (
+        <div className="flex items-center gap-2.5 border-b border-amber-200 bg-amber-50 px-4 py-2 shrink-0">
+          <div className="grid size-6 place-items-center rounded-lg bg-amber-100">
+            <AlertCircle className="size-3.5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-800">
+              {currentChapter?.status === 'Approved'
+                ? t('studio.chapterApprovedLocked', 'Chapter is approved — Studio editing locked')
+                : t('studio.chapterReviewLocked', 'Chapter is under review — Studio editing temporarily locked')}
+            </p>
+            <p className="text-[10px] text-amber-600 mt-0.5">
+              {t('studio.chapterReviewLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit layers until the review is complete.')}
             </p>
           </div>
         </div>
@@ -4476,7 +4536,20 @@ function StudioWorkspacePageContent() {
                       (t.assignmentLevel === 'chapter' ||
                         t.pageId?._id === page._id ||
                         t.pageId === page._id)
-                  )
+                  ).filter((t) => {
+                    const inLayerOrder = page.layerOrder && page.layerOrder.some((item: any) => {
+                      const taskIdStr = item.taskId ? String(item.taskId._id || item.taskId) : null
+                      return taskIdStr === t._id
+                    })
+                    if (inLayerOrder) return true
+
+                    if (page.layerOrder && page.layerOrder.length > 0 && page.updatedAt && t.updatedAt) {
+                      const taskTime = new Date(t.updatedAt).getTime()
+                      const pageTime = new Date(page.updatedAt).getTime()
+                      return taskTime > pageTime
+                    }
+                    return true
+                  })
 
                   // Combine them in correct z-index order based on page.layerOrder
                   const combinedLayers: Array<{ id: string; title: string; subtitle: string; isStandalone: boolean }> = []

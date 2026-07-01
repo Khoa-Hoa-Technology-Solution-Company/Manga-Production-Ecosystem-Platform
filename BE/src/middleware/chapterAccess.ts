@@ -82,6 +82,11 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
         }
       }
 
+      if (mode === 'edit' && chapter.status !== 'Draft' && (userRole === 'mangaka' || userRole === 'assistant')) {
+        res.status(403).json({ error: 'Chapter is locked (under review or published).' });
+        return;
+      }
+
       if (!can) {
         res.status(403).json({ error: 'You do not have access to this chapter.' });
         return;
@@ -90,7 +95,9 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
       req.chapterAccess = {
         chapterId: String(chapterId),
         role: userRole,
-        canEdit: (userRole === 'editor' || userRole === 'editorial_board') ? true : hasAccess(chapter, userId, userRole, 'edit'),
+        canEdit: (userRole === 'editor' || userRole === 'editorial_board') 
+          ? true 
+          : (chapter.status !== 'Draft' && (userRole === 'mangaka' || userRole === 'assistant') ? false : hasAccess(chapter, userId, userRole, 'edit')),
         canComment: (userRole === 'editor' || userRole === 'editorial_board') ? true : hasAccess(chapter, userId, userRole, 'comment'),
         canInvite: (userRole === 'editor' || userRole === 'editorial_board') ? false : hasAccess(chapter, userId, userRole, 'invite'),
       };
