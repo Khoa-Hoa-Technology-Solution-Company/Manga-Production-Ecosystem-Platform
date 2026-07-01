@@ -177,10 +177,16 @@ export const pagesAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
   delete: (id: string) => api.delete(`/pages/${id}`),
-  updateLayerOrder: (pageId: string, layerOrder: { taskId: string; position: number }[]) =>
+  updateLayerOrder: (pageId: string, layerOrder: { taskId?: string; layerId?: string; position: number }[]) =>
     api.patch(`/pages/${pageId}/layer-order`, { layerOrder }),
   downloadLayer: (pageId: string, taskId: string, asPng = false) =>
     api.get(`/pages/${pageId}/download-layer/${taskId}${asPng ? '?png=true' : ''}`, { responseType: 'blob' }),
+  addLayer: (pageId: string, formData: FormData) =>
+    api.post(`/pages/${pageId}/layers`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  removeLayer: (pageId: string, layerId: string, layerType: 'task' | 'standalone') =>
+    api.delete(`/pages/${pageId}/layers/${layerId}`, { params: { layerType } }),
 };
 
 // ── Zones API ───────────────────────────────────────

@@ -1,8 +1,10 @@
 import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
+import mongoose from 'mongoose';
 import { Page } from '../models/Page';
 import { Task } from '../models/Task';
+import { Layer } from '../models/Layer';
 import { env } from '../config/env';
 import { uploadToR2 } from './storage.service';
 
@@ -51,27 +53,58 @@ async function getImageBuffer(imgUrl: string): Promise<Buffer> {
  * Layers are composited according to their z-index (order) and uploaded.
  * 
  * @param pageId ID of the Page
- * @param taskIds Array of task IDs (whose submitted files are layers to composite) in order (bottom to top)
+ * @param layerIds Array of layer/task IDs (whose files are layers to composite) in order (bottom to top)
  * @param saveToPage Whether to update the Page document in the DB
  */
-export async function compositePageLayers(pageId: string, taskIds: string[], saveToPage = true): Promise<string> {
+export async function compositePageLayers(pageId: string, layerIds: string[], saveToPage = true): Promise<string> {
   const page = await Page.findById(pageId);
   if (!page) {
     throw new Error(`Page ${pageId} not found.`);
   }
 
-  // Load the tasks to fetch the layer images
-  const tasks = await Task.find({ _id: { $in: taskIds } })
-    .populate('assignedTo', 'displayName');
+  // Load the tasks and standalone layers
+  const tasks = await Task.find({ _id: { $in: layerIds } }).populate('assignedTo', 'displayName');
+  const standaloneLayers = await Layer.find({ _id: { $in: layerIds } });
 
-  // Map task IDs to tasks to maintain the specified order
+  // Map them for easy lookup
   const taskMap = new Map(tasks.map(t => [t._id.toString(), t]));
-  const orderedTasks = taskIds
-    .map(id => taskMap.get(id))
-    .filter((t): t is typeof tasks[0] => !!t && !!t.submittedFile);
+  const layerMap = new Map(standaloneLayers.map(l => [l._id.toString(), l]));
+
+  // Build the ordered list of image buffers/paths from page.layerOrder
+  const orderedInputs: Array<{ file: string; type: string; id: string }> = [];
+
+  // Match the selected layerIds against page.layerOrder to keep correct z-index
+  for (const entry of page.layerOrder || []) {
+    if (entry.taskId && layerIds.includes(entry.taskId.toString())) {
+      const task = taskMap.get(entry.taskId.toString());
+      if (task && task.submittedFile) {
+        orderedInputs.push({ file: task.submittedFile, type: 'task', id: task._id.toString() });
+      }
+    } else if (entry.layerId && layerIds.includes(entry.layerId.toString())) {
+      const layer = layerMap.get(entry.layerId.toString());
+      if (layer && layer.imageUrl) {
+        orderedInputs.push({ file: layer.imageUrl, type: 'standalone', id: layer._id.toString() });
+      }
+    }
+  }
+
+  // Append any selected layerIds that were not found in layerOrder (fallback)
+  const processedIds = new Set(orderedInputs.map(item => item.id));
+  for (const id of layerIds) {
+    if (processedIds.has(id)) continue;
+    const task = taskMap.get(id);
+    if (task && task.submittedFile) {
+      orderedInputs.push({ file: task.submittedFile, type: 'task', id });
+    } else {
+      const layer = layerMap.get(id);
+      if (layer && layer.imageUrl) {
+        orderedInputs.push({ file: layer.imageUrl, type: 'standalone', id });
+      }
+    }
+  }
 
   console.log(`Compositing page ${pageId}: base image is ${page.originalImage}`);
-  console.log(`Layers to composite: ${orderedTasks.map(t => `${t.title} (${t.submittedFile})`).join(', ')}`);
+  console.log(`Layers to composite: ${orderedInputs.map(item => `${item.type} (${item.file})`).join(', ')}`);
 
   // Fetch base image buffer
   const baseBuffer = await getImageBuffer(page.originalImage);
@@ -86,9 +119,9 @@ export async function compositePageLayers(pageId: string, taskIds: string[], sav
 
   // Load and resize each layer buffer
   const compositeInputs = [];
-  for (const task of orderedTasks) {
+  for (const item of orderedInputs) {
     try {
-      const layerBuffer = await getImageBuffer(task.submittedFile!);
+      const layerBuffer = await getImageBuffer(item.file);
       const resizedLayer = await sharp(layerBuffer)
         .resize(width, height, { fit: 'fill' })
         .png()
@@ -100,7 +133,7 @@ export async function compositePageLayers(pageId: string, taskIds: string[], sav
         left: 0,
       });
     } catch (err: any) {
-      console.error(`Failed to process layer for task ${task._id}:`, err.message);
+      console.error(`Failed to process layer ${item.id}:`, err.message);
       // Skip failed layers to let composition succeed
     }
   }
@@ -140,13 +173,33 @@ export async function compositePageLayers(pageId: string, taskIds: string[], sav
     // Update Page in DB
     page.compositeImage = compositeUrl;
     
-    // Update layer order fields if requested
-    const newLayerOrder = taskIds.map((taskId, index) => ({
-      taskId: new Object(taskId) as any,
-      position: index,
-    }));
-    page.layerOrder = newLayerOrder;
+    // Update layerOrder: keep only the selected task layers and standalone layers, preserving their relative positions
+    const newLayerOrder = [];
+    let position = 0;
+    
+    for (const entry of page.layerOrder || []) {
+      if (entry.taskId && layerIds.includes(entry.taskId.toString())) {
+        newLayerOrder.push({ taskId: entry.taskId, position: position++ });
+      } else if (entry.layerId && layerIds.includes(entry.layerId.toString())) {
+        newLayerOrder.push({ layerId: entry.layerId, position: position++ });
+      }
+    }
+    
+    // If there were any selected layerIds not originally in layerOrder, append them
+    const existingTaskIds = new Set((page.layerOrder || []).filter(e => e.taskId).map(e => e.taskId!.toString()));
+    const existingLayerIds = new Set((page.layerOrder || []).filter(e => e.layerId).map(e => e.layerId!.toString()));
+    
+    for (const id of layerIds) {
+      if (existingTaskIds.has(id) || existingLayerIds.has(id)) continue;
+      
+      if (taskMap.has(id)) {
+        newLayerOrder.push({ taskId: new mongoose.Types.ObjectId(id) as any, position: position++ });
+      } else if (layerMap.has(id)) {
+        newLayerOrder.push({ layerId: new mongoose.Types.ObjectId(id) as any, position: position++ });
+      }
+    }
 
+    page.layerOrder = newLayerOrder;
     await page.save();
   }
 

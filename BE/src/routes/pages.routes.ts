@@ -18,6 +18,8 @@ router.post(
 );
 router.patch('/:pageId/layer-order', requirePageAccess('edit'), ctrl.updateLayerOrder);
 router.get('/:pageId/download-layer/:taskId', requirePageAccess('read'), ctrl.downloadLayer);
+router.post('/:pageId/layers', requirePageAccess('edit'), upload.single('image'), ctrl.addLayer);
+router.delete('/:pageId/layers/:layerId', requirePageAccess('edit'), ctrl.removeLayer);
 router.delete('/:id', authorize('mangaka'), ctrl.remove);
 
 export default router;

@@ -6,7 +6,11 @@ export interface IPage extends Document {
   originalImage: string;
   processedImage?: string;
   compositeImage?: string;
-  layerOrder: Array<{ taskId: mongoose.Types.ObjectId; position: number }>;
+  layerOrder: Array<{
+    taskId?: mongoose.Types.ObjectId;
+    layerId?: mongoose.Types.ObjectId;
+    position: number;
+  }>;
   width: number;
   height: number;
   createdAt: Date;
@@ -23,6 +27,7 @@ const pageSchema = new Schema<IPage>(
     layerOrder: [
       {
         taskId: { type: Schema.Types.ObjectId, ref: 'Task' },
+        layerId: { type: Schema.Types.ObjectId, ref: 'Layer' },
         position: { type: Number },
       },
     ],

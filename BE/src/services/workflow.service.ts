@@ -11,7 +11,7 @@ const VALID_TRANSITIONS: Record<ChapterStatus, ChapterStatus[]> = {
   Draft: ['Reviewing'],
   Reviewing: ['Draft', 'Approved'],   // can reject back to Draft
   Approved: ['Published', 'Reviewing'], // can revert to Reviewing
-  Published: [],                       // final state
+  Published: ['Draft'],                // can unpublish back to Draft
 };
 
 export async function transitionChapterStatus(
@@ -43,6 +43,14 @@ export async function transitionChapterStatus(
     if (userRole !== 'editor' && userRole !== 'editorial_board') {
       throw new Error('Only editors can approve or reject chapters.');
     }
+  }
+
+  if (newStatus === 'Draft' && currentStatus === 'Published') {
+    // Only editor or editorial board can unpublish
+    if (userRole !== 'editor' && userRole !== 'editorial_board') {
+      throw new Error('Only editors or editorial board can unpublish chapters.');
+    }
+    chapter.publishedAt = undefined;
   }
 
   if (newStatus === 'Published') {

@@ -193,6 +193,27 @@ export function ManuscriptReviewPage() {
     }
   }
 
+  const handleUnpublishChapter = async () => {
+    if (!chapter?._id) return
+    if (!window.confirm(t('studio.unpublishConfirm', 'Are you sure you want to unpublish this chapter? This will set it back to Draft status.'))) return
+    
+    setSubmittingAction(true)
+    try {
+      await chaptersAPI.updateStatus(chapter._id, 'Draft')
+      alert(t('studio.unpublishSuccess', 'Chapter unpublished successfully! It is now in Draft mode.'))
+      if (user?.role?.toLowerCase() === 'editorial_board') {
+        navigate('/editorial-board')
+      } else {
+        navigate('/editor')
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to unpublish chapter')
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
+
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
   const currentPage = pages[currentPageIdx]
@@ -483,6 +504,16 @@ export function ManuscriptReviewPage() {
                 <span>{t('editor.reject', 'Reject')}</span>
               </button>
             </>
+          )}
+          {chapter && (chapter.status === 'Published' || chapter.status === 'Approved') && (
+            <button
+              onClick={handleUnpublishChapter}
+              disabled={submittingAction}
+              className="h-8 px-3.5 text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+            >
+              <AlertTriangle className="size-3.5" />
+              <span>{t('studio.unpublish', 'Unpublish')}</span>
+            </button>
           )}
           <button
             onClick={() => setShowCanvas(true)}

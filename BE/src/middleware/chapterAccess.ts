@@ -75,8 +75,8 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
           if (isTantouEditor) {
             // Tantou Editor has full read, comment, and edit rights
             can = true;
-          } else if (isEditorialBoard && mode === 'read') {
-            // EB has read access for publication reviews
+          } else if (isEditorialBoard) {
+            // Editorial Board has full access for editorial reviews and actions
             can = true;
           }
         }
@@ -90,9 +90,9 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
       req.chapterAccess = {
         chapterId: String(chapterId),
         role: userRole,
-        canEdit: userRole === 'editor' ? true : hasAccess(chapter, userId, userRole, 'edit'),
-        canComment: userRole === 'editor' ? true : hasAccess(chapter, userId, userRole, 'comment'),
-        canInvite: userRole === 'editor' ? false : hasAccess(chapter, userId, userRole, 'invite'),
+        canEdit: (userRole === 'editor' || userRole === 'editorial_board') ? true : hasAccess(chapter, userId, userRole, 'edit'),
+        canComment: (userRole === 'editor' || userRole === 'editorial_board') ? true : hasAccess(chapter, userId, userRole, 'comment'),
+        canInvite: (userRole === 'editor' || userRole === 'editorial_board') ? false : hasAccess(chapter, userId, userRole, 'invite'),
       };
 
       next();
