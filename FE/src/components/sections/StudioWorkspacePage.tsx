@@ -1,8 +1,7 @@
 /* eslint-disable */
-import { useCallback, useEffect, useRef, useState, Component } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams, useNavigate } from 'react-router-dom'
-import { Canvas as FabricCanvas, Rect, Circle, Path, FabricImage, IText, PencilBrush, Point, util } from 'fabric'
+import { Canvas as FabricCanvas, Rect, FabricImage, IText, PencilBrush, Point, util } from 'fabric'
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,21 +22,10 @@ import {
   Upload,
   ZoomIn,
   ZoomOut,
-  ArrowLeft,
-  Sparkles,
-  Star,
-  AlertCircle,
-  CheckSquare,
-  Check,
-  Globe,
-  BookOpen,
-  FileText,
-  AlertTriangle,
-  X,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } from '../ui'
 import { useAuth } from '../../lib/auth'
-import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI, annotationsAPI } from '../../lib/api'
+import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -67,47 +55,6 @@ type TaskData = {
   status: string
   assignedTo?: { _id: string; displayName: string } | null
   deadline: string
-  zoneId?: string
-  wage?: number
-  reviewNotes?: string
-  assignmentLevel?: 'chapter' | 'page'
-  pageId?: any
-  submittedFile?: string
-}
-
-/* ── Canvas annotation parser ────────────────────────── */
-type ParsedCanvasAnnotation = {
-  id: string
-  type: 'rect' | 'circle' | 'text' | 'freehand'
-  x: number
-  y: number
-  width?: number
-  height?: number
-  radius?: number
-  text?: string
-  color: string
-  pageIndex: number
-  createdAt: string
-  pathData?: string
-}
-
-function parseCanvasAnnotation(note: string): ParsedCanvasAnnotation | null {
-  if (!note.startsWith('[CANVAS]')) return null
-  try {
-    return JSON.parse(note.slice(8))
-  } catch {
-    return null
-  }
-}
-
-function canvasAnnotationLabel(parsed: ParsedCanvasAnnotation): string {
-  switch (parsed.type) {
-    case 'rect': return 'Marked Region'
-    case 'circle': return 'Circled Area'
-    case 'freehand': return 'Drawn Highlight'
-    case 'text': return parsed.text || 'Text Note'
-    default: return 'Annotation'
-  }
 }
 
 /* ── Zone colors by type ──────────────────────────────── */
@@ -128,19 +75,9 @@ const tools = [
   { icon: Type, label: 'Text', key: 'text' },
 ]
 
-function StudioWorkspacePageContent() {
+export function StudioWorkspacePage() {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
-
-  const isMountedRef = useRef(true)
-  useEffect(() => {
-    isMountedRef.current = true
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
 
   const [activeTool, setActiveTool] = useState('select')
   const [rightTab, setRightTab] = useState('zones')
@@ -148,95 +85,26 @@ function StudioWorkspacePageContent() {
 
   // ── Data state ────────────────────────────────────
   const [seriesList, setSeriesList] = useState<any[]>([])
+  const [selectedSeriesId, setSelectedSeriesId] = useState('')
   const [chapters, setChapters] = useState<any[]>([])
+  const [selectedChapterId, setSelectedChapterId] = useState('')
   const [pages, setPages] = useState<PageData[]>([])
-
-  const paramSeriesId = searchParams.get('seriesId')
-  const paramChapterId = searchParams.get('chapterId')
-  const paramPageId = searchParams.get('pageId')
-
-  const [selectedSeriesId, setSelectedSeriesId] = useState(paramSeriesId || '')
-  const [selectedChapterId, setSelectedChapterId] = useState(paramChapterId || '')
   const [currentPageIdx, setCurrentPageIdx] = useState(0)
-  const [bgLoaded, setBgLoaded] = useState(false)
-
-  const [layersConfig, setLayersConfig] = useState<Record<string, { visible: boolean; opacity: number }>>({})
-
-  const handleSelectSeries = (id: string) => {
-    setSelectedSeriesId(id)
-    setSelectedChapterId('')
-    setPages([])
-    setCurrentPageIdx(0)
-    setSearchParams(
-      (prev) => {
-        if (id) prev.set('seriesId', id)
-        else prev.delete('seriesId')
-        prev.delete('chapterId')
-        prev.delete('pageId')
-        return prev
-      },
-      { replace: true }
-    )
-  }
-
-  const handleSelectChapter = (id: string) => {
-    setSelectedChapterId(id)
-    setPages([])
-    setCurrentPageIdx(0)
-    setSearchParams(
-      (prev) => {
-        if (id) prev.set('chapterId', id)
-        else prev.delete('chapterId')
-        prev.delete('pageId')
-        return prev
-      },
-      { replace: true }
-    )
-  }
-
-  const handleSelectPageIdx = (idx: number, pagesList = pages) => {
-    setCurrentPageIdx(idx)
-    const pageId = pagesList[idx]?._id
-    setSearchParams(
-      (prev) => {
-        if (pageId) prev.set('pageId', pageId)
-        else prev.delete('pageId')
-        return prev
-      },
-      { replace: true }
-    )
-  }
   const [zones, setZones] = useState<ZoneData[]>([])
   const [pageTasks, setPageTasks] = useState<TaskData[]>([])
-  const [pageAnnotations, setPageAnnotations] = useState<any[]>([])
-  const [showFeedbackPins, setShowFeedbackPins] = useState(true)
-  const [annotationVisibility, setAnnotationVisibility] = useState<Record<string, boolean>>({})
   const [zoneVisibility, setZoneVisibility] = useState<Record<string, boolean>>({})
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; color: string; name: string }>>({})
   const [roomMembers, setRoomMembers] = useState<Array<{ userId: string; role: string }>>([])
   const [focusedObjects, setFocusedObjects] = useState<Record<string, { userId: string; role: string }>>({})
   const [lockedObjects, setLockedObjects] = useState<Record<string, { userId: string; role: string }>>({})
   const [shareUserId, setShareUserId] = useState('')
-  const [shareUserRole, setShareUserRole] = useState<'mangaka' | 'assistant' | 'editor' | ''>('')
   const [shareUserQuery, setShareUserQuery] = useState('')
   const [shareUserResults, setShareUserResults] = useState<any[]>([])
-  const [shareError, setShareError] = useState('')
-  const [shareRole, setShareRole] = useState<'mangaka' | 'assistant' | 'editor'>('assistant')
+  const [shareRole, setShareRole] = useState<'assistant' | 'editor'>('assistant')
   const [shareCanEdit, setShareCanEdit] = useState(true)
   const [shareCanComment, setShareCanComment] = useState(true)
   const [shareCanInvite, setShareCanInvite] = useState(false)
-
-  // ── Series / Chapter creation dialogs ────────────
-  const [showCreateSeriesDialog, setShowCreateSeriesDialog] = useState(false)
-  const [showCreateChapterDialog, setShowCreateChapterDialog] = useState(false)
-  const [newSeriesTitle, setNewSeriesTitle] = useState('')
-  const [newSeriesDescription, setNewSeriesDescription] = useState('')
-  const [newSeriesGenre, setNewSeriesGenre] = useState('action, fantasy')
-  const [newSeriesCoverImage, setNewSeriesCoverImage] = useState('')
-  const [newChapterNumber, setNewChapterNumber] = useState('1')
-  const [newChapterTitle, setNewChapterTitle] = useState('Chapter 1')
 
   // ── Zone creation dialog ──────────────────────────
   const [showNewZoneDialog, setShowNewZoneDialog] = useState(false)
@@ -244,37 +112,16 @@ function StudioWorkspacePageContent() {
   const [newZoneType, setNewZoneType] = useState('background')
   const [pendingZoneRect, setPendingZoneRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
 
-  // ── Task Assignment & Review Dialogs ──────────────
-  const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
-  const [showReviewDialog, setShowReviewDialog] = useState(false)
-  const [selectedReviewTask, setSelectedReviewTask] = useState<any | null>(null)
-  const [activeTaskToAssign, setActiveTaskToAssign] = useState<any | null>(null)
-  const [recommendations, setRecommendations] = useState<any[]>([])
-  const [recommendationLoading, setRecommendationLoading] = useState(false)
-  const [reviewNotes, setReviewNotes] = useState('')
-  const [showCancelTaskDialog, setShowCancelTaskDialog] = useState(false)
-  const [taskToCancel, setTaskToCancel] = useState<any | null>(null)
-  const [createTaskForm, setCreateTaskForm] = useState({
-    title: '',
-    description: '',
-    deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
-    type: 'background',
-    assignedTo: '',
-    assistantType: 'freelance',
-    assignmentLevel: 'page' as 'chapter' | 'page',
-  })
-
   // ── Fabric.js refs ────────────────────────────────
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
   const bgImageRef = useRef<FabricImage | null>(null)
-  const layerImagesRef = useRef<Record<string, FabricImage>>({})
   const isPanning = useRef(false)
   const lastPanPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const isApplyingRemoteChange = useRef(false)
   const objectSyncCounter = useRef(0)
-
+  
   // History for manual tools (draw, text)
   type HistoryRecord = { type: 'manual_change', prevState: string, nextState: string }
   type SyncableObject = any & { _syncId?: string }
@@ -282,7 +129,7 @@ function StudioWorkspacePageContent() {
   const redoStack = useRef<HistoryRecord[]>([])
   const currentManualState = useRef<string>('[]')
   const isRestoring = useRef(false)
-
+  
   const [drawColor, setDrawColor] = useState('#000000')
   const [drawSize, setDrawSize] = useState(2)
   const [brushMode, setBrushMode] = useState<'ink' | 'marker' | 'pencil' | 'eraser'>('ink')
@@ -294,11 +141,6 @@ function StudioWorkspacePageContent() {
     drawSizeRef.current = drawSize
     brushModeRef.current = brushMode
   }, [drawColor, drawSize, brushMode])
-
-  // Reset selected annotation when page changes
-  useEffect(() => {
-    setSelectedAnnotationId(null)
-  }, [currentPageIdx])
 
   // Sync color/size changes to active objects immediately
   useEffect(() => {
@@ -325,34 +167,15 @@ function StudioWorkspacePageContent() {
       if (changed) fc.requestRenderAll()
     }
   }, [drawColor, drawSize])
-
+  
   const currentPage = pages[currentPageIdx]
   const isMangaka = user?.role === 'mangaka'
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
   const chapterRoom = selectedChapterId ? `chapter:${selectedChapterId}` : ''
 
-  // ── Computed ──────────────────────────────────────
-  const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
-  const currentChapter = chapters.find(c => c._id === selectedChapterId)
-  const chapterCollaborators = (currentChapter as any)?.collaborators || []
-
-  // Active tasks for chapter and page
-  const activeChapterTask = pageTasks.find(t => t.assignmentLevel === 'chapter' && t.status !== 'done')
-  const activePageTask = pageTasks.find(t => t.assignmentLevel === 'page' && (t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id) && t.status !== 'done')
-
-  // ── Review Lock Logic ──────────────────────────────
-  // Series is locked when submitted for review (Pending_Editor or Pending_EB)
-  const seriesStatus = currentSeries?.status || 'Draft'
-  const isReviewLocked = seriesStatus === 'Pending_Editor' || seriesStatus === 'Pending_EB'
-  // Series was recently rejected (has rejection notes)
-  const wasRejected = !!currentSeries?.rejectionNotes
-
   useEffect(() => {
-    const timer = setTimeout(() => socketService.connect(), 300)
-    return () => {
-      clearTimeout(timer)
-      socketService.disconnect()
-    }
+    socketService.connect()
+    return () => socketService.disconnect()
   }, [])
 
   useEffect(() => {
@@ -491,150 +314,32 @@ function StudioWorkspacePageContent() {
     }
   }, [chapterRoom, currentPage?._id, activeTool, (user as any)?.avatarColor, user?.displayName, user?.email])
 
-  const refreshSeriesAndChapters = async (targetSeriesId?: string) => {
-    try {
-      const seriesRes = await seriesAPI.getAll()
-      if (!isMountedRef.current) return
-      const list = seriesRes.data.series || []
-      setSeriesList(list)
-
-      const activeSeriesId = targetSeriesId || selectedSeriesId
-      if (activeSeriesId) {
-        if (targetSeriesId) {
-          handleSelectSeries(targetSeriesId)
-        } else {
-          setSelectedSeriesId(activeSeriesId)
-          const chaptersRes = await chaptersAPI.getBySeries(activeSeriesId)
-          if (!isMountedRef.current) return
-          const nextChapters = chaptersRes.data.chapters || []
-          setChapters(nextChapters)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to refresh series and chapters:', err)
-    }
-  }
-
   // ═══════════════════════════════════════════════════
   // DATA LOADING
   // ═══════════════════════════════════════════════════
 
-  // Load series list, select appropriate series based on paramSeriesId or fallback
   useEffect(() => {
     seriesAPI.getAll().then(res => {
-      if (!isMountedRef.current) return
-      const list = res.data.series || []
-      setSeriesList(list)
+      setSeriesList(res.data.series || [])
+      if (res.data.series?.length > 0) setSelectedSeriesId(res.data.series[0]._id)
+    }).catch(() => {})
+  }, [])
 
-      if (list.length > 0) {
-        const nextSeriesId = paramSeriesId && list.some((s: any) => s._id === paramSeriesId)
-          ? paramSeriesId
-          : list[0]._id
-        setSelectedSeriesId(nextSeriesId)
-
-        if (searchParams.get('seriesId') !== nextSeriesId) {
-          setSearchParams(
-            (prev) => {
-              prev.set('seriesId', nextSeriesId)
-              return prev
-            },
-            { replace: true }
-          )
-        }
-      }
-    }).catch(() => { })
-  }, []) // Fetch once on mount
-
-  // Load chapters when selectedSeriesId changes, respecting paramChapterId
   useEffect(() => {
     if (!selectedSeriesId) return
     chaptersAPI.getBySeries(selectedSeriesId).then(res => {
-      if (!isMountedRef.current) return
-      const nextChapters = res.data.chapters || []
-      setChapters(nextChapters)
-
-      if (nextChapters.length > 0) {
-        const nextChapterId = paramChapterId && nextChapters.some((c: any) => c._id === paramChapterId)
-          ? paramChapterId
-          : nextChapters[0]._id
-        setSelectedChapterId(nextChapterId)
-
-        if (searchParams.get('chapterId') !== nextChapterId) {
-          setSearchParams(
-            (prev) => {
-              prev.set('chapterId', nextChapterId)
-              return prev
-            },
-            { replace: true }
-          )
-        }
-      } else {
-        setSelectedChapterId('')
-        if (searchParams.get('chapterId')) {
-          setSearchParams(
-            (prev) => {
-              prev.delete('chapterId')
-              prev.delete('pageId')
-              return prev
-            },
-            { replace: true }
-          )
-        }
-      }
-    }).catch(() => { })
-  }, [selectedSeriesId]) // Fetch chapters when selectedSeriesId changes
+      setChapters(res.data.chapters || [])
+      if (res.data.chapters?.length > 0) setSelectedChapterId(res.data.chapters[0]._id)
+    }).catch(() => {})
+  }, [selectedSeriesId])
 
   useEffect(() => {
-    const nextNum = chapters.length > 0 ? Math.max(...chapters.map((c: any) => c.chapterNumber || 0)) + 1 : 1
-    Promise.resolve().then(() => {
-      setNewChapterNumber(String(nextNum))
-      setNewChapterTitle(`Chapter ${nextNum}`)
-    })
-  }, [chapters])
-
-  // Load pages when selectedChapterId changes, respecting paramPageId
-  useEffect(() => {
-    if (!selectedChapterId) {
-      setPages([])
-      setCurrentPageIdx(0)
-      return
-    }
+    if (!selectedChapterId) return
     pagesAPI.getByChapter(selectedChapterId).then(res => {
-      if (!isMountedRef.current) return
-      const nextPages = res.data.pages || []
-      setPages(nextPages)
-
-      if (nextPages.length > 0) {
-        const nextPageId = paramPageId && nextPages.some((p: any) => p._id === paramPageId)
-          ? paramPageId
-          : nextPages[0]._id
-        const nextPageIdx = nextPages.findIndex((p: any) => p._id === nextPageId)
-        const finalIdx = nextPageIdx !== -1 ? nextPageIdx : 0
-        setCurrentPageIdx(finalIdx)
-
-        if (searchParams.get('pageId') !== nextPageId) {
-          setSearchParams(
-            (prev) => {
-              prev.set('pageId', nextPageId)
-              return prev
-            },
-            { replace: true }
-          )
-        }
-      } else {
-        setCurrentPageIdx(0)
-        if (searchParams.get('pageId')) {
-          setSearchParams(
-            (prev) => {
-              prev.delete('pageId')
-              return prev
-            },
-            { replace: true }
-          )
-        }
-      }
-    }).catch(() => { })
-  }, [selectedChapterId]) // Fetch pages when selectedChapterId changes
+      setPages(res.data.pages || [])
+      setCurrentPageIdx(0)
+    }).catch(() => {})
+  }, [selectedChapterId])
 
   const emitCanvasSync = useCallback((kind: 'object:added' | 'object:removed' | 'object:modified' | 'canvas:snapshot', payload: any) => {
     if (!chapterRoom) return
@@ -652,7 +357,6 @@ function StudioWorkspacePageContent() {
   const loadZones = useCallback(() => {
     if (!currentPage?._id) { setZones([]); return }
     zonesAPI.getByPage(currentPage._id).then(res => {
-      if (!isMountedRef.current) return
       const z = res.data.zones || []
       setZones(z)
       // Keep existing visibility state if it exists, otherwise set to true
@@ -661,39 +365,17 @@ function StudioWorkspacePageContent() {
         z.forEach((zone: ZoneData) => { if (next[zone._id] === undefined) next[zone._id] = true })
         return next
       })
-    }).catch(() => { })
+    }).catch(() => {})
   }, [currentPage?._id])
 
   useEffect(() => { loadZones() }, [loadZones])
 
   useEffect(() => {
-    if (!selectedChapterId) { setPageTasks([]); return }
-    tasksAPI.getAll({ chapterId: selectedChapterId }).then(res => {
-      if (!isMountedRef.current) return
+    if (!currentPage?._id) { setPageTasks([]); return }
+    tasksAPI.getAll({ pageId: currentPage._id }).then(res => {
       setPageTasks(res.data.tasks || [])
-    }).catch(() => { })
-  }, [selectedChapterId, currentPage?._id])
-
-  const loadAnnotations = useCallback(() => {
-    if (!selectedChapterId) return
-    annotationsAPI.getByChapter(selectedChapterId).then(res => {
-      if (!isMountedRef.current) return
-      setPageAnnotations(res.data.annotations || [])
-    }).catch(console.error)
-  }, [selectedChapterId])
-
-  useEffect(() => {
-    loadAnnotations()
-  }, [loadAnnotations])
-
-  const handleResolveAnnotation = async (id: string) => {
-    try {
-      await annotationsAPI.resolve(id)
-      loadAnnotations()
-    } catch (err) {
-      console.error(err)
-    }
-  }
+    }).catch(() => {})
+  }, [currentPage?._id])
 
   // ═══════════════════════════════════════════════════
   // FABRIC.JS CANVAS
@@ -714,7 +396,7 @@ function StudioWorkspacePageContent() {
     if (!fc || isRestoring.current) return
     const manuals = fc.getObjects().filter((o: any) => !o._zoneId && o !== bgImageRef.current)
     const nextState = JSON.stringify(manuals.map(o => o.toObject()))
-
+    
     if (nextState !== currentManualState.current) {
       historyStack.current.push({
         type: 'manual_change',
@@ -730,11 +412,11 @@ function StudioWorkspacePageContent() {
   const restoreManualState = async (stateJson: string) => {
     const fc = fabricRef.current
     if (!fc) return
-
+    
     const objects = JSON.parse(stateJson)
     const currentManuals = fc.getObjects().filter((o: any) => !o._zoneId && o !== bgImageRef.current)
     currentManuals.forEach(o => fc.remove(o))
-
+    
     if (objects.length > 0) {
       try {
         const enlivened = await util.enlivenObjects(objects)
@@ -752,12 +434,7 @@ function StudioWorkspacePageContent() {
 
   // Initialize Fabric canvas
   useEffect(() => {
-    if (!currentPage || !canvasElRef.current) return
-    if (fabricRef.current) {
-      console.log('Canvas Init: fabricRef.current already exists, skipping')
-      return
-    }
-    console.log('Canvas Init: creating new FabricCanvas for page:', currentPage?._id)
+    if (!currentPage || !canvasElRef.current || fabricRef.current) return
     const fc = new FabricCanvas(canvasElRef.current, {
       selection: true,
       preserveObjectStacking: true,
@@ -767,11 +444,8 @@ function StudioWorkspacePageContent() {
     resizeCanvas()
 
     return () => {
-      console.log('Canvas Init: disposing FabricCanvas for page:', currentPage?._id)
       fc.dispose()
       fabricRef.current = null
-      bgImageRef.current = null // Clear background image ref
-      layerImagesRef.current = {} // Clear cached layers when canvas is disposed
     }
   }, [currentPage, resizeCanvas])
 
@@ -783,26 +457,15 @@ function StudioWorkspacePageContent() {
   // Load background image when page changes
   useEffect(() => {
     const fc = fabricRef.current
-    console.log('Bg Image Effect: running', { fcExists: !!fc, currentPageId: currentPage?._id })
     if (!fc || !currentPage) return
-
-    setBgLoaded(false) // Reset background load state on change
 
     const imgUrl = currentPage.originalImage.startsWith('http')
       ? currentPage.originalImage
       : `${apiBase}${currentPage.originalImage}`
 
-    console.log('Bg Image Effect: loading image from URL:', imgUrl)
-
     FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' }).then((img) => {
-      console.log('Bg Image Effect: image loaded successfully from URL')
-      if (fc !== fabricRef.current) {
-        console.log('Bg Image Effect: canvas was disposed while loading, ignoring')
-        return
-      }
       // Remove old background
       if (bgImageRef.current) {
-        console.log('Bg Image Effect: removing old background image object')
         fc.remove(bgImageRef.current)
       }
 
@@ -827,7 +490,6 @@ function StudioWorkspacePageContent() {
 
       bgImageRef.current = img
       fc.insertAt(0, img)
-      console.log('Bg Image Effect: inserted background image at index 0')
 
       // Reset viewport and history
       fc.setViewportTransform([1, 0, 0, 1, 0, 0])
@@ -835,11 +497,9 @@ function StudioWorkspacePageContent() {
       historyStack.current = []
       redoStack.current = []
       currentManualState.current = '[]'
-      setBgLoaded(true) // Mark as loaded
       fc.requestRenderAll()
     }).catch((err) => {
-      console.error('Bg Image Effect: failed to load image:', err)
-      setBgLoaded(false)
+      console.error('Failed to load image:', err)
     })
   }, [currentPage?._id, currentPage?.originalImage, apiBase])
 
@@ -910,373 +570,6 @@ function StudioWorkspacePageContent() {
     fc.requestRenderAll()
   }, [zones, zoneVisibility, activeTool])
 
-  // Render feedback annotations when annotations, visibility, or background changes
-  useEffect(() => {
-    const fc = fabricRef.current
-    if (!fc) return
-
-    // Remove existing annotation pins (tagged objects)
-    const toRemove = fc.getObjects().filter((obj: any) => obj._annotationId)
-    toRemove.forEach((obj) => fc.remove(obj))
-
-    if (!showFeedbackPins) {
-      fc.requestRenderAll()
-      return
-    }
-
-    const bg = bgImageRef.current
-    if (!bg) return
-    const bgLeft = bg.left || 0
-    const bgTop = bg.top || 0
-    const bgWidth = (bg.width || 800) * (bg.scaleX || 1)
-    const bgHeight = (bg.height || 1200) * (bg.scaleY || 1)
-
-    // Filter which annotations are visible on this page:
-    const visibleAnnotations = pageAnnotations
-      .filter(a => a.pageId === currentPage?._id)
-
-    // Denormalize path commands from percentages to absolute canvas coordinates
-    const denormalizePath = (normalizedCommands: any[], bLeft: number, bTop: number, dW: number, dH: number) => {
-      return normalizedCommands.map((cmd: any) => {
-        const type = cmd[0]
-        const newCmd = [type]
-        for (let i = 1; i < cmd.length; i += 2) {
-          const px = cmd[i]
-          const py = cmd[i + 1]
-          if (px !== undefined && py !== undefined) {
-            newCmd.push(bLeft + (px / 100) * dW)
-            newCmd.push(bTop + (py / 100) * dH)
-          }
-        }
-        return newCmd
-      })
-    }
-
-    visibleAnnotations.forEach((ann) => {
-      // Read individual visibility from annotationVisibility state (default to true)
-      const isVisible = annotationVisibility[ann._id] !== false
-      if (!isVisible) return
-
-      const isOpen = ann.status === 'open'
-      const isSelected = selectedAnnotationId === ann._id
-      const parsed = parseCanvasAnnotation(ann.note)
-
-      if (parsed) {
-        // ── Render [CANVAS] annotations as visual shapes ──
-        const annColor = parsed.color || '#ef4444'
-        const opacity = isOpen ? 1 : 0.4
-
-        if (parsed.type === 'rect') {
-          const rect = new Rect({
-            left: bgLeft + (parsed.x / 100) * bgWidth,
-            top: bgTop + (parsed.y / 100) * bgHeight,
-            width: ((parsed.width || 10) / 100) * bgWidth,
-            height: ((parsed.height || 6) / 100) * bgHeight,
-            fill: isSelected ? annColor + '30' : annColor + '18',
-            stroke: annColor,
-            strokeWidth: isSelected ? 4 : 2.5,
-            strokeDashArray: isSelected ? [8, 4] : (isOpen ? undefined : [6, 4]),
-            opacity,
-            selectable: false,
-            evented: false,
-            hoverCursor: 'default',
-            shadow: isSelected ? {
-              color: annColor,
-              blur: 15,
-              offsetX: 0,
-              offsetY: 0,
-            } as any : undefined,
-          });
-          (rect as any)._annotationId = ann._id;
-          fc.add(rect)
-        } else if (parsed.type === 'circle') {
-          const circle = new Circle({
-            left: bgLeft + (parsed.x / 100) * bgWidth,
-            top: bgTop + (parsed.y / 100) * bgHeight,
-            radius: ((parsed.radius || 3) / 100) * bgWidth,
-            originX: 'center',
-            originY: 'center',
-            fill: isSelected ? annColor + '30' : annColor + '18',
-            stroke: annColor,
-            strokeWidth: isSelected ? 4 : 2.5,
-            strokeDashArray: isSelected ? [8, 4] : (isOpen ? undefined : [6, 4]),
-            opacity,
-            selectable: false,
-            evented: false,
-            hoverCursor: 'default',
-            shadow: isSelected ? {
-              color: annColor,
-              blur: 15,
-              offsetX: 0,
-              offsetY: 0,
-            } as any : undefined,
-          });
-          (circle as any)._annotationId = ann._id;
-          fc.add(circle)
-        } else if (parsed.type === 'freehand' && parsed.pathData) {
-          try {
-            const parsedPath = JSON.parse(parsed.pathData)
-            const absoluteCommands = denormalizePath(parsedPath, bgLeft, bgTop, bgWidth, bgHeight)
-            const pathString = absoluteCommands.map((cmd: any) => cmd.join(' ')).join(' ')
-            const path = new Path(pathString, {
-              fill: null as any,
-              stroke: annColor,
-              strokeWidth: isSelected ? 5.5 : 3,
-              strokeLineCap: 'round',
-              strokeLineJoin: 'round',
-              opacity,
-              selectable: false,
-              evented: false,
-              hoverCursor: 'default',
-              shadow: isSelected ? {
-                color: annColor,
-                blur: 15,
-                offsetX: 0,
-                offsetY: 0,
-              } as any : undefined,
-            });
-            (path as any)._annotationId = ann._id;
-            fc.add(path)
-          } catch {
-            // Ignore freehand parse errors
-          }
-        } else if (parsed.type === 'text') {
-          const bgScaleX = bg.scaleX || 1
-          const label = new IText(parsed.text || 'Note', {
-            left: bgLeft + (parsed.x / 100) * bgWidth,
-            top: bgTop + (parsed.y / 100) * bgHeight,
-            fontSize: (isSelected ? 16 : 14) * bgScaleX,
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: 'bold',
-            fill: annColor,
-            backgroundColor: isSelected ? '#fffdf3' : '#fff',
-            padding: isSelected ? 6 : 4,
-            opacity,
-            selectable: false,
-            evented: false,
-            editable: false,
-            stroke: isSelected ? annColor : undefined,
-            strokeWidth: isSelected ? 1 : 0,
-            shadow: isSelected ? {
-              color: annColor,
-              blur: 12,
-              offsetX: 0,
-              offsetY: 0,
-            } as any : undefined,
-          });
-          (label as any)._annotationId = ann._id;
-          fc.add(label)
-        }
-        return
-      }
-
-      // ── Render regular pin annotations ──
-      // Safety guard against missing or malformed coordinates
-      if (ann.x === undefined || ann.y === undefined || isNaN(ann.x) || isNaN(ann.y)) {
-        return
-      }
-
-      const pinX = bgLeft + (ann.x / 100) * bgWidth
-      const pinY = bgTop + (ann.y / 100) * bgHeight
-
-      // Glow circle for open annotations
-      const glow = new Circle({
-        originX: 'center',
-        originY: 'center',
-        left: pinX,
-        top: pinY,
-        radius: isSelected ? 20 : 12,
-        fill: isSelected
-          ? 'rgba(239, 68, 68, 0.3)'
-          : (isOpen ? 'rgba(239, 68, 68, 0.15)' : 'rgba(115, 115, 115, 0.1)'),
-        stroke: isSelected
-          ? '#ef4444'
-          : (isOpen ? 'rgba(239, 68, 68, 0.3)' : 'rgba(115, 115, 115, 0.2)'),
-        strokeWidth: isSelected ? 2 : 1,
-        selectable: false,
-        evented: false,
-      });
-      (glow as any)._annotationId = ann._id;
-      fc.add(glow)
-
-      // Main pin circle
-      const pin = new Circle({
-        originX: 'center',
-        originY: 'center',
-        left: pinX,
-        top: pinY,
-        radius: isSelected ? 11 : 8,
-        fill: isOpen ? '#ef4444' : '#737373',
-        stroke: '#ffffff',
-        strokeWidth: isSelected ? 2.5 : 1.5,
-        shadow: {
-          color: isSelected ? '#ef4444' : 'rgba(0, 0, 0, 0.3)',
-          blur: isSelected ? 12 : 4,
-          offsetX: 0,
-          offsetY: isSelected ? 0 : 2,
-        } as any,
-        selectable: activeTool === 'select',
-        hasControls: false,
-        lockMovementX: true,
-        lockMovementY: true,
-        hoverCursor: 'pointer',
-      });
-      (pin as any)._annotationId = ann._id;
-
-      // Inside indicator dot
-      const dot = new Circle({
-        originX: 'center',
-        originY: 'center',
-        left: pinX,
-        top: pinY,
-        radius: isSelected ? 3.5 : 2.5,
-        fill: '#ffffff',
-        selectable: false,
-        evented: false,
-      });
-      (dot as any)._annotationId = ann._id;
-
-      // Click event to select annotation in sidebar
-      pin.on('mousedown', () => {
-        setRightTab('annotations')
-        setSelectedAnnotationId(ann._id)
-      })
-
-      fc.add(pin)
-      fc.add(dot)
-    })
-
-    fc.requestRenderAll()
-  }, [pageAnnotations, showFeedbackPins, annotationVisibility, wasRejected, currentPage?._id, activeTool, rightTab, selectedAnnotationId])
-
-  // Render assistant layer overlays on the canvas
-  useEffect(() => {
-    const fc = fabricRef.current
-    if (!fc) {
-      console.log('Layers Effect: canvas not ready')
-      return
-    }
-
-    const bg = bgImageRef.current
-    if (!bgLoaded || !bg) {
-      console.log('Layers Effect: background image not loaded yet')
-      return // Wait until background image is loaded and scaled
-    }
-
-    // 1. Find all tasks with submitted files for this page
-    const layerTasks = pageTasks.filter(
-      (t) =>
-        t.submittedFile &&
-        (t.status === 'review' || t.status === 'done') &&
-        (t.assignmentLevel === 'chapter' ||
-          t.pageId?._id === currentPage?._id ||
-          t.pageId === currentPage?._id)
-    )
-
-    console.log('Layers Effect: active layer tasks:', layerTasks.length, layerTasks)
-
-    // 2. Remove any layer images on the canvas that are no longer in layerTasks
-    const activeTaskIds = new Set(layerTasks.map((t) => t._id))
-    Object.keys(layerImagesRef.current).forEach((taskId) => {
-      if (!activeTaskIds.has(taskId)) {
-        console.log('Layers Effect: removing obsolete layer object for task:', taskId)
-        fc.remove(layerImagesRef.current[taskId])
-        delete layerImagesRef.current[taskId]
-      }
-    })
-
-    // Get position and scaling of the background image
-    const bgLeft = bg.left || 0
-    const bgTop = bg.top || 0
-    const bgScaleX = bg.scaleX || 1
-    const bgScaleY = bg.scaleY || 1
-
-    console.log('Layers Effect: background dimensions:', { bgLeft, bgTop, bgScaleX, bgScaleY })
-    console.log('Layers Effect: canvas objects:', fc.getObjects().map((o: any) => ({
-      type: o.type,
-      left: o.left,
-      top: o.top,
-      scaleX: o.scaleX,
-      scaleY: o.scaleY,
-      width: o.width,
-      height: o.height,
-      visible: o.visible,
-      opacity: o.opacity,
-      layerTaskId: o._layerTaskId
-    })))
-
-    // 3. For each active task with a submitted file, load or update its FabricImage
-    layerTasks.forEach((task) => {
-      const taskId = task._id
-      const config = layersConfig[taskId] || { visible: true, opacity: 100 }
-      const isVisible = config.visible !== false
-      const opacity = (config.opacity ?? 100) / 100
-
-      console.log(`Layers Effect: processing task ${taskId} (${task.title}):`, { isVisible, opacity })
-
-      const existingImg = layerImagesRef.current[taskId]
-      if (existingImg) {
-        console.log(`Layers Effect: updating existing layer for task ${taskId}:`, { isVisible, opacity })
-        // Just update properties
-        existingImg.set({
-          left: bgLeft,
-          top: bgTop,
-          scaleX: bgScaleX,
-          scaleY: bgScaleY,
-          opacity: opacity,
-          visible: isVisible,
-        })
-        existingImg.dirty = true
-        fc.requestRenderAll()
-      } else {
-        // Load new image
-        const imgUrl = task.submittedFile!.startsWith('http')
-          ? task.submittedFile!
-          : `${apiBase}${task.submittedFile}`
-
-        console.log(`Layers Effect: loading new layer image from URL for task ${taskId}:`, imgUrl)
-
-        FabricImage.fromURL(imgUrl, { crossOrigin: 'anonymous' })
-          .then((img) => {
-            console.log(`Layers Effect: successfully loaded layer image for task ${taskId}`)
-            // Check if this task is still active and hasn't been removed while loading
-            if (fc !== fabricRef.current) {
-              console.log('Layers Effect: canvas was disposed while loading layer, ignoring')
-              return
-            }
-            
-            img.set({
-              originX: 'left',
-              originY: 'top',
-              left: bgLeft,
-              top: bgTop,
-              scaleX: bgScaleX,
-              scaleY: bgScaleY,
-              opacity: opacity,
-              visible: isVisible,
-              selectable: false,
-              evented: false,
-              hoverCursor: 'default',
-            })
-            // Tag object so we can recognize it
-            ;(img as any)._layerTaskId = taskId
-
-            layerImagesRef.current[taskId] = img
-            
-            // Insert it on top of the background image (index 1 + any other layer)
-            const bgIdx = fc.getObjects().indexOf(bg)
-            const insertIdx = bgIdx !== -1 ? bgIdx + 1 : 1
-            console.log(`Layers Effect: inserting layer for task ${taskId} at index ${insertIdx}`)
-            fc.insertAt(insertIdx, img)
-            fc.requestRenderAll()
-          })
-          .catch((err) => {
-            console.error(`Layers Effect: failed to load layer image for task ${taskId}:`, err)
-          })
-      }
-    })
-  }, [pageTasks, layersConfig, currentPage?._id, apiBase, bgLoaded])
-
   // ── Tool mode handling ────────────────────────────
   useEffect(() => {
     const fc = fabricRef.current
@@ -1325,7 +618,7 @@ function StudioWorkspacePageContent() {
         const bg = bgImageRef.current
         const bgScaleX = bg.scaleX || 1
         const bgScaleY = bg.scaleY || 1
-
+        
         const newX = ((target.left || 0) - (bg.left || 0)) / bgScaleX
         const newY = ((target.top || 0) - (bg.top || 0)) / bgScaleY
         const newW = ((target.width || 0) * (target.scaleX || 1)) / bgScaleX
@@ -1379,7 +672,7 @@ function StudioWorkspacePageContent() {
         if (syncObj._syncId && lockedObjects[syncObj._syncId]) {
           const owner = lockedObjects[syncObj._syncId]
           obj.set({ selectable: false, evented: false, opacity: 0.75 })
-            ; (obj as any).lockLabel = owner
+          ;(obj as any).lockLabel = owner
         }
       })
 
@@ -1606,30 +899,30 @@ function StudioWorkspacePageContent() {
   const handleUndo = useCallback(async () => {
     if (isRestoring.current || historyStack.current.length === 0) return
     isRestoring.current = true
-
+    
     const record = historyStack.current.pop()!
     redoStack.current.push(record)
-
+    
     if (record.type === 'manual_change') {
       await restoreManualState(record.prevState)
       currentManualState.current = record.prevState
     }
-
+    
     isRestoring.current = false
   }, [])
 
   const handleRedo = useCallback(async () => {
     if (isRestoring.current || redoStack.current.length === 0) return
     isRestoring.current = true
-
+    
     const record = redoStack.current.pop()!
     historyStack.current.push(record)
-
+    
     if (record.type === 'manual_change') {
       await restoreManualState(record.nextState)
       currentManualState.current = record.nextState
     }
-
+    
     isRestoring.current = false
   }, [])
 
@@ -1639,12 +932,10 @@ function StudioWorkspacePageContent() {
     const activeObjects = fc.getActiveObjects()
     if (activeObjects.length) {
       let manualDeleted = false
-      let zoneDeleted = false
       for (const obj of activeObjects) {
         if ((obj as any)._zoneId) {
           try {
             await zonesAPI.delete((obj as any)._zoneId)
-            zoneDeleted = true
           } catch (e) { console.error(e) }
         } else {
           fc.remove(obj)
@@ -1654,14 +945,9 @@ function StudioWorkspacePageContent() {
       if (manualDeleted) saveManualHistory()
       fc.discardActiveObject()
       loadZones()
-      if (zoneDeleted && selectedChapterId) {
-        tasksAPI.getAll({ chapterId: selectedChapterId }).then(res => {
-          setPageTasks(res.data.tasks || [])
-        }).catch(console.error)
-      }
       fc.requestRenderAll()
     }
-  }, [loadZones, saveManualHistory, currentPage?._id])
+  }, [loadZones, saveManualHistory])
 
   // ── Create zone API call ──────────────────────────
   const handleCreateZone = async () => {
@@ -1679,175 +965,11 @@ function StudioWorkspacePageContent() {
         },
       })
       loadZones()
-    } catch { }
+    } catch {}
     setShowNewZoneDialog(false)
     setPendingZoneRect(null)
     setNewZoneName('Background')
     setNewZoneType('background')
-  }
-
-  // ── Task Creation & Assignment Helpers ─────────────
-  const loadAssistantRecommendations = async (_skills: string, astType?: 'freelance' | 'dedicated') => {
-    const currentAstType = astType !== undefined ? astType : createTaskForm.assistantType;
-    if (currentAstType === 'freelance') {
-      setRecommendations([]);
-      return;
-    }
-
-    if (!selectedSeriesId) return;
-    setRecommendationLoading(true);
-    try {
-      const res = await seriesAPI.getDedicatedAssistants(selectedSeriesId);
-      const mapped = (res.data.dedicatedAssistants || [])
-        .map((item: any) => {
-          if (item.userId && typeof item.userId === 'object') {
-            return {
-              ...item.userId,
-              activeTasksCount: item.userId.activeTasksCount || 0,
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
-      setRecommendations(mapped);
-    } catch (err) {
-      console.error('Failed to load dedicated assistants', err);
-      setRecommendations([]);
-    } finally {
-      setRecommendationLoading(false);
-    }
-  }
-
-  const handleOpenCreateTaskForLevel = (level: 'chapter' | 'page') => {
-    const defaultTitle = level === 'chapter'
-      ? `Gia công Chapter ${currentChapter?.chapterNumber || 1}`
-      : `Gia công Trang ${currentPage?.pageNumber || 1}`
-
-    setCreateTaskForm({
-      title: defaultTitle,
-      description: level === 'chapter'
-        ? `Thực hiện gia công toàn bộ Chapter ${currentChapter?.chapterNumber || 1}.`
-        : `Thực hiện gia công Trang ${currentPage?.pageNumber || 1}.`,
-      deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-      type: 'background',
-      assignedTo: '',
-      assistantType: 'freelance',
-      assignmentLevel: level,
-    })
-    loadAssistantRecommendations('background', 'freelance')
-    setShowCreateTaskDialog(true)
-  }
-
-  const handleOpenAssignExistingTask = (task: any) => {
-    setActiveTaskToAssign(task)
-    const astType = task.assistantType || 'freelance'
-    setCreateTaskForm({
-      title: task.title,
-      description: task.description || '',
-      deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-      type: task.type,
-      assignedTo: task.assignedTo?._id || task.assignedTo || '',
-      assistantType: astType,
-      assignmentLevel: task.assignmentLevel || 'page',
-    })
-    loadAssistantRecommendations(task.type, astType)
-    setShowCreateTaskDialog(true)
-  }
-
-  const handleCreateTaskSubmit = async () => {
-    if (!selectedSeriesId || !selectedChapterId) return
-    if (createTaskForm.assignmentLevel === 'page' && !currentPage?._id) return
-    try {
-      if (activeTaskToAssign) {
-        // Update existing task (assign assistant)
-        await tasksAPI.update(activeTaskToAssign._id, {
-          assignedTo: createTaskForm.assignedTo || null,
-          status: createTaskForm.assignedTo ? 'assigned' : 'open',
-          title: createTaskForm.title,
-          description: createTaskForm.description,
-          wage: 0,
-          deadline: new Date(createTaskForm.deadline),
-          assistantType: createTaskForm.assistantType,
-        })
-      } else {
-        // Create new task
-        const payload: any = {
-          seriesId: selectedSeriesId,
-          chapterId: selectedChapterId,
-          title: createTaskForm.title,
-          description: createTaskForm.description,
-          wage: 0,
-          deadline: new Date(createTaskForm.deadline),
-          type: createTaskForm.type,
-          assignedTo: createTaskForm.assignedTo || undefined,
-          status: createTaskForm.assignedTo ? 'assigned' : 'open',
-          assistantType: createTaskForm.assistantType,
-          assignmentLevel: createTaskForm.assignmentLevel,
-        }
-        if (createTaskForm.assignmentLevel === 'page') {
-          payload.pageId = currentPage._id
-        }
-        await tasksAPI.create(payload)
-      }
-
-      // Refresh tasks
-      if (selectedChapterId) {
-        const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
-        setPageTasks(tasksRes.data.tasks || [])
-      }
-      loadZones()
-      setShowCreateTaskDialog(false)
-      setActiveTaskToAssign(null)
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to save task')
-      console.error('Failed to save task', err)
-    }
-  }
-
-  const handleOpenReview = (task: any) => {
-    setSelectedReviewTask(task)
-    setReviewNotes(task.reviewNotes || '')
-    setShowReviewDialog(true)
-  }
-
-  const handleReviewSubmit = async (status: 'done' | 'in_progress') => {
-    if (!selectedReviewTask?._id || !selectedChapterId) return
-    try {
-      if (status === 'done') {
-        await tasksAPI.updateStatus(selectedReviewTask._id, 'done')
-      } else {
-        await tasksAPI.update(selectedReviewTask._id, { status: 'in_progress', reviewNotes })
-      }
-
-      // Refresh page tasks and zones
-      const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
-      setPageTasks(tasksRes.data.tasks || [])
-      loadZones()
-      setShowReviewDialog(false)
-      setSelectedReviewTask(null)
-    } catch (err) {
-      console.error('Failed to submit review', err)
-    }
-  }
-
-  const handleOpenCancelTask = (task: any) => {
-    setTaskToCancel(task)
-    setShowCancelTaskDialog(true)
-  }
-
-  const handleCancelTaskSubmit = async () => {
-    if (!taskToCancel?._id || !selectedChapterId) return
-    try {
-      await tasksAPI.cancel(taskToCancel._id)
-      const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
-      setPageTasks(tasksRes.data.tasks || [])
-      loadZones()
-      setShowCancelTaskDialog(false)
-      setTaskToCancel(null)
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to cancel task')
-      console.error('Failed to cancel task', err)
-    }
   }
 
   // ── Keyboard shortcuts ────────────────────────────
@@ -1885,11 +1007,7 @@ function StudioWorkspacePageContent() {
       await zonesAPI.delete(id)
       loadZones()
       if (selectedZoneId === id) setSelectedZoneId(null)
-      if (selectedChapterId) {
-        const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
-        setPageTasks(tasksRes.data.tasks || [])
-      }
-    } catch { }
+    } catch {}
   }
 
   // ── Page upload handler ───────────────────────────
@@ -1904,25 +1022,20 @@ function StudioWorkspacePageContent() {
     try {
       await pagesAPI.upload(selectedChapterId, formData)
       const res = await pagesAPI.getByChapter(selectedChapterId)
-      const updatedPages = res.data.pages || []
-      setPages(updatedPages)
-      handleSelectPageIdx(updatedPages.length - 1, updatedPages)
-    } catch { }
+      setPages(res.data.pages || [])
+      setCurrentPageIdx(res.data.pages.length - 1)
+    } catch {}
   }
 
   const handleDeletePage = async (pageId: string) => {
-    if (!window.confirm(t('studio.confirmDeletePage', 'Are you sure you want to delete this page? All zones and tasks on this page will be lost.'))) return
+    if (!window.confirm(t('studio.confirmDeletePage', 'Bạn có chắc chắn muốn xóa trang này không? Các zone và công việc trên trang này sẽ bị mất.'))) return
     try {
       await pagesAPI.delete(pageId)
       const res = await pagesAPI.getByChapter(selectedChapterId)
       const newPages = res.data.pages || []
       setPages(newPages)
       if (currentPageIdx >= newPages.length) {
-        handleSelectPageIdx(Math.max(0, newPages.length - 1), newPages)
-      }
-      if (selectedChapterId) {
-        const tasksRes = await tasksAPI.getAll({ chapterId: selectedChapterId })
-        setPageTasks(tasksRes.data.tasks || [])
+        setCurrentPageIdx(Math.max(0, newPages.length - 1))
       }
     } catch (e) { console.error(e) }
   }
@@ -1944,50 +1057,8 @@ function StudioWorkspacePageContent() {
     return () => clearTimeout(timer)
   }, [shareUserQuery])
 
-  const handleCreateSeries = async () => {
-    if (!newSeriesTitle.trim() || !newSeriesDescription.trim()) return
-    try {
-      const genre = newSeriesGenre
-        .split(',')
-        .map((g) => g.trim())
-        .filter(Boolean)
-
-      const res = await seriesAPI.create({
-        title: newSeriesTitle.trim(),
-        description: newSeriesDescription.trim(),
-        genre,
-        coverImage: newSeriesCoverImage.trim() || undefined,
-      })
-
-      setShowCreateSeriesDialog(false)
-      setNewSeriesTitle('')
-      setNewSeriesDescription('')
-      setNewSeriesGenre('action, fantasy')
-      setNewSeriesCoverImage('')
-      await refreshSeriesAndChapters(res.data.series?._id)
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
-  const handleCreateChapter = async () => {
-    if (!selectedSeriesId || !newChapterNumber.trim() || !newChapterTitle.trim()) return
-    try {
-      await chaptersAPI.create(selectedSeriesId, {
-        chapterNumber: Number(newChapterNumber),
-        title: newChapterTitle.trim(),
-      })
-      setShowCreateChapterDialog(false)
-      await refreshSeriesAndChapters(selectedSeriesId)
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create chapter')
-      console.error(error)
-    }
-  }
-
   const handleShareAccess = async () => {
     if (!selectedChapterId || !shareUserId.trim()) return
-    setShareError('')
     try {
       await chaptersAPI.shareAccess(selectedChapterId, {
         userId: shareUserId.trim(),
@@ -2005,8 +1076,8 @@ function StudioWorkspacePageContent() {
       setShareCanEdit(true)
       setShareCanComment(true)
       setShareCanInvite(false)
-    } catch (error: any) {
-      setShareError(error?.response?.data?.error || 'Failed to share access.')
+    } catch (error) {
+      console.error(error)
     }
   }
 
@@ -2021,7 +1092,10 @@ function StudioWorkspacePageContent() {
     }
   }
 
-
+  // ── Computed ──────────────────────────────────────
+  const currentSeries = seriesList.find(s => s._id === selectedSeriesId)
+  const currentChapter = chapters.find(c => c._id === selectedChapterId)
+  const chapterCollaborators = (currentChapter as any)?.collaborators || []
 
   return (
     <div
@@ -2050,8 +1124,8 @@ function StudioWorkspacePageContent() {
       )}
 
       {/* ── Top toolbar ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-3 py-2 bg-white z-10">
-        <div className="flex items-center gap-4 border-r border-neutral-200 pr-4 mr-2 shrink-0">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 bg-white z-10">
+        <div className="flex items-center gap-4 border-r border-neutral-200 pr-4 mr-2">
           <div>
             <h1 className="text-sm font-semibold truncate max-w-[150px]">{currentSeries?.title || 'Studio Workspace'}</h1>
             {isMangaka && currentSeries?.rank && (
@@ -2062,31 +1136,25 @@ function StudioWorkspacePageContent() {
           </div>
         </div>
         {/* Tools */}
-        <div className="flex items-center gap-1 shrink-0">
-          {tools.map(({ icon: Icon, label, key }) => {
-            // When series is locked for review, only allow select & pan
-            const isToolLocked = isReviewLocked && (key === 'zone' || key === 'draw' || key === 'text')
-            return (
-              <button
-                key={key}
-                type="button"
-                title={isToolLocked ? `${label} (Locked — series under review)` : label}
-                className={`grid size-8 place-items-center rounded-lg transition-colors ${isToolLocked
-                  ? 'text-neutral-300 cursor-not-allowed'
-                  : activeTool === key
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-                  }`}
-                onClick={() => { if (!isToolLocked) setActiveTool(key) }}
-                disabled={isToolLocked}
-              >
-                <Icon className="size-4" />
-              </button>
-            )
-          })}
+        <div className="flex items-center gap-1">
+          {tools.map(({ icon: Icon, label, key }) => (
+            <button
+              key={key}
+              type="button"
+              title={label}
+              className={`grid size-8 place-items-center rounded-lg transition-colors ${
+                activeTool === key
+                  ? 'bg-neutral-900 text-white'
+                  : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
+              }`}
+              onClick={() => setActiveTool(key)}
+            >
+              <Icon className="size-4" />
+            </button>
+          ))}
 
           {/* Color & Size tools */}
-          {(activeTool === 'draw' || activeTool === 'text') && (
+          {(activeTool === 'draw' || activeTool === 'text' || activeTool === 'select') && (
             <>
               <div className="mx-2 h-5 w-px bg-neutral-200" />
               <div className="flex items-center gap-1 rounded-lg bg-neutral-100 p-1">
@@ -2095,21 +1163,23 @@ function StudioWorkspacePageContent() {
                     key={mode}
                     type="button"
                     onClick={() => setBrushMode(mode)}
-                    className={`rounded-md px-2 py-1 text-[10px] font-medium capitalize transition-colors ${brushMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-white'
-                      }`}
+                    className={`rounded-md px-2 py-1 text-[10px] font-medium capitalize transition-colors ${
+                      brushMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-white'
+                    }`}
                   >
                     {mode}
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1 rounded-lg bg-neutral-100 p-1">
+              <div className="flex items-center gap-1.5 rounded-lg bg-neutral-100 p-1">
                 {['#000000', '#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308'].map(c => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setDrawColor(c)}
-                    className={`size-4 rounded-full border shadow-sm transition-transform hover:scale-110 ${drawColor === c ? 'scale-110 border-neutral-900 ring-1 ring-neutral-900 ring-offset-1' : 'border-neutral-300'
-                      }`}
+                    className={`size-5 rounded-full border shadow-sm transition-transform hover:scale-110 ${
+                      drawColor === c ? 'scale-110 border-neutral-900 ring-1 ring-neutral-900 ring-offset-1' : 'border-neutral-300'
+                    }`}
                     style={{ backgroundColor: c }}
                     title={c}
                   />
@@ -2148,7 +1218,7 @@ function StudioWorkspacePageContent() {
             <Trash2 className="size-4" />
           </button>
 
-          {isMangaka && !isReviewLocked && (
+          {isMangaka && (
             <>
               <div className="mx-2 h-5 w-px bg-neutral-200" />
               <label className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-100 cursor-pointer" title="Upload page">
@@ -2164,38 +1234,28 @@ function StudioWorkspacePageContent() {
           <select
             className="h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white"
             value={selectedSeriesId}
-            onChange={e => handleSelectSeries(e.target.value)}
-            aria-label="Select manga series"
+            onChange={e => setSelectedSeriesId(e.target.value)}
           >
             {seriesList.map(s => <option key={s._id} value={s._id}>{s.title}</option>)}
           </select>
           <select
             className="h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white"
             value={selectedChapterId}
-            onChange={e => handleSelectChapter(e.target.value)}
-            aria-label="Select chapter"
+            onChange={e => setSelectedChapterId(e.target.value)}
           >
             {chapters.map(c => <option key={c._id} value={c._id}>Ch. {c.chapterNumber}</option>)}
           </select>
-          <button
-            type="button"
-            className={`h-7 rounded-lg border border-neutral-200 px-2 text-xs bg-white ${isReviewLocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-neutral-50'}`}
-            onClick={() => { if (!isReviewLocked) setShowCreateChapterDialog(true) }}
-            disabled={!selectedSeriesId || isReviewLocked}
-          >
-            New Chapter
-          </button>
         </div>
 
         {/* Page navigation */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="size-10 p-0 rounded-lg" onClick={() => handleSelectPageIdx(Math.max(0, currentPageIdx - 1))} disabled={currentPageIdx === 0} aria-label="Previous page">
+          <Button variant="ghost" size="sm" className="size-7 p-0 rounded-lg" onClick={() => setCurrentPageIdx(Math.max(0, currentPageIdx - 1))} disabled={currentPageIdx === 0}>
             <ChevronLeft className="size-4" />
           </Button>
           <span className="text-xs font-medium text-neutral-700">
             {pages.length > 0 ? `Page ${currentPageIdx + 1} / ${pages.length}` : 'No pages'}
           </span>
-          <Button variant="ghost" size="sm" className="size-10 p-0 rounded-lg" onClick={() => handleSelectPageIdx(Math.min(pages.length - 1, currentPageIdx + 1))} disabled={currentPageIdx >= pages.length - 1} aria-label="Next page">
+          <Button variant="ghost" size="sm" className="size-7 p-0 rounded-lg" onClick={() => setCurrentPageIdx(Math.min(pages.length - 1, currentPageIdx + 1))} disabled={currentPageIdx >= pages.length - 1}>
             <ChevronRight className="size-4" />
           </Button>
         </div>
@@ -2217,55 +1277,13 @@ function StudioWorkspacePageContent() {
         </div>
       </div>
 
-      {/* ── Review Lock Banner ──────────────────────────── */}
-      {isReviewLocked && (
-        <div className="flex items-center gap-2.5 border-b border-amber-200 bg-amber-50 px-4 py-2 shrink-0">
-          <div className="grid size-6 place-items-center rounded-lg bg-amber-100">
-            <AlertCircle className="size-3.5 text-amber-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-amber-800">
-              {seriesStatus === 'Pending_Editor'
-                ? t('studio.reviewLockedTantou', 'Series is pending Tantou Editor review — Studio editing temporarily locked')
-                : t('studio.reviewLockedEB', 'Series is pending Editorial Board review — Studio editing temporarily locked')}
-            </p>
-            <p className="text-[10px] text-amber-600 mt-0.5">
-              {t('studio.reviewLockedDescription', 'You are in view-only mode. Cannot upload pages, draw zones, assign tasks, or edit until the review is complete or draft is returned.')}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Rejection Warning Banner ──────────────────── */}
-      {wasRejected && (
-        <div className="flex items-center gap-2.5 border-b border-red-200 bg-red-50 px-4 py-2 shrink-0">
-          <div className="grid size-6 place-items-center rounded-lg bg-red-100">
-            <AlertCircle className="size-3.5 text-red-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-red-800 flex items-center gap-1.5">
-              <AlertTriangle className="size-3.5 text-red-600 shrink-0" />
-              <span>{t('studio.rejectedWarning', 'Manuscript rejected — Please revise based on the corrections below')}</span>
-            </div>
-            {currentSeries?.rejectionNotes && (
-              <p className="text-[10px] text-red-600 mt-0.5 line-clamp-2 pl-5">
-                {t('studio.rejectionReason', 'Reason: {{notes}}', { notes: currentSeries.rejectionNotes })}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── Main area: Canvas + Right Panel ──────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── Fabric.js Canvas ────────────────────────── */}
         <div ref={canvasContainerRef} className="flex-1 relative overflow-hidden bg-neutral-200">
-          {/* Keep canvas statically in the DOM all the time so React never tries to remove it and trigger reconciliation crash */}
-          <div style={{ display: currentPage ? 'block' : 'none' }} className="w-full h-full">
+          {currentPage ? (
             <canvas ref={canvasElRef} />
-          </div>
-
-          {!currentPage && (
+          ) : (
             /* Empty state */
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center space-y-3">
@@ -2278,7 +1296,7 @@ function StudioWorkspacePageContent() {
                     ? t('studio.uploadHint', 'Upload manga pages to get started.')
                     : t('studio.waitHint', 'Waiting for mangaka to upload pages.')}
                 </p>
-                {isMangaka && !isReviewLocked && (
+                {isMangaka && (
                   <label className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-900 text-white px-4 py-2 text-xs font-medium cursor-pointer hover:bg-neutral-800 transition-colors">
                     <Upload className="size-3.5" />
                     {t('studio.uploadPage', 'Upload Page')}
@@ -2355,8 +1373,6 @@ function StudioWorkspacePageContent() {
               tabs={[
                 { key: 'zones', label: t('studio.zones', 'Zones') },
                 { key: 'tasks', label: t('studio.tasks', 'Tasks'), count: pageTasks.filter(t => t.status !== 'done').length },
-                { key: 'layers', label: t('studio.layers', 'Layers'), count: pageTasks.filter(t => t.submittedFile && (t.status === 'review' || t.status === 'done') && (t.assignmentLevel === 'chapter' || t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id)).length },
-                { key: 'annotations', label: t('studio.editorFeedback', 'Feedback'), count: pageAnnotations.filter(a => a.pageId === currentPage?._id && a.status === 'open').length },
                 { key: 'pages', label: t('studio.pages', 'Pages') },
                 { key: 'access', label: 'Access' },
               ]}
@@ -2369,530 +1385,131 @@ function StudioWorkspacePageContent() {
           <div className="flex-1 overflow-y-auto p-4">
             {/* ── Zones tab ───────────────────────────── */}
             {rightTab === 'zones' && (
-              <div className="space-y-4">
-                {selectedZoneId && zones.some(z => z._id === selectedZoneId) ? (
-                  (() => {
-                    const zone = zones.find(z => z._id === selectedZoneId)!
-                    const associatedTask = activePageTask || activeChapterTask
-                    return (
-                      <div className="space-y-4">
-                        {/* Header with back arrow */}
-                        <div className="flex items-center gap-2 pb-2 border-b border-neutral-100">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Layers className="size-4 text-neutral-500" />
+                    <span className="text-xs font-semibold text-neutral-700">{t('studio.pageZones', 'Page Zones')}</span>
+                  </div>
+                  {isMangaka && (
+                    <Button
+                      variant="ghost" size="sm" className="size-6 p-0 rounded-md"
+                      onClick={() => setActiveTool('zone')}
+                      title="Draw new zone"
+                    >
+                      <Plus className="size-3" />
+                    </Button>
+                  )}
+                </div>
+
+                {zones.length === 0 ? (
+                  <div className="rounded-xl bg-neutral-50 p-4 text-center">
+                    <p className="text-xs text-neutral-500">
+                      {activeTool === 'zone'
+                        ? t('studio.drawOnCanvas', 'Draw a rectangle on the canvas to create a zone')
+                        : t('studio.noZones', 'No zones yet. Select the Zone tool and draw on the canvas.')}
+                    </p>
+                  </div>
+                ) : (
+                  zones.map((zone) => (
+                    <div
+                      key={zone._id}
+                      className={`rounded-xl border p-2.5 transition-all cursor-pointer ${
+                        selectedZoneId === zone._id ? 'border-neutral-900 shadow-sm' : 'border-neutral-200'
+                      }`}
+                      onClick={() => setSelectedZoneId(zone._id)}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="size-2.5 rounded-sm" style={{ backgroundColor: zone.color }} />
+                          <span className="text-xs font-medium">{zone.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => setSelectedZoneId(null)}
-                            className="p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                            className="grid size-5 place-items-center rounded text-neutral-400 hover:text-neutral-700 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setZoneVisibility(prev => ({ ...prev, [zone._id]: !prev[zone._id] })) }}
                           >
-                            <ArrowLeft className="size-4 text-neutral-600" />
+                            {zoneVisibility[zone._id] ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
                           </button>
-                          <div>
-                            <h4 className="text-xs font-semibold text-neutral-700 flex items-center gap-1.5">
-                              <span className="size-2 rounded-full" style={{ backgroundColor: zone.color }} />
-                              {zone.name}
-                            </h4>
-                            <p className="text-[10px] text-neutral-400">{t('studio.zoneDetails', 'Zone Details')}</p>
-                          </div>
-                        </div>
-
-                        {/* Zone Meta Info */}
-                        <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2.5">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-neutral-500">{t('studio.zoneTypeLabel', 'Zone Type:')}</span>
-                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
-                          </div>
-                          <div className="flex justify-between text-xs">
-                            <span className="text-neutral-500">{t('studio.statusLabel', 'Status:')}</span>
-                            <Badge
-                              variant="default"
-                              className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${zone.status === 'done'
-                                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                : zone.status === 'review'
-                                  ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                  : zone.status === 'in_progress'
-                                    ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                    : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
-                                }`}
+                          {isMangaka && (
+                            <button
+                              type="button"
+                              className="grid size-5 place-items-center rounded text-neutral-400 hover:text-red-500 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteZone(zone._id) }}
                             >
-                              {zone.status.replace('_', ' ')}
-                            </Badge>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs text-neutral-500">
-                              <span>{t('studio.progressLabel', 'Progress:')}</span>
-                              <span className="font-semibold text-neutral-800">{zone.progress}%</span>
-                            </div>
-                            <Progress value={zone.progress} className="h-1.5 bg-neutral-200" />
-                          </div>
-                        </div>
-
-                        {/* Assignee section */}
-                        <div className="space-y-2">
-                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{t('studio.assigneeLabel', 'Assignee')}</h5>
-                          {zone.assignedTo ? (
-                            <div className="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 bg-white shadow-sm">
-                              <Avatar className="size-8 bg-neutral-200 border border-neutral-100">
-                                <AvatarFallback className="text-xs font-semibold">{zone.assignedTo.displayName?.[0]}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="text-xs font-semibold text-neutral-800">{zone.assignedTo.displayName}</p>
-                                <p className="text-[10px] text-neutral-400 flex items-center gap-1">
-                                  {associatedTask?.assignmentLevel === 'chapter' ? (
-                                    <span className="text-amber-600 bg-amber-50 px-1 rounded text-[8px] font-medium">Inherited from Chapter Task</span>
-                                  ) : associatedTask?.assignmentLevel === 'page' ? (
-                                    <span className="text-blue-600 bg-blue-50 px-1 rounded text-[8px] font-medium">Inherited from Page Task</span>
-                                  ) : (
-                                    t('roles.assistant', 'Assistant')
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between rounded-xl border border-dashed border-neutral-200 p-3 bg-neutral-50/50">
-                              <span className="text-xs text-neutral-500 italic">{t('studio.unassigned', 'Unassigned')}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Associated Task section */}
-                        <div className="space-y-2 pt-2 border-t border-neutral-100">
-                          <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{t('studio.associatedTask', 'Associated Task')}</h5>
-                          {associatedTask ? (
-                            <Card className="p-3 bg-white space-y-2.5 rounded-xl border border-neutral-200 shadow-xs">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className="text-xs font-semibold text-neutral-800 truncate">{associatedTask.title}</p>
-                                </div>
-                                <Badge
-                                  variant="secondary"
-                                  className={`text-[9px] px-1.5 py-0 h-4 capitalize font-semibold ${associatedTask.status === 'done' ? 'text-emerald-600 bg-emerald-50' : associatedTask.status === 'review' ? 'text-amber-600 bg-amber-50' : 'text-neutral-500 bg-neutral-50'
-                                    }`}
-                                >
-                                  {associatedTask.status.replace('_', ' ')}
-                                </Badge>
-                              </div>
-
-                              {associatedTask.deadline && (
-                                <div className="text-[10px] text-neutral-400">
-                                  {t('studio.deadlineLabel', 'Deadline:')} {new Date(associatedTask.deadline).toLocaleDateString()}
-                                </div>
-                              )}
-
-                              {associatedTask.status === 'in_progress' && associatedTask.reviewNotes && (
-                                <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 text-[10px] text-rose-700 space-y-1">
-                                  <div className="font-semibold flex items-center gap-1">
-                                    <AlertCircle className="size-3 text-rose-500 shrink-0" />
-                                    <span>{t('studio.revisionRequired', 'Revision Required:')}</span>
-                                  </div>
-                                  <p className="text-neutral-600 leading-normal font-normal bg-white/75 p-1.5 rounded-md border border-rose-50/30 whitespace-pre-wrap text-[9px]">
-                                    {associatedTask.reviewNotes}
-                                  </p>
-                                </div>
-                              )}
-                            </Card>
-                          ) : (
-                            <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-3 text-center text-xs text-neutral-500">
-                              No active task for this page/chapter.
-                            </div>
+                              <Trash2 className="size-3" />
+                            </button>
                           )}
                         </div>
                       </div>
-                    )
-                  })()
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <Layers className="size-4 text-neutral-500" />
-                        <span className="text-xs font-semibold text-neutral-700">{t('studio.pageZones', 'Page Zones')}</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
+                        <span className="text-[10px] text-neutral-500 capitalize">{zone.status.replace('_', ' ')}</span>
                       </div>
-                      {isMangaka && !isReviewLocked && (
-                        <Button
-                          variant="ghost" size="sm" className="size-6 p-0 rounded-md"
-                          onClick={() => setActiveTool('zone')}
-                          title="Draw new zone"
-                        >
-                          <Plus className="size-3" />
-                        </Button>
-                      )}
-                    </div>
-
-                    {zones.length === 0 ? (
-                      <div className="rounded-xl bg-neutral-50 p-4 text-center">
-                        <p className="text-xs text-neutral-500">
-                          {activeTool === 'zone'
-                            ? t('studio.drawOnCanvas', 'Draw a rectangle on the canvas to create a zone')
-                            : t('studio.noZones', 'No zones yet. Select the Zone tool and draw on the canvas.')}
-                        </p>
-                      </div>
-                    ) : (
-                      zones.map((zone) => (
-                        <div
-                          key={zone._id}
-                          className={`rounded-xl border p-2.5 transition-all cursor-pointer ${selectedZoneId === zone._id ? 'border-neutral-900 shadow-sm' : 'border-neutral-200 hover:border-neutral-400'
-                            }`}
-                          onClick={() => setSelectedZoneId(zone._id)}
-                        >
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="size-2.5 rounded-sm" style={{ backgroundColor: zone.color }} />
-                              <span className="text-xs font-medium">{zone.name}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                className="grid size-5 place-items-center rounded text-neutral-400 hover:text-neutral-700 transition-colors"
-                                onClick={(e) => { e.stopPropagation(); setZoneVisibility(prev => ({ ...prev, [zone._id]: !prev[zone._id] })) }}
-                              >
-                                {zoneVisibility[zone._id] ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
-                              </button>
-                              {isMangaka && !isReviewLocked && (
-                                <button
-                                  type="button"
-                                  className="grid size-5 place-items-center rounded text-neutral-400 hover:text-red-500 transition-colors"
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteZone(zone._id) }}
-                                >
-                                  <Trash2 className="size-3" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">{zone.type}</Badge>
-                            <span className="text-[10px] text-neutral-500 capitalize">{zone.status.replace('_', ' ')}</span>
-                          </div>
-                          {zone.assignedTo && (
-                            <div className="flex items-center gap-1.5 mt-1.5">
-                              <Avatar className="size-4 bg-neutral-200">
-                                <AvatarFallback className="text-[6px]">{zone.assignedTo.displayName?.[0]}</AvatarFallback>
-                              </Avatar>
-                              <span className="text-[10px] text-neutral-500">{zone.assignedTo.displayName}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <Progress value={zone.progress} className="h-1 flex-1" />
-                            <span className="text-[10px] text-neutral-500">{zone.progress}%</span>
-                          </div>
+                      {zone.assignedTo && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Avatar className="size-4 bg-neutral-200">
+                            <AvatarFallback className="text-[6px]">{zone.assignedTo.displayName?.[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-[10px] text-neutral-500">{zone.assignedTo.displayName}</span>
                         </div>
-                      ))
-                    )}
-                  </>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Progress value={zone.progress} className="h-1 flex-1" />
+                        <span className="text-[10px] text-neutral-500">{zone.progress}%</span>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             )}
 
             {/* ── Tasks tab ───────────────────────────── */}
             {rightTab === 'tasks' && (
-              <div className="space-y-3">
-                {isMangaka && !isReviewLocked && (
-                  <div className="space-y-2">
-                    {seriesStatus !== 'Active' ? (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-left space-y-1">
-                        <div className="flex items-center gap-1 text-amber-800 font-medium text-[10px]">
-                          <AlertCircle className="size-3 text-amber-600 shrink-0" />
-                          <span>Series Not Active</span>
-                        </div>
-                        <p className="text-[9px] text-amber-700 leading-normal">
-                          This series must be Active (published) to assign tasks.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {/* Assign Chapter row */}
-                        {activeChapterTask ? (
-                          <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
-                            <div className="flex items-center justify-center size-7 rounded-lg bg-amber-100 shrink-0 text-amber-600">
-                              <BookOpen className="size-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[10px] font-semibold text-amber-800 leading-tight">Chapter đang được giao</p>
-                              <p className="text-[9px] text-amber-700 mt-0.5">
-                                Đã giao cho <strong>{activeChapterTask.assignedTo?.displayName || 'Assistant'}</strong>
-                                <span className="ml-1 capitalize px-1 rounded bg-amber-200 text-amber-900">{activeChapterTask.status?.replace('_', ' ')}</span>
-                              </p>
-                            </div>
-                            <AlertCircle className="size-3.5 shrink-0 text-amber-500" />
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full text-[10px] h-8 font-semibold flex items-center justify-center gap-1.5 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
-                            onClick={() => handleOpenCreateTaskForLevel('chapter')}
-                            title="Assign entire chapter to one assistant"
-                          >
-                            <BookOpen className="size-3.5 text-neutral-500" />
-                            {t('studio.assignChapter', 'Assign Chapter')}
-                          </Button>
-                        )}
-
-                        {/* Assign Page row */}
-                        {activeChapterTask ? (
-                          <div className="flex items-center gap-2 rounded-xl bg-neutral-50 border border-neutral-200 border-dashed p-2.5 opacity-60">
-                            <div className="flex items-center justify-center size-7 rounded-lg bg-neutral-100 shrink-0 text-neutral-400">
-                              <FileText className="size-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[10px] font-medium text-neutral-500 leading-tight">Giao theo trang</p>
-                              <p className="text-[9px] text-neutral-400 mt-0.5">Không khả dụng khi chapter đã được giao</p>
-                            </div>
-                          </div>
-                        ) : activePageTask ? (
-                          <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-2.5">
-                            <div className="flex items-center justify-center size-7 rounded-lg bg-blue-100 shrink-0 text-blue-600">
-                              <FileText className="size-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[10px] font-semibold text-blue-800 leading-tight">Trang {currentPage?.pageNumber} đang được giao</p>
-                              <p className="text-[9px] text-blue-700 mt-0.5">
-                                Đã giao cho <strong>{activePageTask.assignedTo?.displayName || 'Assistant'}</strong>
-                                <span className="ml-1 capitalize px-1 rounded bg-blue-200 text-blue-900">{activePageTask.status?.replace('_', ' ')}</span>
-                              </p>
-                            </div>
-                            <AlertCircle className="size-3.5 shrink-0 text-blue-500" />
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full text-[10px] h-8 font-semibold flex items-center justify-center gap-1.5 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
-                            onClick={() => handleOpenCreateTaskForLevel('page')}
-                            title="Assign this page to one assistant"
-                          >
-                            <FileText className="size-3.5 text-neutral-500" />
-                            {t('studio.assignPage', 'Assign Page')}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between mb-1 mt-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-neutral-700">{t('studio.activeTasks', 'Active Tasks')}</span>
                 </div>
 
                 {pageTasks.length === 0 ? (
                   <div className="rounded-xl bg-neutral-50 p-4 text-center">
-                    <p className="text-xs text-neutral-500">{t('studio.noTasks', 'No tasks for this chapter.')}</p>
+                    <p className="text-xs text-neutral-500">{t('studio.noTasks', 'No tasks for this page.')}</p>
                   </div>
                 ) : (
-                  [...pageTasks]
-                    .sort((a, b) => {
-                      if (a.assignmentLevel === 'chapter' && b.assignmentLevel !== 'chapter') return -1;
-                      if (a.assignmentLevel !== 'chapter' && b.assignmentLevel === 'chapter') return 1;
-                      return 0;
-                    })
-                    .map((task) => {
-                      const isTaskForCurrentPage = task.assignmentLevel === 'chapter' || (task.pageId?._id === currentPage?._id || task.pageId === currentPage?._id);
-                      return (
-                        <Card key={task._id} className={`rounded-xl p-2.5 border transition-all ${isTaskForCurrentPage ? 'border-neutral-300' : 'border-neutral-100 opacity-60'}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-neutral-800 truncate">{task.title}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-medium flex items-center gap-0.5">
-                                  {task.assignmentLevel === 'chapter' ? (
-                                    <>
-                                      <BookOpen className="size-2.5" />
-                                      Chapter
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FileText className="size-2.5" />
-                                      Page {task.pageId?.pageNumber || ''}
-                                    </>
-                                  )}
-                                </Badge>
-                                <span className="text-[10px] text-neutral-500 capitalize">{task.type}</span>
-                              </div>
-                            </div>
-                            {task.assignedTo && (
-                              <Avatar className="size-6 bg-neutral-200 shrink-0">
-                                <AvatarFallback className="text-[8px] font-semibold">{task.assignedTo.displayName?.[0]}</AvatarFallback>
-                              </Avatar>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-neutral-50">
-                            <Badge
-                              variant="secondary"
-                              className={`text-[9px] px-1.5 py-0 h-4 font-semibold capitalize ${task.status === 'done' ? 'text-emerald-600 bg-emerald-50' :
-                                task.status === 'review' ? 'text-amber-600 bg-amber-50' :
-                                  task.status === 'in_progress' ? 'text-blue-600 bg-blue-50' : 'text-neutral-500 bg-neutral-50'
-                                }`}
-                            >
-                              {task.status.replace('_', ' ')}
-                            </Badge>
-                            {task.deadline && (
-                              <span className="text-[9px] text-neutral-400">
-                                {new Date(task.deadline).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-
-                          {task.status === 'review' && isMangaka && !isReviewLocked && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenReview(task)}
-                              className="w-full text-[10px] font-semibold flex items-center justify-center gap-1 bg-neutral-900 text-white rounded-lg h-7 hover:bg-neutral-800 transition-colors mt-2"
-                            >
-                              <CheckSquare className="size-3" />
-                              {t('studio.reviewSubmission', 'Review Submission')}
-                            </Button>
-                          )}
-
-                          {task.status === 'open' && isMangaka && !isReviewLocked && (
-                            <div className="flex gap-1.5 mt-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleOpenAssignExistingTask(task)}
-                                className="flex-1 text-[10px] font-semibold flex items-center justify-center gap-1 bg-neutral-900 text-white rounded-lg h-7 hover:bg-neutral-800 transition-colors"
-                              >
-                                <Sparkles className="size-3 text-amber-400" />
-                                {t('studio.designateNewAssistant', 'Designate Assistant')}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleOpenCancelTask(task)}
-                                className="text-[10px] font-semibold flex items-center justify-center gap-1 border-neutral-200 text-neutral-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg h-7 shrink-0 px-2.5 transition-colors"
-                                title={t('studio.cancelTask', 'Cancel Task')}
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            </div>
-                          )}
-
-                          {task.status === 'assigned' && isMangaka && !isReviewLocked && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenCancelTask(task)}
-                              className="w-full text-[10px] font-semibold flex items-center justify-center gap-1 border-neutral-200 text-neutral-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg h-7 mt-2 transition-colors"
-                            >
-                              <Trash2 className="size-3" />
-                              {t('studio.cancelTask', 'Cancel Task')}
-                            </Button>
-                          )}
-                        </Card>
-                      );
-                    })
+                  pageTasks.map((task) => (
+                    <Card key={task._id} className="rounded-xl p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">{task.title}</p>
+                          <p className="text-[10px] text-neutral-500 mt-0.5 capitalize">{task.type}</p>
+                        </div>
+                        {task.assignedTo && (
+                          <Avatar className="size-5 bg-neutral-200 shrink-0">
+                            <AvatarFallback className="text-[7px]">{task.assignedTo.displayName?.[0]}</AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <Badge
+                          variant="secondary"
+                          className={`text-[9px] px-1.5 py-0 h-4 ${
+                            task.status === 'done' ? 'text-emerald-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-neutral-500'
+                          }`}
+                        >
+                          {task.status.replace('_', ' ')}
+                        </Badge>
+                        {task.deadline && (
+                          <span className="text-[10px] text-neutral-400">
+                            {new Date(task.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </Card>
+                  ))
                 )}
               </div>
             )}
-
-            {/* ── Editor Annotations tab ────────────────── */}
-            {rightTab === 'annotations' && (() => {
-              const visibleAnnotations = pageAnnotations
-                .filter(a => a.pageId === currentPage?._id)
-              return (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-neutral-700">{t('studio.activeFeedback', 'Tantou Corrections')}</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowFeedbackPins(!showFeedbackPins)}
-                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-200 text-[10px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 transition-all shadow-2xs bg-white"
-                      title={showFeedbackPins ? "Hide feedback pins on canvas" : "Show feedback pins on canvas"}
-                    >
-                      {showFeedbackPins ? <Eye className="size-3 text-neutral-600" /> : <EyeOff className="size-3 text-neutral-400" />}
-                      <span>{showFeedbackPins ? t('common.visible', 'Visible') : t('common.hidden', 'Hidden')}</span>
-                    </button>
-                  </div>
-
-                  {visibleAnnotations.length === 0 ? (
-                    <div className="rounded-xl bg-neutral-50 p-4 text-center">
-                      <p className="text-xs text-neutral-500">{t('studio.noFeedback', 'No editor feedback on this page.')}</p>
-                    </div>
-                  ) : (
-                    visibleAnnotations
-                      .map((ann) => {
-                        const isOpen = ann.status === 'open'
-                        const isSelected = selectedAnnotationId === ann._id
-                        return (
-                          <div
-                            key={ann._id}
-                            onClick={() => {
-                              setSelectedAnnotationId(isSelected ? null : ann._id)
-                            }}
-                            className={`p-3 rounded-xl border leading-normal space-y-2 relative transition-all cursor-pointer ${annotationVisibility[ann._id] === false ? 'opacity-40 border-neutral-200 bg-neutral-100/10' :
-                              isSelected
-                                ? 'border-red-500 bg-red-100/20 ring-2 ring-red-500/20 shadow-xs'
-                                : isOpen ? 'border-red-200 bg-red-50/30 hover:border-red-300 hover:bg-red-50/50' : 'border-neutral-100 bg-neutral-50/50 opacity-60 hover:border-neutral-300'
-                              }`}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <span className={`text-[9px] font-bold uppercase tracking-wider ${annotationVisibility[ann._id] === false ? 'text-neutral-400' :
-                                isOpen ? 'text-red-600' : 'text-neutral-500'
-                                }`}>
-                                {isOpen ? 'Open Correction Note' : 'Resolved'}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  type="button"
-                                  className="grid size-5 place-items-center rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer border-none bg-transparent"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setAnnotationVisibility(prev => ({
-                                      ...prev,
-                                      [ann._id]: prev[ann._id] === false
-                                    }))
-                                  }}
-                                  title={annotationVisibility[ann._id] !== false ? "Hide pin on canvas" : "Show pin on canvas"}
-                                >
-                                  {annotationVisibility[ann._id] !== false ? <Eye className="size-3 text-neutral-500" /> : <EyeOff className="size-3 text-neutral-400" />}
-                                </button>
-                                <span className="text-[8px] text-neutral-400">{new Date(ann.createdAt).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-
-                            {(() => {
-                              const parsed = parseCanvasAnnotation(ann.note)
-                              if (parsed) {
-                                const typeIcons: Record<string, string> = { rect: '▭', circle: '○', freehand: '✎', text: '𝐓' }
-                                const typeLabels: Record<string, string> = { rect: 'Region', circle: 'Circle', freehand: 'Drawing', text: 'Text' }
-                                return (
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider border"
-                                      style={{ borderColor: parsed.color + '40', backgroundColor: parsed.color + '12', color: parsed.color }}
-                                    >
-                                      <span>{typeIcons[parsed.type] || '•'}</span>
-                                      {typeLabels[parsed.type] || parsed.type}
-                                    </span>
-                                    <span className="text-xs text-neutral-600">{canvasAnnotationLabel(parsed)}</span>
-                                  </div>
-                                )
-                              }
-                              return <p className="text-xs text-neutral-700 leading-normal break-words">{ann.note}</p>
-                            })()}
-
-                            <div className="flex items-center justify-between gap-2 border-t border-neutral-100/50 pt-2 mt-2">
-                              <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 min-w-0">
-                                <span className="truncate">By {ann.authorId?.displayName || 'Tantou Editor'}</span>
-                              </div>
-
-                              {isOpen && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 px-2 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 gap-1 rounded-lg shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleResolveAnnotation(ann._id)
-                                  }}
-                                >
-                                  <Check className="size-3" />
-                                  {t('studio.resolve', 'Resolve')}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })
-                  )}
-                </div>
-              )
-            })()}
 
             {/* ── Pages tab ───────────────────────────── */}
             {rightTab === 'pages' && (
@@ -2905,9 +1522,10 @@ function StudioWorkspacePageContent() {
                   {pages.map((p, idx) => (
                     <div
                       key={p._id}
-                      className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer group ${idx === currentPageIdx ? 'border-neutral-900 shadow-md scale-105' : 'border-transparent opacity-70 hover:opacity-100'
-                        }`}
-                      onClick={() => handleSelectPageIdx(idx)}
+                      className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all cursor-pointer group ${
+                        idx === currentPageIdx ? 'border-neutral-900 shadow-md scale-105' : 'border-transparent opacity-70 hover:opacity-100'
+                      }`}
+                      onClick={() => setCurrentPageIdx(idx)}
                     >
                       <img
                         src={p.originalImage.startsWith('http') ? p.originalImage : `${apiBase}${p.originalImage}`}
@@ -2917,7 +1535,7 @@ function StudioWorkspacePageContent() {
                       <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] py-0.5 text-center">
                         {p.pageNumber}
                       </span>
-                      {isMangaka && !isReviewLocked && (
+                      {isMangaka && (
                         <button
                           type="button"
                           className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-black/50 text-white opacity-0 transition-all hover:bg-red-500 group-hover:opacity-100"
@@ -2936,148 +1554,16 @@ function StudioWorkspacePageContent() {
               </div>
             )}
 
-            {/* ── Layers tab ──────────────────────────── */}
-            {rightTab === 'layers' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
-                  <span className="text-xs font-semibold text-neutral-700">{t('studio.pageLayers', 'Page Layers')}</span>
-                  <span className="text-[10px] text-neutral-500">
-                    {pageTasks.filter(t => t.submittedFile && (t.status === 'review' || t.status === 'done') && (t.assignmentLevel === 'chapter' || t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id)).length} layers
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {/* Background Layer (Original Draft) */}
-                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="size-8 rounded bg-neutral-200 overflow-hidden shrink-0 border border-neutral-300">
-                        {currentPage && (
-                          <img
-                            src={currentPage.originalImage.startsWith('http') ? currentPage.originalImage : `${apiBase}${currentPage.originalImage}`}
-                            alt="Background draft"
-                            className="h-full w-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold truncate">Original Draft (Background)</p>
-                        <p className="text-[9px] text-neutral-400">Locked Bottom Layer</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-200/50">Base</span>
-                  </div>
-
-                  {/* Assistant Uploaded Layers */}
-                  {(() => {
-                    const layers = pageTasks.filter(
-                      (t) =>
-                        t.submittedFile &&
-                        (t.status === 'review' || t.status === 'done') &&
-                        (t.assignmentLevel === 'chapter' ||
-                          t.pageId?._id === currentPage?._id ||
-                          t.pageId === currentPage?._id)
-                    )
-
-                    if (layers.length === 0) {
-                      return (
-                        <div className="text-center py-6 text-xs text-neutral-500 bg-neutral-50/50 border border-dashed border-neutral-200 rounded-xl">
-                          No assistant layers uploaded for this page yet.
-                        </div>
-                      )
-                    }
-
-                    return layers.map((task) => {
-                      const taskId = task._id
-                      const config = layersConfig[taskId] || { visible: true, opacity: 100 }
-                      const isVisible = config.visible !== false
-                      const opacity = config.opacity ?? 100
-
-                      return (
-                        <div
-                          key={taskId}
-                          className="space-y-2 rounded-xl border border-neutral-200 p-2.5 hover:border-neutral-300 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="size-8 rounded bg-neutral-100 overflow-hidden shrink-0 border border-neutral-200 flex items-center justify-center">
-                                <img
-                                  src={task.submittedFile?.startsWith('http') ? task.submittedFile : `${apiBase}${task.submittedFile || ''}`}
-                                  alt={task.title}
-                                  className="h-full w-full object-contain bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22 viewBox=%220 0 8 8%22><rect width=%224%22 height=%224%22 fill=%22%23eee%22/><rect x=%224%22 y=%224%22 width=%224%22 height=%224%22 fill=%22%23eee%22/></svg>')] bg-[size:8px_8px]"
-                                />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold truncate">{task.title}</p>
-                                <p className="text-[9px] text-neutral-400 capitalize">
-                                  {task.type} Layer · {task.assignedTo?.displayName || 'Assistant'}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLayersConfig((prev) => ({
-                                  ...prev,
-                                  [taskId]: { ...config, visible: !isVisible },
-                                }))
-                              }}
-                              className={`p-1.5 rounded-lg border transition-all ${
-                                isVisible
-                                  ? 'bg-neutral-900 text-white border-neutral-900'
-                                  : 'bg-white text-neutral-400 border-neutral-200 hover:text-neutral-600 hover:bg-neutral-50'
-                              }`}
-                              title={isVisible ? 'Hide Layer' : 'Show Layer'}
-                              aria-label={isVisible ? 'Hide Layer' : 'Show Layer'}
-                              aria-pressed={isVisible}
-                            >
-                              {isVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-                            </button>
-                          </div>
-
-                          {/* Opacity slider */}
-                          <div className="flex items-center gap-3 border-t border-neutral-50 pt-2 text-[10px]">
-                            <span className="text-neutral-500 w-12 shrink-0">Opacity:</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={opacity}
-                              onChange={(e) => {
-                                const newOpacity = Number(e.target.value)
-                                setLayersConfig((prev) => ({
-                                  ...prev,
-                                  [taskId]: { ...config, opacity: newOpacity },
-                                }))
-                              }}
-                              className="flex-1 h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
-                              disabled={!isVisible}
-                              aria-label={`${task.title} Opacity`}
-                            />
-                            <span className="font-medium text-neutral-800 w-8 text-right shrink-0">
-                              {opacity}%
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })
-                  })()}
-                </div>
-              </div>
-            )}
-
             {rightTab === 'access' && (
               <div className="space-y-3">
                 <div>
                   <div className="text-xs font-semibold text-neutral-700 mb-2">Share access</div>
-                  <div className={`space-y-2 rounded-xl border border-neutral-200 p-3 ${isReviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <div className="space-y-2 rounded-xl border border-neutral-200 p-3">
                     <Input
                       placeholder="Search user by name or email"
                       value={shareUserQuery}
                       onChange={(e) => setShareUserQuery(e.target.value)}
-                      disabled={isReviewLocked}
                     />
-                    {shareError && <div className="text-[10px] text-red-500">{shareError}</div>}
                     <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-neutral-100 p-1">
                       {shareUserResults.length === 0 ? (
                         <div className="px-2 py-2 text-[10px] text-neutral-400">No users found.</div>
@@ -3088,15 +1574,8 @@ function StudioWorkspacePageContent() {
                           className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-left text-xs hover:bg-neutral-50"
                           onClick={() => {
                             setShareUserId(u._id)
-                            setShareUserRole(u.role)
                             setShareUserQuery(`${u.displayName} (${u.email})`)
-                            if (u.role === 'mangaka') {
-                              setShareRole('mangaka')
-                            } else if (shareRole === 'mangaka') {
-                              setShareRole('assistant')
-                            }
                           }}
-                          disabled={isReviewLocked}
                         >
                           <div className="font-medium">{u.displayName}</div>
                           <div className="text-[10px] text-neutral-500">{u.email} · {u.role}</div>
@@ -3104,37 +1583,26 @@ function StudioWorkspacePageContent() {
                       ))}
                     </div>
                     <div className="text-[10px] text-neutral-500">Selected user id: {shareUserId || 'none'}</div>
-                    <div className="rounded-lg bg-neutral-50 px-2 py-1.5 text-[10px] text-neutral-600">
-                      Selected user role: <span className="font-medium capitalize">{shareUserRole || 'none'}</span>
-                    </div>
                     <select
                       className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
                       value={shareRole}
-                      onChange={(e) => setShareRole(e.target.value as 'mangaka' | 'assistant' | 'editor')}
-                      disabled={shareUserRole === 'mangaka'}
+                      onChange={(e) => setShareRole(e.target.value as 'assistant' | 'editor')}
                     >
                       <option value="assistant">assistant</option>
                       <option value="editor">editor</option>
-                      <option value="mangaka">mangaka</option>
                     </select>
-                    {shareUserRole === 'mangaka' && (
-                      <div className="text-[10px] text-amber-600">Mangaka users can only be shared as mangaka.</div>
-                    )}
                     <div className="grid grid-cols-3 gap-2 text-[10px]">
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} disabled={isReviewLocked} /> edit
+                        <input type="checkbox" checked={shareCanEdit} onChange={(e) => setShareCanEdit(e.target.checked)} /> edit
                       </label>
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} disabled={isReviewLocked} /> comment
+                        <input type="checkbox" checked={shareCanComment} onChange={(e) => setShareCanComment(e.target.checked)} /> comment
                       </label>
                       <label className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1">
-                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} disabled={isReviewLocked} /> invite
+                        <input type="checkbox" checked={shareCanInvite} onChange={(e) => setShareCanInvite(e.target.checked)} /> invite
                       </label>
                     </div>
-                    {shareError && <div className="rounded-lg bg-red-50 px-2 py-1.5 text-[10px] text-red-600">{shareError}</div>}
-                    <Button size="sm" className="w-full" onClick={handleShareAccess} disabled={!shareUserId || (shareUserRole === 'mangaka' && shareRole !== 'mangaka')}>
-                      Share
-                    </Button>
+                    <Button size="sm" className="w-full" onClick={handleShareAccess}>Share</Button>
                   </div>
                 </div>
 
@@ -3154,7 +1622,7 @@ function StudioWorkspacePageContent() {
                           </div>
                         </div>
                         {isMangaka && String(member.userId?._id || member.userId) !== String(user?._id) && (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))} disabled={isReviewLocked}>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={() => handleRemoveAccess(String(member.userId?._id || member.userId))}>
                             Remove
                           </Button>
                         )}
@@ -3172,6 +1640,24 @@ function StudioWorkspacePageContent() {
               <span className="text-[10px] text-neutral-400 truncate">
                 {currentChapter ? `Ch. ${currentChapter.chapterNumber}` : ''} · {currentSeries?.title || ''}
               </span>
+              {isMangaka && currentSeries?.status === 'Draft' && (
+                <Button 
+                  size="sm" 
+                  className="h-6 text-[10px] px-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={async () => {
+                    try {
+                      // Submit the series for editor review
+                      await seriesAPI.update(currentSeries._id, { status: 'EditorReview' })
+                      alert('Draft submitted to Editor successfully!')
+                      window.location.reload()
+                    } catch (e) {
+                      console.error('Failed to submit draft', e)
+                    }
+                  }}
+                >
+                  Submit Draft to Editor
+                </Button>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Minus className="size-3 text-neutral-400" />
@@ -3181,69 +1667,6 @@ function StudioWorkspacePageContent() {
           </div>
         </div>
       </div>
-
-      {/* ── New Series Dialog ───────────────────────────── */}
-      {showCreateSeriesDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-[30rem] rounded-2xl bg-white p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold">Create Series</h3>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>
-              <Input value={newSeriesTitle} onChange={(e) => setNewSeriesTitle(e.target.value)} placeholder="Series title" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Description</label>
-              <textarea
-                className="min-h-24 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-900"
-                value={newSeriesDescription}
-                onChange={(e) => setNewSeriesDescription(e.target.value)}
-                placeholder="Series description"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Genres</label>
-              <Input value={newSeriesGenre} onChange={(e) => setNewSeriesGenre(e.target.value)} placeholder="action, fantasy" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Cover image URL</label>
-              <Input value={newSeriesCoverImage} onChange={(e) => setNewSeriesCoverImage(e.target.value)} placeholder="/manga/cover-scifi.png" />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowCreateSeriesDialog(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleCreateSeries}>
-                Create
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── New Chapter Dialog ──────────────────────────── */}
-      {showCreateChapterDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-96 rounded-2xl bg-white p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold">Create Chapter</h3>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Chapter number</label>
-              <Input value={newChapterNumber} disabled placeholder="1" className="bg-neutral-100 cursor-not-allowed" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Title</label>
-              <Input value={newChapterTitle} onChange={(e) => setNewChapterTitle(e.target.value)} placeholder="Chapter 1" />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowCreateChapterDialog(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleCreateChapter} disabled={!selectedSeriesId}>
-                Create
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── New Zone Dialog ────────────────────────────── */}
       {showNewZoneDialog && (
@@ -3261,8 +1684,9 @@ function StudioWorkspacePageContent() {
                   <button
                     key={type}
                     type="button"
-                    className={`rounded-lg border px-2 py-1.5 text-[10px] font-medium capitalize transition-all ${newZoneType === type ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 hover:border-neutral-400'
-                      }`}
+                    className={`rounded-lg border px-2 py-1.5 text-[10px] font-medium capitalize transition-all ${
+                      newZoneType === type ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 hover:border-neutral-400'
+                    }`}
                     onClick={() => { setNewZoneType(type); setNewZoneName(type.charAt(0).toUpperCase() + type.slice(1)) }}
                   >
                     <span className="inline-block size-1.5 rounded-full mr-1" style={{ backgroundColor: color }} />
@@ -3282,526 +1706,6 @@ function StudioWorkspacePageContent() {
           </div>
         </div>
       )}
-
-      {/* ── Create & Assign Task Dialog ────────────────── */}
-      {showCreateTaskDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
-              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
-                <Sparkles className="size-4 text-amber-500" />
-                {activeTaskToAssign ? t('studio.designateAssistantTitle', 'Designate Assistant for Task') : t('studio.assignAssistantTitle', 'Assign Task to Assistant')}
-              </h3>
-              <button
-                onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            {activeTaskToAssign && (
-              <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-amber-800 text-xs">
-                <AlertCircle className="size-4 shrink-0 text-amber-600" />
-                <span>{t('studio.designateBanner', 'You are designating a new Assistant for an already posted task. Adjustments below will update this task.')}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
-                  {t('studio.assignmentLevel', 'Assignment Level')}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Chapter level button */}
-                  {activeChapterTask && !activeTaskToAssign ? (
-                    <div className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl border border-amber-200 bg-amber-50 text-xs opacity-80 cursor-not-allowed">
-                      <span className="text-amber-700 font-medium flex items-center gap-1"><BookOpen className="size-3" /> Chapter</span>
-                      <span className="text-[8px] text-amber-600 text-center leading-tight">Đã có task</span>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={!!activeTaskToAssign}
-                      onClick={() => {
-                        setCreateTaskForm(prev => ({
-                          ...prev,
-                          assignmentLevel: 'chapter',
-                          title: `Gia công Chapter ${currentChapter?.chapterNumber || 1}`,
-                          description: `Thực hiện gia công toàn bộ Chapter ${currentChapter?.chapterNumber || 1}.`,
-                          wage: 150000
-                        }));
-                      }}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assignmentLevel === 'chapter'
-                        ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                        } ${activeTaskToAssign ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <BookOpen className="size-3.5" />
-                      <span>{t('studio.chapterLevel', 'Chapter')}</span>
-                    </button>
-                  )}
-
-                  {/* Page level button */}
-                  {(activeChapterTask || activePageTask) && !activeTaskToAssign ? (
-                    <div
-                      className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl border border-blue-200 bg-blue-50 text-xs opacity-80 cursor-not-allowed"
-                      title={activeChapterTask ? 'Chapter đã được giao, không thể giao theo trang' : 'Trang này đã được giao'}
-                    >
-                      <span className="text-blue-700 font-medium flex items-center gap-1"><FileText className="size-3" /> Page</span>
-                      <span className="text-[8px] text-blue-600 text-center leading-tight">
-                        {activeChapterTask ? 'Chapter đã giao' : 'Trang đã giao'}
-                      </span>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={!!activeTaskToAssign}
-                      onClick={() => {
-                        setCreateTaskForm(prev => ({
-                          ...prev,
-                          assignmentLevel: 'page',
-                          title: `Gia công Trang ${currentPage?.pageNumber || 1}`,
-                          description: `Thực hiện gia công Trang ${currentPage?.pageNumber || 1}.`,
-                          wage: 35000
-                        }));
-                      }}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assignmentLevel === 'page'
-                        ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                        } ${activeTaskToAssign ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <FileText className="size-3.5" />
-                      <span>{t('studio.pageLevel', 'Page')}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
-                  {t('studio.taskType', 'Task Type')}
-                </label>
-                <select
-                  className="h-8 w-full rounded-lg border border-neutral-200 px-2 text-xs bg-white"
-                  value={createTaskForm.type}
-                  onChange={(e) => {
-                    const newType = e.target.value;
-                    setCreateTaskForm(prev => ({ ...prev, type: newType }));
-                    loadAssistantRecommendations(newType);
-                  }}
-                >
-                  <option value="inking">Inking</option>
-                  <option value="background">Background</option>
-                  <option value="tone">Tone</option>
-                  <option value="lettering">Lettering</option>
-                  <option value="effects">Effects</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.taskTitle', 'Task Title')}</label>
-                <Input
-                  value={createTaskForm.title}
-                  onChange={(e) => setCreateTaskForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder={t('studio.taskTitlePlaceholder', 'Enter task title...')}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.deadlineLabel', 'Deadline')}</label>
-                <Input
-                  type="date"
-                  value={createTaskForm.deadline}
-                  onChange={(e) => setCreateTaskForm(prev => ({ ...prev, deadline: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">
-                  {t('studio.assistantType', 'Assistant Type')}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreateTaskForm(prev => ({ ...prev, assistantType: 'freelance', assignedTo: '' }))
-                      setRecommendations([])
-                    }}
-                    className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assistantType === 'freelance'
-                      ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
-                      : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                      }`}
-                  >
-                    <span>{t('studio.freelanceLabel', 'Freelance')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreateTaskForm(prev => ({ ...prev, assistantType: 'dedicated', assignedTo: '' }))
-                      loadAssistantRecommendations(createTaskForm.type, 'dedicated')
-                    }}
-                    className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-medium transition-all ${createTaskForm.assistantType === 'dedicated'
-                      ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
-                      : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                      }`}
-                  >
-                    <span>{t('studio.dedicatedLabel', 'Dedicated')}</span>
-                  </button>
-                </div>
-                <p className="text-[10px] text-neutral-400 mt-1">
-                  {createTaskForm.assistantType === 'dedicated'
-                    ? t('studio.dedicatedHint', 'Only dedicated assistants added to this series can accept this task.')
-                    : t('studio.freelanceHint', 'Open to the entire assistant marketplace.')}
-                </p>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.descriptionLabel', 'Detailed Description')}</label>
-                <textarea
-                  value={createTaskForm.description}
-                  onChange={(e) => setCreateTaskForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder={t('studio.descriptionPlaceholder', 'Enter detailed description and requirements...')}
-                  className="w-full min-h-[60px] max-h-[120px] rounded-xl border border-neutral-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
-                />
-              </div>
-
-              {/* Recommended / Dedicated Assistants section */}
-              {createTaskForm.assistantType === 'freelance' ? (
-                <div className="space-y-2 border-t border-neutral-100 pt-3">
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-xs text-blue-800 space-y-1">
-                    <div className="flex items-center gap-1.5 font-semibold">
-                      <Globe className="size-3.5 text-blue-600 animate-pulse" />
-                      <span>{t('studio.freelanceOpenMarket', 'Public Freelance Task')}</span>
-                    </div>
-                    <p className="text-neutral-600 leading-relaxed">
-                      {t(
-                        'studio.freelanceInfoText',
-                        'This task will be posted to the open assistant marketplace. Any assistant with matching skills can view and accept it.'
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2 border-t border-neutral-100 pt-3">
-                  <label className="text-xs font-bold text-neutral-700 block flex items-center justify-between">
-                    <span>{t('studio.dedicatedTitle', 'Dedicated Assistants')}</span>
-                    <span className="text-[10px] text-neutral-400 font-normal">
-                      {t('studio.dedicatedSubtitle', 'Assistants registered to this series')}
-                    </span>
-                  </label>
-
-                  {recommendationLoading ? (
-                    <div className="flex items-center justify-center py-6">
-                      <div className="size-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />
-                    </div>
-                  ) : recommendations.length === 0 ? (
-                    <div className="text-center py-4 bg-amber-50/50 rounded-xl border border-dashed border-amber-200 text-xs text-amber-800 space-y-2">
-                      <div>
-                        <p className="font-semibold">{t('studio.noDedicatedAssistants', 'No Dedicated Assistants')}</p>
-                        <p className="text-neutral-500 text-[10px]">
-                          {t('studio.noDedicatedAssistantsHint', 'Add dedicated assistants to this series in Series Settings first.')}
-                        </p>
-                      </div>
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCreateTaskDialog(false)
-                            setActiveTaskToAssign(null)
-                            navigate(`/studio/manage?seriesId=${selectedSeriesId}&tab=assistants`)
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-semibold transition-colors"
-                        >
-                          {t('studio.goToAddDedicatedAssistants', 'Go to Series Manager to add Assistants')}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {recommendations.map((ass) => {
-                        const isSelected = createTaskForm.assignedTo === ass._id
-                        const hasHighWorkload = ass.activeTasksCount >= 3
-                        return (
-                          <div
-                            key={ass._id}
-                            onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: isSelected ? '' : ass._id }))}
-                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${isSelected
-                              ? 'border-neutral-900 bg-neutral-50/50 shadow-xs'
-                              : 'border-neutral-200 bg-white hover:border-neutral-400 hover:shadow-xs'
-                              }`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <Avatar className="size-8 bg-neutral-200 border">
-                                <AvatarFallback className="text-xs font-semibold">{ass.displayName?.[0]}</AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-semibold text-neutral-800">{ass.displayName}</span>
-                                  <span className="text-[10px] font-medium text-amber-500 flex items-center gap-0.5 bg-amber-50 px-1 rounded">
-                                    <Star className="size-2.5 fill-amber-500" />
-                                    {ass.rating || 5}
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {ass.skills?.map((sk: string) => {
-                                    const isMatching = sk.toLowerCase() === createTaskForm.type.toLowerCase()
-                                    return (
-                                      <span
-                                        key={sk}
-                                        className={`text-[8px] px-1 py-0.5 rounded font-medium ${isMatching
-                                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                                          : 'bg-neutral-100 text-neutral-500'
-                                          }`}
-                                      >
-                                        {sk}
-                                      </span>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col items-end gap-1.5 shrink-0">
-                              <span
-                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${hasHighWorkload
-                                  ? 'bg-rose-50 text-rose-600 flex items-center gap-0.5'
-                                  : 'bg-neutral-100 text-neutral-600'
-                                  }`}
-                                title={hasHighWorkload ? 'High workload' : ''}
-                              >
-                                {hasHighWorkload && <AlertCircle className="size-2.5" />}
-                                {t('studio.activeTasksLabel', 'Active:')} {ass.activeTasksCount}
-                              </span>
-                              <span className="text-[10px] text-neutral-400">
-                                {t('studio.selectToAssign', 'Select to assign')}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setCreateTaskForm(prev => ({ ...prev, assignedTo: '' }))}
-                      className={`text-[10px] font-medium px-2.5 py-1.5 rounded-xl border transition-colors ${!createTaskForm.assignedTo
-                        ? 'bg-neutral-900 border-neutral-900 text-white font-semibold shadow-sm'
-                        : 'text-neutral-600 border-neutral-200 bg-white hover:bg-neutral-50'
-                        }`}
-                    >
-                      {t('studio.postToDedicatedPool', 'Post to Dedicated Pool (Any dedicated assistant in this series can accept)')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
-              <Button variant="outline" size="sm" onClick={() => { setShowCreateTaskDialog(false); setActiveTaskToAssign(null) }}>
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button size="sm" onClick={handleCreateTaskSubmit} className="bg-neutral-900 text-white hover:bg-neutral-800">
-                {activeTaskToAssign ? t('studio.designateNewAssistant', 'Designate New Assistant') : t('studio.assignNow', 'Assign Now')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Review Submission Dialog ───────────────────── */}
-      {showReviewDialog && selectedReviewTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
-              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
-                <CheckSquare className="size-4 text-emerald-500" />
-                {t('studio.reviewAssistantTitle', 'Review Assistant Submission')}
-              </h3>
-              <button
-                onClick={() => { setShowReviewDialog(false); setSelectedReviewTask(null) }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5">
-              <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">{t('studio.associatedTask', 'Associated Task')}:</span>
-                  <span className="font-semibold text-neutral-800">{selectedReviewTask.title}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">{t('studio.assigneeLabel', 'Assignee')}:</span>
-                  <span className="font-semibold text-neutral-800">{selectedReviewTask.assignedTo?.displayName || 'Assistant'}</span>
-                </div>
-              </div>
-
-              {/* Submitted File Preview */}
-              {selectedReviewTask.submittedFile && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-neutral-700 block">{t('studio.submittedProduct', 'Submitted Product')}</label>
-                  <div className="border border-neutral-200 rounded-xl overflow-hidden bg-neutral-100 max-h-64 flex items-center justify-center shadow-inner relative group">
-                    <img
-                      src={selectedReviewTask.submittedFile.startsWith('http') ? selectedReviewTask.submittedFile : `${apiBase}${selectedReviewTask.submittedFile}`}
-                      alt="Submitted work"
-                      className="max-h-64 object-contain transition-transform group-hover:scale-102 duration-300"
-                    />
-                    <a
-                      href={selectedReviewTask.submittedFile.startsWith('http') ? selectedReviewTask.submittedFile : `${apiBase}${selectedReviewTask.submittedFile}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="absolute bottom-2 right-2 bg-black/75 text-white hover:bg-black text-[10px] font-medium px-2 py-1 rounded shadow"
-                    >
-                      {t('studio.openNewTab', 'Open in new tab ↗')}
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-semibold text-neutral-700 mb-1 block">{t('studio.reviewNotesLabel', 'Review Comments & Notes (if revision required)')}</label>
-                <textarea
-                  value={reviewNotes}
-                  onChange={(e) => setReviewNotes(e.target.value)}
-                  placeholder={t('studio.reviewNotesPlaceholder', 'Enter review comments or revision instructions...')}
-                  className="w-full min-h-[60px] max-h-[120px] rounded-xl border border-neutral-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleReviewSubmit('in_progress')}
-                className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-              >
-                {t('studio.requestRevision', 'Request Revision')}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleReviewSubmit('done')}
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
-              >
-                {t('studio.approveComplete', 'Approve & Complete')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Cancel Task Dialog ─────────────────────────── */}
-      {showCancelTaskDialog && taskToCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
-              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
-                <Trash2 className="size-4 text-rose-500" />
-                {t('studio.cancelTaskTitle', 'Cancel Task')}
-              </h3>
-              <button
-                onClick={() => { setShowCancelTaskDialog(false); setTaskToCancel(null) }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-xs text-neutral-600 leading-relaxed">
-                {taskToCancel.status === 'assigned'
-                  ? t('studio.cancelAssignedWarning', 'This task is currently assigned to an assistant. Cancelling will delete the task, free up the assigned pages/chapter, and send a notification to the assistant. Do you want to proceed?')
-                  : t('studio.cancelOpenWarning', 'Are you sure you want to cancel and permanently delete this task?')}
-              </p>
-
-              <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">{t('studio.taskTitle', 'Task')}:</span>
-                  <span className="font-semibold text-neutral-800">{taskToCancel.title}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">{t('studio.levelLabel', 'Assignment Level')}:</span>
-                  <span className="font-semibold text-neutral-800 capitalize">
-                    {taskToCancel.assignmentLevel === 'chapter' ? 'Chapter' : `Page ${taskToCancel.pageId?.pageNumber || ''}`}
-                  </span>
-                </div>
-                {taskToCancel.status === 'assigned' && (
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">{t('studio.assigneeLabel', 'Assignee')}:</span>
-                    <span className="font-semibold text-neutral-800">
-                      {taskToCancel.assignedTo?.displayName || 'Assistant'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setShowCancelTaskDialog(false); setTaskToCancel(null) }}
-              >
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleCancelTaskSubmit}
-                className="bg-rose-600 text-white hover:bg-rose-700"
-              >
-                {t('studio.confirmCancelTask', 'Confirm Cancel')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  )
-}
-
-class ErrorBoundary extends Component<{ children: any }, { hasError: boolean; error: any }> {
-  constructor(props: any) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
-
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error }
-  }
-
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error("ErrorBoundary caught an error", error, errorInfo)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 24, color: '#ef4444', background: '#fef2f2', border: '2px dashed #fca5a5', margin: 24, borderRadius: 16, fontFamily: 'sans-serif' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>Something went wrong in StudioWorkspacePage:</h2>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #fee2e2', color: '#1f2937', overflowX: 'auto' }}>
-            {this.state.error?.stack || String(this.state.error)}
-          </pre>
-          <button
-            onClick={() => window.location.reload()}
-            style={{ marginTop: 16, padding: '8px 16px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'semibold', cursor: 'pointer' }}
-          >
-            Reload Page
-          </button>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
-
-export function StudioWorkspacePage() {
-  return (
-    <ErrorBoundary>
-      <StudioWorkspacePageContent />
-    </ErrorBoundary>
   )
 }
