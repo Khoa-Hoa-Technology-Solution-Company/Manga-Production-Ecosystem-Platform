@@ -241,9 +241,15 @@ export default function HomeScreen() {
               >
                 <LogOut size={20} color={isDark ? '#94a3b8' : '#475569'} />
               </Pressable>
-              <Pressable style={styles.profileAvatar} onPress={() => router.push('/studio')}>
-                <LinearGradient colors={['#fb7185', '#8b5cf6']} style={StyleSheet.absoluteFillObject} />
-                <User size={20} color="#fff" />
+              <Pressable style={styles.profileAvatar} onPress={() => router.push('/settings')}>
+                {user?.avatar ? (
+                  <Image source={{ uri: getImageUrl(user.avatar) }} style={StyleSheet.absoluteFillObject} />
+                ) : (
+                  <>
+                    <LinearGradient colors={['#fb7185', '#8b5cf6']} style={StyleSheet.absoluteFillObject} />
+                    <User size={20} color="#fff" />
+                  </>
+                )}
                 <View style={styles.activeIndicator} />
               </Pressable>
             </View>
