@@ -5,6 +5,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, Check, X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -17,6 +18,7 @@ function ManuscriptReviewScreen() {
   const { chapterId } = useLocalSearchParams<{ chapterId: string }>();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   
   const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,22 +30,24 @@ function ManuscriptReviewScreen() {
       setLoading(true);
       pagesAPI.getByChapter(chapterId as string)
         .then(data => setPages(data?.pages || []))
-        .catch(err => setError(err.message || 'Không thể tải bản thảo.'))
+        .catch(err => setError(err.message || t('editor.loadError', 'Không thể tải bản thảo.')))
         .finally(() => setLoading(false));
     }
-  }, [chapterId]);
+  }, [chapterId, t]);
 
-  const loadPages = () => {}; // Mock to satisfy if used elsewhere, actually just inlined above
-
-  const handleDecision = async (decision: 'approved' | 'draft') => {
+  const handleDecision = async (decision: 'Approved' | 'Draft') => {
     setSubmitting(true);
     try {
       await chaptersAPI.updateStatus(chapterId, decision);
-      Alert.alert('Thành công', `Đã ${decision === 'approved' ? 'duyệt' : 'từ chối'} bản thảo!`, [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      Alert.alert(
+        t('common.success', 'Thành công'), 
+        decision === 'Approved' 
+          ? t('editor.approveSuccess', 'Đã duyệt bản thảo!') 
+          : t('editor.rejectSuccess', 'Đã từ chối bản thảo!'), 
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể cập nhật trạng thái.');
+      Alert.alert(t('common.error', 'Lỗi'), err.message || t('editor.statusUpdateError', 'Không thể cập nhật trạng thái.'));
     } finally {
       setSubmitting(false);
     }
@@ -64,7 +68,9 @@ function ManuscriptReviewScreen() {
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <ChevronLeft size={24} color="#fff" />
           </Pressable>
-          <ThemedText type="subtitle" style={styles.headerTitle}>Duyệt Bản Thảo</ThemedText>
+          <ThemedText type="subtitle" style={styles.headerTitle}>
+            {t('editor.viewDraft', 'Duyệt Bản Thảo')}
+          </ThemedText>
           <View style={{ width: 24 }} />
         </View>
 
@@ -85,12 +91,16 @@ function ManuscriptReviewScreen() {
             <ActivityIndicator size="large" color="#a855f7" style={{ marginTop: 50 }} />
           ) : pages.length === 0 ? (
             <View style={styles.emptyState}>
-              <ThemedText style={styles.emptyText}>Chương này chưa có trang nào.</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                {t('editor.noPages', 'Chương này chưa có trang nào.')}
+              </ThemedText>
             </View>
           ) : (
             pages.map((page, index) => (
               <View key={page._id} style={styles.pageContainer}>
-                <ThemedText style={styles.pageNumber}>Trang {index + 1}</ThemedText>
+                <ThemedText style={styles.pageNumber}>
+                  {t('editor.pageNumber', 'Trang {{number}}', { number: index + 1 })}
+                </ThemedText>
                 <Image 
                   source={{ uri: getImageUrl(page.imageUrl) }} 
                   style={styles.pageImage} 
@@ -106,19 +116,23 @@ function ManuscriptReviewScreen() {
           <View style={[styles.actionBar, { paddingBottom: insets.bottom || Spacing.four }]}>
             <Pressable 
               style={[styles.actionBtn, styles.rejectBtn]} 
-              onPress={() => handleDecision('draft')}
+              onPress={() => handleDecision('Draft')}
               disabled={submitting}
             >
               <X size={20} color="#fff" />
-              <ThemedText style={styles.actionBtnText}>Từ chối</ThemedText>
+              <ThemedText style={styles.actionBtnText}>
+                {t('editor.reject', 'Từ chối')}
+              </ThemedText>
             </Pressable>
             <Pressable 
               style={[styles.actionBtn, styles.approveBtn]} 
-              onPress={() => handleDecision('approved')}
+              onPress={() => handleDecision('Approved')}
               disabled={submitting}
             >
               <Check size={20} color="#fff" />
-              <ThemedText style={styles.actionBtnText}>Duyệt ngay</ThemedText>
+              <ThemedText style={styles.actionBtnText}>
+                {t('editor.approve', 'Duyệt ngay')}
+              </ThemedText>
             </Pressable>
           </View>
         )}
@@ -180,4 +194,3 @@ const styles = StyleSheet.create({
 });
 
 export default withProtectedEditorRoute(ManuscriptReviewScreen);
-
