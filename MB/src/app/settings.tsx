@@ -5,8 +5,9 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Shield, Bell, HelpCircle, Save, LogOut } from 'lucide-react-native';
+import { Shield, Bell, HelpCircle, Save, LogOut, Globe } from 'lucide-react-native';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -20,6 +21,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === 'dark';
   const { user, logout, updateUser } = useAuth();
+  const { t, i18n } = useTranslation();
 
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [bio, setBio] = useState(user?.bio || '');
@@ -36,7 +38,7 @@ export default function SettingsScreen() {
 
   const handleSave = async () => {
     if (!displayName.trim()) {
-      Alert.alert('Lỗi', 'Tên hiển thị không được bỏ trống.');
+      Alert.alert(t('common.error', 'Lỗi'), t('settings.displayNameRequired', 'Tên hiển thị không được bỏ trống.'));
       return;
     }
     setSaving(true);
@@ -52,10 +54,10 @@ export default function SettingsScreen() {
           bio: res.user.bio,
           avatar: res.user.avatar,
         });
-        Alert.alert('Thành công', 'Thông tin cá nhân đã được cập nhật.');
+        Alert.alert(t('common.success', 'Thành công'), t('settings.profileUpdated', 'Thông tin cá nhân đã được cập nhật.'));
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể cập nhật hồ sơ.');
+      Alert.alert(t('common.error', 'Lỗi'), err.message || t('settings.updateError', 'Không thể cập nhật hồ sơ.'));
     } finally {
       setSaving(false);
     }
@@ -63,21 +65,26 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất tài khoản?',
+      t('settings.logoutConfirmTitle', 'Đăng xuất'),
+      t('settings.logoutConfirmMessage', 'Bạn có chắc chắn muốn đăng xuất tài khoản?'),
       [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Đăng xuất', style: 'destructive', onPress: logout },
+        { text: t('common.cancel', 'Hủy'), style: 'cancel' },
+        { text: t('settings.logout', 'Đăng xuất'), style: 'destructive', onPress: logout },
       ]
     );
   };
 
+  const toggleLanguage = () => {
+    const nextLang = i18n.language === 'vi' ? 'en' : 'vi';
+    i18n.changeLanguage(nextLang);
+  };
+
   const roleLabels: Record<string, string> = {
-    mangaka: 'Họa sĩ',
-    assistant: 'Trợ lý',
-    editor: 'Biên tập viên',
-    editorial_board: 'Hội đồng duyệt',
-    reader: 'Độc giả',
+    mangaka: t('roles.mangaka', 'Họa sĩ'),
+    assistant: t('roles.assistant', 'Trợ lý'),
+    editor: t('roles.editor', 'Biên tập viên'),
+    editorial_board: t('roles.editorial_board', 'Hội đồng duyệt'),
+    reader: t('roles.reader', 'Độc giả'),
   };
 
   const avatarUrl = getImageUrl(avatar);
@@ -98,8 +105,12 @@ export default function SettingsScreen() {
           >
             {/* Header */}
             <View style={styles.header}>
-              <ThemedText style={[styles.headerSubtitle, { color: '#8b5cf6' }]}>CÁ NHÂN HÓA</ThemedText>
-              <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>Tài khoản</ThemedText>
+              <ThemedText style={[styles.headerSubtitle, { color: '#8b5cf6' }]}>
+                {t('settings.personalization', 'Cá nhân hóa').toUpperCase()}
+              </ThemedText>
+              <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>
+                {t('settings.account', 'Tài khoản')}
+              </ThemedText>
             </View>
 
             {/* Profile Avatar Card */}
@@ -116,7 +127,7 @@ export default function SettingsScreen() {
                 )}
                 <View style={[styles.roleBadge, { backgroundColor: '#8b5cf6' }]}>
                   <ThemedText style={styles.roleBadgeText}>
-                    {roleLabels[user?.role || ''] || 'Độc giả'}
+                    {roleLabels[user?.role || ''] || t('roles.reader', 'Độc giả')}
                   </ThemedText>
                 </View>
               </View>
@@ -126,23 +137,27 @@ export default function SettingsScreen() {
 
             {/* Editing Section */}
             <View style={styles.formGroup}>
-              <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>Tên hiển thị</ThemedText>
+              <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>
+                {t('settings.displayName', 'Tên hiển thị')}
+              </ThemedText>
               <TextInput
                 style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: theme.text }]}
                 value={displayName}
                 onChangeText={setDisplayName}
-                placeholder="Nhập tên hiển thị..."
+                placeholder={t('settings.displayNamePlaceholder', 'Nhập tên hiển thị...')}
                 placeholderTextColor={theme.textSecondary}
               />
             </View>
 
             <View style={styles.formGroup}>
-              <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>Tiểu sử (Bio)</ThemedText>
+              <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>
+                {t('settings.bio', 'Tiểu sử (Bio)')}
+              </ThemedText>
               <TextInput
                 style={[styles.inputMultiline, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: theme.text }]}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Giới thiệu bản thân của bạn..."
+                placeholder={t('settings.bioPlaceholder', 'Giới thiệu bản thân của bạn...')}
                 placeholderTextColor={theme.textSecondary}
                 multiline
                 numberOfLines={3}
@@ -150,7 +165,9 @@ export default function SettingsScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>Link ảnh đại diện (URL)</ThemedText>
+              <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>
+                {t('settings.avatarUrl', 'Link ảnh đại diện (URL)')}
+              </ThemedText>
               <TextInput
                 style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: theme.text }]}
                 value={avatar}
@@ -172,32 +189,58 @@ export default function SettingsScreen() {
               ) : (
                 <>
                   <Save size={18} color="#fff" />
-                  <ThemedText style={styles.saveBtnText}>Lưu Thay Đổi</ThemedText>
+                  <ThemedText style={styles.saveBtnText}>
+                    {t('settings.saveChanges', 'Lưu thay đổi')}
+                  </ThemedText>
                 </>
               )}
             </Pressable>
 
             {/* General Settings placeholder group */}
             <View style={styles.groupContainer}>
-              <ThemedText style={styles.groupTitle}>Cài đặt ứng dụng</ThemedText>
+              <ThemedText style={styles.groupTitle}>
+                {t('settings.appSettings', 'Cài đặt ứng dụng')}
+              </ThemedText>
               <View style={[styles.groupCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)' }]}>
+                
+                {/* Language Toggler */}
+                <Pressable style={[styles.settingItem, styles.borderBottom]} onPress={toggleLanguage}>
+                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                    <Globe size={16} color={theme.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
+                      {t('settings.language', 'Ngôn ngữ')}
+                    </ThemedText>
+                    <ThemedText style={{ color: '#8b5cf6', fontSize: 13, fontWeight: '700' }}>
+                      {i18n.language === 'vi' ? 'Tiếng Việt' : 'English'}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+
                 <View style={[styles.settingItem, styles.borderBottom]}>
                   <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
                     <Shield size={16} color={theme.textSecondary} />
                   </View>
-                  <ThemedText style={[styles.settingLabel, { color: theme.text }]}>Bảo mật & Mật khẩu</ThemedText>
+                  <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
+                    {t('settings.security', 'Bảo mật & Mật khẩu')}
+                  </ThemedText>
                 </View>
                 <View style={[styles.settingItem, styles.borderBottom]}>
                   <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
                     <Bell size={16} color={theme.textSecondary} />
                   </View>
-                  <ThemedText style={[styles.settingLabel, { color: theme.text }]}>Thông báo đẩy</ThemedText>
+                  <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
+                    {t('settings.pushNotifications', 'Thông báo đẩy')}
+                  </ThemedText>
                 </View>
                 <View style={styles.settingItem}>
                   <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
                     <HelpCircle size={16} color={theme.textSecondary} />
                   </View>
-                  <ThemedText style={[styles.settingLabel, { color: theme.text }]}>Trợ giúp & Hỗ trợ</ThemedText>
+                  <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
+                    {t('settings.helpSupport', 'Trợ giúp & Hỗ trợ')}
+                  </ThemedText>
                 </View>
               </View>
             </View>
@@ -208,7 +251,9 @@ export default function SettingsScreen() {
               onPress={handleLogout}
             >
               <LogOut size={18} color="#ef4444" />
-              <ThemedText style={styles.logoutBtnText}>Đăng Xuất</ThemedText>
+              <ThemedText style={styles.logoutBtnText}>
+                {t('settings.logout', 'Đăng xuất')}
+              </ThemedText>
             </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>

@@ -87,6 +87,22 @@ async function apiFetch<T = any>(
     };
   }
 
+  let text = '';
+  try {
+    text = await response.text();
+  } catch {
+    // Ignore stream reading errors
+  }
+
+  let responseData: any = {};
+  if (text) {
+    try {
+      responseData = JSON.parse(text);
+    } catch {
+      // Not valid JSON
+    }
+  }
+
   if (response.status === 401) {
     // Token expired or invalid — clear cached auth
     await clearToken();
@@ -95,15 +111,14 @@ async function apiFetch<T = any>(
   }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
     throw {
       status: response.status,
-      message: errorData.error || `Yêu cầu thất bại với mã trạng thái ${response.status}`,
-      response: { data: errorData, status: response.status },
+      message: responseData.error || `Yêu cầu thất bại với mã trạng thái ${response.status}`,
+      response: { data: responseData, status: response.status },
     };
   }
 
-  return response.json();
+  return responseData;
 }
 
 // ── Auth API ────────────────────────────────────────
