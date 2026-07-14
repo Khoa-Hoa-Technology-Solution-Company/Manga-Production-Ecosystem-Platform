@@ -12,6 +12,7 @@ import { Notification } from '../models/Notification';
 import { Annotation } from '../models/Annotation';
 import { EBVote } from '../models/EBVote';
 import { Meeting } from '../models/Meeting';
+import { Layer } from '../models/Layer';
 
 async function seed() {
   await connectDB();
@@ -32,6 +33,7 @@ async function seed() {
     Annotation.deleteMany({}),
     EBVote.deleteMany({}),
     Meeting.deleteMany({}),
+    Layer.deleteMany({}),
   ]);
 
   // ── Users (Multiple accounts per role, including original demo accounts) ────────────────────────────
@@ -68,9 +70,9 @@ async function seed() {
   ]);
   console.log('  ✅ Users seeded successfully.');
 
-  // ── Series (8 Series representing every possible status) ────────────────────────────
-  console.log('📚 Seeding manga series (8 series total)...');
-  const [s1, s2, s3, s4, s5, s6, s7, s8] = await Series.create([
+  // ── Series (10 Series representing every possible status) ────────────────────────────
+  console.log('📚 Seeding manga series (10 series total)...');
+  const [s1, s2, s3, s4, s5, s6, s7, s8, s9, s10] = await Series.create([
     {
       title: 'Shadow Blade Saga',
       description: 'In a world where ancient swords choose their wielders, a young ronin discovers a blade that can cut through fate itself.',
@@ -89,9 +91,9 @@ async function seed() {
       publicationSchedule: 'weekly',
       script: `Chapter 42: The Blade Awakens\n[Scene 1: The chamber of souls. Ancient runic columns glow with dark energy. Yuki, breathing heavily, clutches his bleeding side. Kuro stands before him, a smug grin on his face.]\nKuro: "You are foolish, Yuki. The Shadow Blade cannot be tamed by a weak-willed ronin."\nYuki: "It chose me... because I do not fight for power. I fight for those who cannot."\n[Scene 2: Yuki grips the hilt with both hands. The runes on the blade ignite in bright white flame. The air vibrates. Kuro\'s smile fades.]\nKuro: "Impossible! The flames of redemption... they shouldn\'t exist!"\n[Scene 3: Yuki dashes forward, leaving a trail of light. A massive shockwave shatters the dark chamber.]`,
       characterDesigns: [
-        { name: 'Yuki', role: 'Protagonist', description: 'A young ronin with a scar over his left eye, wielder of the white-flamed Shadow Blade.', image: '/manga/char-yuki.png' },
-        { name: 'Kuro', role: 'Antagonist', description: 'A dark sorcerer with long purple hair, seeking to merge the mortal and shadow realms.', image: '/manga/char-kuro.png' },
-        { name: 'Kasumi', role: 'Supporting', description: 'A swift ninja from the Shadow Clan, helping Yuki on his quest.', image: '/manga/char-kasumi.png' },
+        { name: 'Yuki', role: 'Protagonist', description: 'A young ronin with a scar over his left eye, wielder of the white-flamed Shadow Blade.', image: '/manga/char-drake.png' },
+        { name: 'Kuro', role: 'Antagonist', description: 'A dark sorcerer with long purple hair, seeking to merge the mortal and shadow realms.', image: '/manga/char-dracula.png' },
+        { name: 'Kasumi', role: 'Supporting', description: 'A swift ninja from the Shadow Clan, helping Yuki on his quest.', image: '/manga/char-leo.png' },
       ],
       dedicatedAssistants: [
         { userId: assistant._id, addedAt: new Date() },
@@ -117,8 +119,8 @@ async function seed() {
       publicationSchedule: 'weekly',
       script: `Chapter 105: Neon Requiem\n[Scene 1: Neon-lit Tokyo rooftop. Cyber-samurai Hiroshi stands under the pouring rain. His cybernetic eye blinks red.]\nHiroshi: "System override complete. There\'s no turning back."\n[Scene 2: The sky flashes. Dr. Aris arrives in a hover-car, throwing him his plasma katana.]\nAris: "Catch! Make them pay for what they did to the sector!"`,
       characterDesigns: [
-        { name: 'Hiroshi', role: 'Protagonist', description: 'A cybernetic samurai with a visor, fighting against tech-corps.', image: '/manga/char-hiroshi.png' },
-        { name: 'Dr. Aris', role: 'Supporting', description: 'A rebel scientist who constructs prosthetics and high-tech weaponry.', image: '/manga/char-aris.png' },
+        { name: 'Hiroshi', role: 'Protagonist', description: 'A cybernetic samurai with a visor, fighting against tech-corps.', image: '/manga/char-drake.png' },
+        { name: 'Dr. Aris', role: 'Supporting', description: 'A rebel scientist who constructs prosthetics and high-tech weaponry.', image: '/manga/char-leo.png' },
       ]
     },
     {
@@ -138,8 +140,8 @@ async function seed() {
       publicationSchedule: 'monthly',
       script: `Chapter 1: Moonlit Confession\n[Scene 1: Feudal garden. Moon spirit Kaguya descends in glowing white kimono, facing the young mortal scholar, Kenji.]\nKaguya: "I must return to the moon when the eclipse is complete. We cannot be together."\nKenji: "Then I will study the skies, and find a way to write my words upon the moon itself!"`,
       characterDesigns: [
-        { name: 'Kaguya', role: 'Protagonist', description: 'A beautiful moon spirit dressed in white kimono, seeking mortal truth.', image: '/manga/char-kaguya.png' },
-        { name: 'Kenji', role: 'Protagonist', description: 'A mortal scholar who spends night studying astronomy and forbidden arts.', image: '/manga/char-kenji.png' }
+        { name: 'Kaguya', role: 'Protagonist', description: 'A beautiful moon spirit dressed in white kimono, seeking mortal truth.', image: '/manga/char-leo.png' },
+        { name: 'Kenji', role: 'Protagonist', description: 'A mortal scholar who spends night studying astronomy and forbidden arts.', image: '/manga/char-drake.png' }
       ]
     },
     {
@@ -241,6 +243,48 @@ async function seed() {
       averageRating: 3.9,
       ratingCount: 22,
       script: 'Chapter 1: Ocean Depths...'
+    },
+    {
+      title: 'Cybernetic Ninja',
+      description: 'In a futuristic cyberpunk metropolis, a lone cybernetic ninja uncovers a massive corporate conspiracy.',
+      genre: ['Sci-Fi', 'Action'],
+      coverImage: '/manga/cover-ninja.png',
+      mangakaId: mangaka._id,
+      editorId: editor._id,
+      editorStatus: 'accepted',
+      status: 'Active',
+      totalChapters: 1,
+      totalVotes: 5000,
+      weeklyVotes: 500,
+      readerCount: 1500,
+      averageRating: 4.8,
+      ratingCount: 15,
+      publicationSchedule: 'weekly',
+      script: 'Chapter 1: Silent Protocol',
+      characterDesigns: [
+        { name: 'Ryu', role: 'Protagonist', description: 'A cybernetic ninja with high-frequency blades.', image: '/manga/char-drake.png' }
+      ]
+    },
+    {
+      title: 'Under the Cherry Blossom',
+      description: 'A touching slice-of-life romance about two high school students meeting under the falling cherry blossoms.',
+      genre: ['Romance', 'Drama'],
+      coverImage: '/manga/cover-cherry.png',
+      mangakaId: mangaka2._id,
+      editorId: editor2._id,
+      editorStatus: 'accepted',
+      status: 'Active',
+      totalChapters: 1,
+      totalVotes: 2000,
+      weeklyVotes: 200,
+      readerCount: 800,
+      averageRating: 4.6,
+      ratingCount: 8,
+      publicationSchedule: 'weekly',
+      script: 'Chapter 1: First Petal',
+      characterDesigns: [
+        { name: 'Sakura', role: 'Protagonist', description: 'A cheerful schoolgirl who loves photography.', image: '/manga/char-leo.png' }
+      ]
     }
   ]);
   console.log('  ✅ Series seeded successfully.');
@@ -265,7 +309,22 @@ async function seed() {
     { seriesId: s4._id, chapterNumber: 1, title: 'Burning Trails', status: 'Reviewing', mangakaId: mangaka2._id, editorId: editor2._id, totalPages: 4, progress: 90, views: 0 },
     
     // s5 (Gothic Chronicles - Pending_EB)
-    { seriesId: s5._id, chapterNumber: 1, title: 'The Blood Guild', status: 'Approved', mangakaId: mangaka2._id, editorId: editor2._id, totalPages: 5, progress: 100, views: 0 }
+    { seriesId: s5._id, chapterNumber: 1, title: 'The Blood Guild', status: 'Approved', mangakaId: mangaka2._id, editorId: editor2._id, totalPages: 5, progress: 100, views: 0 },
+
+    // s6 (Space Academy - Rejected)
+    { seriesId: s6._id, chapterNumber: 1, title: 'Launch Day', status: 'Draft', mangakaId: mangaka._id, totalPages: 3, progress: 100, views: 0 },
+
+    // s7 (Time Travel Paradox - Hiatus)
+    { seriesId: s7._id, chapterNumber: 1, title: 'The Quantum Machine', status: 'Published', mangakaId: mangaka2._id, editorId: editor._id, totalPages: 4, progress: 100, views: 12000, publishedAt: new Date('2026-01-10') },
+
+    // s8 (Lost Kingdom - Cancelled)
+    { seriesId: s8._id, chapterNumber: 1, title: 'Ocean Depths', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 5, progress: 100, views: 24000, publishedAt: new Date('2026-02-20') },
+
+    // s9 (Cybernetic Ninja)
+    { seriesId: s9._id, chapterNumber: 1, title: 'Silent Protocol', status: 'Reviewing', mangakaId: mangaka._id, editorId: editor._id, totalPages: 3, progress: 100, views: 0 },
+
+    // s10 (Under the Cherry Blossom)
+    { seriesId: s10._id, chapterNumber: 1, title: 'First Petal', status: 'Draft', mangakaId: mangaka2._id, totalPages: 3, progress: 100, views: 0 }
   ]);
   console.log('  ✅ Chapters seeded successfully.');
 
@@ -279,39 +338,113 @@ async function seed() {
     '/manga/cover-horror.png',
   ];
 
-  // Pages for Chapter 42 (Approved, Waiting for Mangaka to Publish)
-  const ch42Pages = await Page.create(
-    mangaImages.map((img, idx) => ({
-      chapterId: chapters[2]._id,
-      pageNumber: idx + 1,
-      originalImage: img,
-      width: 1200,
-      height: 1800,
-    }))
-  );
+  // ── Pages & Layers Seeding (Unified Loop for all chapters) ────────────────────────────
+  console.log('🖼️ Seeding pages and layers for all chapters...');
+  
+  const createdPages: any[] = [];
+  const layersToCreate: any[] = [];
 
-  // Pages for Chapter 43 (Reviewing)
-  const ch43Pages = await Page.create(
-    mangaImages.slice(0, 4).map((img, idx) => ({
-      chapterId: chapters[3]._id,
-      pageNumber: idx + 1,
-      originalImage: img,
-      width: 1200,
-      height: 1800,
-    }))
-  );
+  const ch42Pages: any[] = [];
+  const ch43Pages: any[] = [];
+  const ch44Pages: any[] = [];
 
-  // Pages for Chapter 44 (Draft)
-  const ch44Pages = await Page.create(
-    mangaImages.slice(0, 3).map((img, idx) => ({
-      chapterId: chapters[4]._id,
-      pageNumber: idx + 1,
-      originalImage: img,
-      width: 1200,
-      height: 1800,
-    }))
-  );
-  console.log(`  ✅ Pages seeded (${ch42Pages.length + ch43Pages.length + ch44Pages.length} pages).`);
+  for (let cIdx = 0; cIdx < chapters.length; cIdx++) {
+    const chapter = chapters[cIdx];
+    const pageCount = chapter.totalPages || 3;
+    
+    const creatorUserIds = [
+      chapter.mangakaId,
+      assistant._id,
+      assistant2._id,
+      assistant3._id
+    ];
+
+    for (let pIdx = 0; pIdx < pageCount; pIdx++) {
+      const pageNum = pIdx + 1;
+      const img = mangaImages[pIdx % mangaImages.length];
+      
+      const page = await Page.create({
+        chapterId: chapter._id,
+        pageNumber: pageNum,
+        originalImage: img,
+        width: 1200,
+        height: 1800,
+      });
+      
+      createdPages.push(page);
+
+      // Categorize for subsequent Zone, Task, and Annotation seeding
+      if (cIdx === 2) ch42Pages.push(page);
+      if (cIdx === 3) ch43Pages.push(page);
+      if (cIdx === 4) ch44Pages.push(page);
+
+      // Seed layers for each page
+      if (chapter.seriesId.toString() === s9._id.toString() && pageNum === 1) {
+        // Special matching aligned layers for Cybernetic Ninja Ch.1 Page 1
+        layersToCreate.push({
+          pageId: page._id,
+          name: 'Pencil Sketch Layout',
+          imageUrl: '/manga/scene-sketch.png',
+          createdBy: creatorUserIds[1 % creatorUserIds.length],
+        });
+
+        layersToCreate.push({
+          pageId: page._id,
+          name: 'Final Ink Lineart',
+          imageUrl: '/manga/scene-lineart.png',
+          createdBy: creatorUserIds[2 % creatorUserIds.length],
+        });
+
+        layersToCreate.push({
+          pageId: page._id,
+          name: 'Color Rendering',
+          imageUrl: '/manga/scene-colored.png',
+          createdBy: creatorUserIds[3 % creatorUserIds.length],
+        });
+      } else {
+        // Default layers
+        layersToCreate.push({
+          pageId: page._id,
+          name: `Page ${pageNum} - Character Ink Outlines`,
+          imageUrl: '/manga/layer-ink-ch44.png',
+          createdBy: creatorUserIds[1 % creatorUserIds.length],
+        });
+
+        layersToCreate.push({
+          pageId: page._id,
+          name: `Page ${pageNum} - Background Scenery`,
+          imageUrl: pIdx % 2 === 0 ? '/manga/layer-bg-ch44.png' : '/manga/draft-bg-ch43.png',
+          createdBy: creatorUserIds[3 % creatorUserIds.length],
+        });
+      }
+    }
+  }
+
+  // Bulk insert layers
+  const seededLayers = await Layer.create(layersToCreate);
+
+  // Group layers by pageId and update page.layerOrder
+  console.log('🔄 Linking layers to pages in layerOrder...');
+  const pageLayersMap: Record<string, any[]> = {};
+  for (const layer of seededLayers) {
+    const pId = layer.pageId.toString();
+    if (!pageLayersMap[pId]) {
+      pageLayersMap[pId] = [];
+    }
+    pageLayersMap[pId].push(layer);
+  }
+
+  for (const page of createdPages) {
+    const layers = pageLayersMap[page._id.toString()] || [];
+    page.layerOrder = layers.map((layer, idx) => ({
+      layerId: layer._id,
+      position: idx,
+    }));
+    await page.save();
+  }
+
+  console.log(`  ✅ Pages seeded (${createdPages.length} pages total).`);
+  console.log(`  ✅ Layers seeded and linked (${seededLayers.length} layers total).`);
 
   // ── Zones (Canvas boundaries for collaboration) ────────────────────────────
   console.log('🎯 Seeding zones on pages...');
