@@ -26,7 +26,8 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { seriesAPI, dashboardAPI, getImageUrl } from '@/lib/api';
+import { ReaderAssistantCard } from '@/components/reader-assistant-card';
+import { seriesAPI, dashboardAPI, getImageUrl, readerAPI, type ReaderHome, type ContinueReadingItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
 const moods = ['All', 'Action', 'Romance', 'Sci-Fi', 'Fantasy', 'Slice of Life', 'Horror'];
@@ -78,6 +79,7 @@ export default function HomeScreen() {
   // ── API data state ────────────────────────────────
   const [seriesList, setSeriesList] = useState<any[]>([]);
   const [rankings, setRankings] = useState<any[]>([]);
+  const [readerHome, setReaderHome] = useState<ReaderHome | null>(null);
   const [activeShelfTab, setActiveShelfTab] = useState<'all' | 'shared'>('all');
   const [loadingSeries, setLoadingSeries] = useState(true);
   const [loadingRankings, setLoadingRankings] = useState(true);
@@ -109,11 +111,18 @@ export default function HomeScreen() {
         setError(err.message || 'Không thể kết nối đến máy chủ.');
       })
       .finally(() => setLoadingRankings(false));
+
+    if (user?.role === 'reader') {
+      readerAPI
+        .getHome()
+        .then(setReaderHome)
+        .catch((err) => console.error('Reader assistant home error:', err));
+    }
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?._id]);
 
   // ── Derived data ──────────────────────────────────
   const featuredSeries = useMemo(
@@ -138,14 +147,13 @@ export default function HomeScreen() {
 
   const continueReading = useMemo(
     () =>
-      (seriesList || []).slice(0, 3).map((s, idx) => ({
-        id: s._id,
-        title: s.title,
-        cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/400/600`,
-        progress: `Ch. ${Math.min(s.totalChapters || 1, idx + 1)}`,
-        percent: [75, 40, 90][idx % 3],
+      (readerHome?.continueReading || []).map((item) => ({
+        ...item,
+        cover: getImageUrl(item.coverImage) || `https://picsum.photos/seed/${item.id}/400/600`,
+        progress: `Ch. ${item.chapterNumber}`,
+        percent: item.percentage,
       })),
-    [seriesList]
+    [readerHome]
   );
 
   const hotSeries = useMemo(
@@ -200,6 +208,18 @@ export default function HomeScreen() {
 
   const handleOpenSeries = (id: string) => {
     router.push(`/series/${id}`);
+  };
+
+  const handleContinueReading = (item: ContinueReadingItem) => {
+    router.push({
+      pathname: '/read/[seriesId]',
+      params: {
+        seriesId: item.id,
+        chapterIndex: String(item.chapterIndex),
+        pageIndex: String(item.pageIndex),
+        progress: String(item.percentage),
+      },
+    } as any);
   };
 
   return (
@@ -263,6 +283,14 @@ export default function HomeScreen() {
                 <ThemedText style={styles.retryText}>Thử lại</ThemedText>
               </Pressable>
             </View>
+          )}
+
+          {readerHome && user?.role === 'reader' && (
+            <ReaderAssistantCard
+              home={readerHome}
+              onContinue={handleContinueReading}
+              onOpenSeries={(item) => handleOpenSeries(item.id)}
+            />
           )}
 
           {/* Featured Carousel */}
@@ -373,6 +401,7 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
 
+          {continueReading.length > 0 && <>
           {/* Continue Reading Section */}
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
@@ -382,7 +411,7 @@ export default function HomeScreen() {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
             {continueReading.map((item) => (
-              <Pressable key={item.id} onPress={() => handleOpenSeries(item.id)} style={styles.resumeCard}>
+              <Pressable key={item.id} onPress={() => handleContinueReading(item)} style={styles.resumeCard}>
                 <View
                   style={[
                     styles.resumeCoverWrap,
@@ -402,6 +431,7 @@ export default function HomeScreen() {
               </Pressable>
             ))}
           </ScrollView>
+          </>}
 
           {/* Hot this week grid */}
           <View style={styles.sectionHeader}>

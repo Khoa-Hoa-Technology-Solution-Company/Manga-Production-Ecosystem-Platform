@@ -278,6 +278,56 @@ export const dashboardAPI = {
 };
 
 // ── Pages API ───────────────────────────────────────
+export type ReaderSeries = {
+  id: string;
+  title: string;
+  description?: string;
+  genre: string[];
+  coverImage?: string;
+  totalChapters: number;
+  averageRating: number;
+  weeklyVotes: number;
+};
+
+export type ContinueReadingItem = ReaderSeries & {
+  chapterId: string;
+  chapterNumber: number;
+  chapterTitle?: string;
+  chapterIndex: number;
+  pageIndex: number;
+  percentage: number;
+  completed: boolean;
+  lastReadAt: string;
+};
+
+export type ReaderHome = {
+  assistant: { name: string; greeting: string };
+  continueReading: ContinueReadingItem[];
+  recommendations: ReaderSeries[];
+};
+
+export const readerAPI = {
+  getHome: () => apiFetch<ReaderHome>('/reader/home'),
+
+  getProgress: () =>
+    apiFetch<{ continueReading: ContinueReadingItem[] }>('/reader/progress'),
+
+  updateProgress: (data: {
+    seriesId: string;
+    chapterId: string;
+    chapterIndex: number;
+    pageIndex: number;
+    percentage: number;
+    completed?: boolean;
+  }) => apiFetch('/reader/progress', { method: 'PUT', body: data }),
+
+  chat: (message: string, history: { role: 'user' | 'assistant'; content: string }[] = []) =>
+    apiFetch<{ reply: string; source: 'ai' | 'fallback'; recommendations: ReaderSeries[] }>(
+      '/reader/assistant/chat',
+      { method: 'POST', body: { message, history } }
+    ),
+};
+
 export const pagesAPI = {
   getByChapter: (chapterId: string) =>
     apiFetch<{ pages: any[] }>(`/pages/chapter/${chapterId}`),
