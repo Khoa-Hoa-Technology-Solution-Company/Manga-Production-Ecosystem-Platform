@@ -13,9 +13,11 @@ import {
   View,
 } from 'react-native';
 import { BookOpen, ChevronRight, MessageCircle, Send, Sparkles, Star, WandSparkles, X } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { ThemedText } from '@/components/themed-text';
 import { getImageUrl, readerAPI, type ContinueReadingItem, type ReaderHome, type ReaderSeries } from '@/lib/api';
@@ -46,6 +48,7 @@ function cleanAssistantMarkdown(value: string): string {
 
 export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const messagesRef = useRef<ScrollView>(null);
   const [chatVisible, setChatVisible] = useState(false);
   const [draft, setDraft] = useState('');
@@ -57,10 +60,10 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
   const spotlightPulse = useRef(new Animated.Value(0)).current;
   const quickPrompts = useMemo(
     () => [
-      currentRead ? 'Mở truyện tôi đang đọc dở' : 'Gợi ý truyện mới cho tôi',
-      'Tôi nên đọc truyện nào hôm nay?',
+      currentRead ? t('assistantReader.continuePrompt') : t('assistantReader.recommendPrompt'),
+      t('assistantReader.todayPrompt'),
     ],
-    [currentRead]
+    [currentRead, t]
   );
 
   useEffect(() => {
@@ -98,7 +101,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
     } catch (error: any) {
       setMessages((previous) => [
         ...previous,
-        { role: 'assistant', content: error?.message || 'Mình chưa thể trả lời lúc này. Bạn thử lại sau nhé.' },
+        { role: 'assistant', content: error?.message || t('assistantReader.error') },
       ]);
     } finally {
       setSending(false);
@@ -123,7 +126,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
               <ThemedText style={styles.name}>{home.assistant.name}</ThemedText>
               <ThemedText style={styles.waveText}>✦</ThemedText>
             </View>
-            <ThemedText style={styles.label}>CÔ BẠN ĐỒNG HÀNH ĐỌC TRUYỆN</ThemedText>
+            <ThemedText style={styles.label}>{t('assistantReader.companion')}</ThemedText>
           </View>
           <Pressable style={styles.miniChatButton} onPress={() => setChatVisible(true)}>
             <MessageCircle size={17} color="#fce7f3" />
@@ -151,10 +154,10 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                 contentFit="cover"
               />
               <View style={styles.continueBody}>
-                <ThemedText style={styles.continueEyebrow}>ĐỌC TIẾP NÈ ✨</ThemedText>
+                <ThemedText style={styles.continueEyebrow}>{t('assistantReader.continue')}</ThemedText>
                 <ThemedText style={styles.continueTitle} numberOfLines={1}>{currentRead.title}</ThemedText>
-                <ThemedText style={styles.continueChapter} numberOfLines={1}>
-                  Chương {currentRead.chapterNumber} • {Math.round(currentRead.percentage)}% đã đọc
+              <ThemedText style={styles.continueChapter} numberOfLines={1}>
+                  {t('readerHome.chapter', { count: currentRead.chapterNumber })} • {Math.round(currentRead.percentage)}%
                 </ThemedText>
                 <View style={styles.continueProgressTrack}>
                   <View style={[styles.continueProgressFill, { width: `${Math.max(3, currentRead.percentage)}%` }]} />
@@ -169,16 +172,16 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
           {currentRead ? (
             <Pressable style={styles.actionBubble} onPress={() => onContinue(currentRead)}>
               <BookOpen size={14} color="#fce7f3" />
-              <ThemedText style={styles.actionBubbleText}>Đọc tiếp truyện dở</ThemedText>
+              <ThemedText style={styles.actionBubbleText}>{t('assistantReader.continueAction')}</ThemedText>
             </Pressable>
           ) : home.recommendations[0] ? (
             <Pressable style={styles.actionBubble} onPress={() => onOpenSeries(home.recommendations[0])}>
               <Sparkles size={14} color="#fef3c7" />
-              <ThemedText style={styles.actionBubbleText}>Xem gợi ý của Miko</ThemedText>
+              <ThemedText style={styles.actionBubbleText}>{t('assistantReader.recommendAction')}</ThemedText>
             </Pressable>
           ) : null}
           <Pressable style={styles.actionBubbleSoft} onPress={() => setChatVisible(true)}>
-            <ThemedText style={styles.actionBubbleSoftText}>Nói chuyện với Miko</ThemedText>
+            <ThemedText style={styles.actionBubbleSoftText}>{t('assistantReader.chatAction', { name: home.assistant.name })}</ThemedText>
             <ChevronRight size={14} color="#fda4af" />
           </Pressable>
         </View>
@@ -195,6 +198,12 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
           style={styles.modalBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
+          <BlurView
+            intensity={44}
+            tint="default"
+            pointerEvents="none"
+            style={styles.chatBackdropBlur}
+          />
           <View style={styles.chatSheet}>
             <View style={styles.dragHandle} />
 
@@ -206,10 +215,10 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                 </View>
                 <View>
                   <View style={styles.nameRow}>
-                    <ThemedText style={styles.chatTitle}>Miko</ThemedText>
+                  <ThemedText style={styles.chatTitle}>{home.assistant.name}</ThemedText>
                     <Sparkles size={12} color="#fda4af" />
                   </View>
-                  <ThemedText style={styles.chatStatus}>Trợ lý đọc truyện • Đang hoạt động</ThemedText>
+                  <ThemedText style={styles.chatStatus}>{t('assistantReader.status')}</ThemedText>
                 </View>
               </View>
               <Pressable style={styles.closeButton} onPress={() => setChatVisible(false)} hitSlop={8}>
@@ -226,7 +235,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
             >
               <View style={styles.conversationLabel}>
                 <View style={styles.conversationLine} />
-                <ThemedText style={styles.conversationLabelText}>HÔM NAY</ThemedText>
+                <ThemedText style={styles.conversationLabelText}>{t('assistantReader.today')}</ThemedText>
                 <View style={styles.conversationLine} />
               </View>
 
@@ -261,17 +270,17 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                             <View style={styles.seriesResultBody}>
                               <ThemedText style={styles.seriesResultTitle} numberOfLines={2}>{series.title}</ThemedText>
                               <ThemedText style={styles.seriesResultGenre} numberOfLines={1}>
-                                {(series.genre || []).slice(0, 2).join(' • ') || 'Manga'}
+                                {(series.genre || []).slice(0, 2).join(' • ') || t('assistantReader.genericGenre')}
                               </ThemedText>
                               <View style={styles.seriesResultMeta}>
                                 <View style={styles.ratingRow}>
                                   <Star size={11} color="#fbbf24" fill="#fbbf24" />
                                   <ThemedText style={styles.ratingText}>
-                                    {series.averageRating > 0 ? series.averageRating.toFixed(1) : 'Mới'}
+                            {series.averageRating > 0 ? series.averageRating.toFixed(1) : t('assistantReader.newSeries')}
                                   </ThemedText>
                                 </View>
                                 <View style={styles.openSeriesAction}>
-                                  <ThemedText style={styles.openSeriesText}>Xem truyện</ThemedText>
+                                  <ThemedText style={styles.openSeriesText}>{t('assistantReader.viewSeries')}</ThemedText>
                                   <ChevronRight size={13} color="#fda4af" />
                                 </View>
                               </View>
@@ -289,7 +298,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   <View style={styles.messageAvatar}><Image source={require('@/assets/miko-chibi.png')} style={styles.messageAvatarImage} contentFit="contain" /></View>
                   <View style={[styles.bubble, styles.assistantBubble, styles.typingBubble]}>
                     <ActivityIndicator color="#a78bfa" size="small" />
-                    <ThemedText style={styles.typingText}>Miko đang suy nghĩ…</ThemedText>
+                    <ThemedText style={styles.typingText}>{t('assistantReader.thinking', { name: home.assistant.name })}</ThemedText>
                   </View>
                 </View>
               )}
@@ -298,7 +307,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
             <View style={styles.promptSection}>
               <View style={styles.promptHeading}>
                 <WandSparkles size={12} color="#a78bfa" />
-                <ThemedText style={styles.promptHeadingText}>GỢI Ý NHANH</ThemedText>
+                <ThemedText style={styles.promptHeadingText}>{t('assistantReader.quickSuggestions')}</ThemedText>
               </View>
               <ScrollView
                 horizontal
@@ -321,7 +330,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   value={draft}
                   onChangeText={setDraft}
                   onSubmitEditing={() => sendMessage()}
-                  placeholder="Nhắn Miko về truyện bạn thích…"
+                  placeholder={t('assistantReader.placeholder', { name: home.assistant.name })}
                   placeholderTextColor="#746b86"
                   style={styles.input}
                   maxLength={1000}
@@ -339,7 +348,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   </LinearGradient>
                 </Pressable>
               </View>
-              <ThemedText style={styles.disclaimer}>Miko có thể mắc lỗi. Hãy kiểm tra thông tin quan trọng.</ThemedText>
+              <ThemedText style={styles.disclaimer}>{t('assistantReader.disclaimer', { name: home.assistant.name })}</ThemedText>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -391,10 +400,11 @@ const styles = StyleSheet.create({
   recommendation: { backgroundColor: 'rgba(7,2,13,0.35)', borderRadius: 14, padding: 11 },
   recommendationLabel: { color: '#fda4af', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   recommendationTitle: { color: '#fff', fontSize: 13, fontWeight: '800', marginTop: 3 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,2,12,0.48)' },
-  chatSheet: { height: '94%', backgroundColor: 'transparent', overflow: 'visible' },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,2,12,0.2)' },
+  chatBackdropBlur: { ...StyleSheet.absoluteFillObject },
+  chatSheet: { height: '94%', backgroundColor: 'rgba(39,25,58,0.78)', overflow: 'visible' },
   dragHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: 'rgba(203,213,225,0.28)', alignSelf: 'center', marginTop: 9, marginBottom: 3 },
-  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 14, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 23, borderWidth: 1, borderColor: 'rgba(249,168,212,0.2)', backgroundColor: 'rgba(16,9,30,0.9)' },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 14, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 23, borderWidth: 1, borderColor: 'rgba(249,168,212,0.32)', backgroundColor: 'rgba(47,31,68,0.9)' },
   chatTitle: { color: '#fff', fontSize: 17, lineHeight: 21, fontWeight: '900' },
   chatStatus: { color: '#a78bfa', fontSize: 10, lineHeight: 15, fontWeight: '700' },
   closeButton: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
@@ -409,13 +419,13 @@ const styles = StyleSheet.create({
   messageAvatar: { width: 27, height: 27, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#1b1230', borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)' },
   messageAvatarImage: { width: 37, height: 37, position: 'absolute', bottom: -2 },
   bubble: { maxWidth: '82%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1 },
-  assistantBubble: { backgroundColor: '#1a112d', borderColor: 'rgba(167,139,250,0.13)', borderBottomLeftRadius: 6 },
+  assistantBubble: { backgroundColor: '#34224d', borderColor: 'rgba(196,181,253,0.28)', borderBottomLeftRadius: 6 },
   userBubble: { backgroundColor: '#e11d48', borderColor: 'rgba(255,255,255,0.12)', borderBottomRightRadius: 6 },
   bubbleText: { color: '#f8fafc', fontSize: 14, lineHeight: 20, fontWeight: '500' },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9 },
   typingText: { color: '#a78bfa', fontSize: 11, lineHeight: 16, fontWeight: '700' },
   seriesResults: { marginLeft: 35, gap: 8 },
-  seriesResultCard: { minHeight: 86, flexDirection: 'row', overflow: 'hidden', borderRadius: 16, backgroundColor: '#140d24', borderWidth: 1, borderColor: 'rgba(167,139,250,0.18)' },
+  seriesResultCard: { minHeight: 86, flexDirection: 'row', overflow: 'hidden', borderRadius: 16, backgroundColor: '#2b1a43', borderWidth: 1, borderColor: 'rgba(196,181,253,0.24)' },
   seriesResultCardPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   seriesResultCover: { width: 66, minHeight: 86, backgroundColor: '#24193a' },
   seriesResultBody: { flex: 1, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'space-between', gap: 3 },
@@ -426,15 +436,15 @@ const styles = StyleSheet.create({
   ratingText: { color: '#fde68a', fontSize: 10, lineHeight: 13, fontWeight: '800' },
   openSeriesAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   openSeriesText: { color: '#fda4af', fontSize: 10, lineHeight: 13, fontWeight: '900' },
-  promptSection: { flexShrink: 0, paddingTop: 10, paddingBottom: 9, marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(14,8,26,0.82)' },
+  promptSection: { flexShrink: 0, paddingTop: 10, paddingBottom: 9, marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(46,30,66,0.86)' },
   promptHeading: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 16, marginBottom: 8 },
   promptHeadingText: { color: '#8f82a8', fontSize: 9, lineHeight: 12, fontWeight: '900', letterSpacing: 1.1 },
   promptScroll: { flexGrow: 0, flexShrink: 0, maxHeight: 38 },
   prompts: { gap: 8, paddingHorizontal: 16, alignItems: 'center' },
-  promptChip: { height: 34, maxWidth: 260, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#181027', borderWidth: 1, borderColor: 'rgba(167,139,250,0.18)' },
+  promptChip: { height: 34, maxWidth: 260, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#392651', borderWidth: 1, borderColor: 'rgba(196,181,253,0.28)' },
   promptText: { color: '#d8cffa', fontSize: 11, lineHeight: 15, fontWeight: '700' },
-  composerArea: { flexShrink: 0, paddingTop: 11, paddingHorizontal: 14, backgroundColor: 'rgba(16,9,30,0.88)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
-  composer: { minHeight: 50, flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 5, paddingLeft: 14, borderRadius: 18, backgroundColor: '#191326', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  composerArea: { flexShrink: 0, paddingTop: 11, paddingHorizontal: 14, backgroundColor: 'rgba(43,28,62,0.92)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)' },
+  composer: { minHeight: 50, flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 5, paddingLeft: 14, borderRadius: 18, backgroundColor: '#34234a', borderWidth: 1, borderColor: 'rgba(224,214,254,0.2)' },
   input: { flex: 1, minHeight: 39, maxHeight: 96, color: '#f8fafc', paddingTop: 9, paddingBottom: 8, paddingHorizontal: 0, fontSize: 14, lineHeight: 20, textAlignVertical: 'center' },
   sendButton: { width: 40, height: 40, borderRadius: 14, overflow: 'hidden' },
   sendButtonDisabled: { opacity: 0.38 },

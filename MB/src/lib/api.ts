@@ -378,15 +378,6 @@ export const commentsAPI = {
     apiFetch(`/comments/${commentId}/like`, { method: 'POST' }),
 };
 
-// ── Votes API ───────────────────────────────────────
-export const votesAPI = {
-  getByChapter: (chapterId: string) =>
-    apiFetch<{ votes: any }>(`/chapters/${chapterId}/votes`),
-
-  vote: (chapterId: string, data: any) =>
-    apiFetch(`/chapters/${chapterId}/vote`, { method: 'POST', body: data }),
-};
-
 // ── Notifications API ───────────────────────────────
 export const notificationsAPI = {
   getAll: (params?: Record<string, string>) => {

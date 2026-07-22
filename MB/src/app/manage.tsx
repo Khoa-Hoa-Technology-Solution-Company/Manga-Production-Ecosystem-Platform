@@ -13,9 +13,11 @@ import { withProtectedMangakaRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { SERIES_TAG_OPTIONS, formatSeriesTag } from '@/constants/series-tags';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from 'react-i18next';
 
 function ManageScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   
@@ -74,7 +76,7 @@ function ManageScreen() {
         setSeriesList(mySeries);
       })
       .catch(err => {
-        setError(err.message || 'Không thể tải danh sách truyện.');
+        setError(err.message || t('mobile.manage.loadError'));
       })
       .finally(() => setLoading(false));
   };
@@ -116,8 +118,8 @@ function ManageScreen() {
   };
 
   const saveSeries = async () => {
-    if (!seriesTitle.trim()) return Alert.alert('Lỗi', 'Vui lòng nhập tên truyện');
     if (seriesTags.length === 0) return Alert.alert('Lỗi', 'Vui lòng chọn ít nhất một tag');
+    if (!seriesTitle.trim()) return Alert.alert(t('common.error'), t('mobile.manage.validationSeriesName'));
     setSaving(true);
     try {
       const data = {
@@ -128,30 +130,30 @@ function ManageScreen() {
       };
       if (editingSeries) {
         await seriesAPI.update(editingSeries._id, data);
-        Alert.alert('Thành công', 'Đã cập nhật tác phẩm');
+        Alert.alert(t('common.success'), t('mobile.manage.updated'));
       } else {
         await seriesAPI.create(data);
-        Alert.alert('Thành công', 'Đã tạo tác phẩm mới');
+        Alert.alert(t('common.success'), t('mobile.manage.created'));
       }
       setShowSeriesForm(false);
       loadMySeries();
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Có lỗi xảy ra');
+      Alert.alert(t('common.error'), err.message || t('mobile.manage.genericError'));
     } finally {
       setSaving(false);
     }
   };
 
   const deleteSeries = async (id: string) => {
-    Alert.alert('Xác nhận', 'Bạn có chắc muốn xóa tác phẩm này?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Xóa', style: 'destructive', onPress: async () => {
+    Alert.alert(t('mobile.manage.confirm'), t('mobile.manage.deletedConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: async () => {
         try {
           await seriesAPI.delete(id);
           setSelectedSeriesId(null);
           loadMySeries();
         } catch (err: any) {
-          Alert.alert('Lỗi', err.message);
+          Alert.alert(t('common.error'), err.message);
         }
       }}
     ]);
@@ -165,7 +167,7 @@ function ManageScreen() {
     } else {
       setEditingChapter(null);
       setChapterNumber((chapters.length + 1).toString());
-      setChapterTitle(`Chương ${chapters.length + 1}`);
+      setChapterTitle(t('mobile.manage.defaultChapter', { number: chapters.length + 1 }));
     }
     setShowChapterForm(true);
   };
@@ -188,21 +190,21 @@ function ManageScreen() {
       setShowChapterForm(false);
       loadChapters(selectedSeriesId);
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message);
+      Alert.alert(t('common.error'), err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const deleteChapter = async (id: string) => {
-    Alert.alert('Xác nhận', 'Bạn có chắc muốn xóa chương này?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Xóa', style: 'destructive', onPress: async () => {
+    Alert.alert(t('mobile.manage.confirm'), t('mobile.manage.deleteChapterConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: async () => {
         try {
           await chaptersAPI.delete(id);
           loadChapters(selectedSeriesId!);
         } catch (err: any) {
-          Alert.alert('Lỗi', err.message);
+          Alert.alert(t('common.error'), err.message);
         }
       }}
     ]);
@@ -213,10 +215,10 @@ function ManageScreen() {
     setSaving(true);
     try {
       await seriesAPI.submitToEditor(selectedSeriesId);
-      Alert.alert('Thành công', 'Tác phẩm đã được gửi sang hàng chờ phân công biên tập.');
+      Alert.alert(t('common.success'), t('mobile.manage.submittedReview'));
       loadMySeries();
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message);
+      Alert.alert(t('common.error'), err.message);
     } finally {
       setSaving(false);
     }
@@ -226,10 +228,10 @@ function ManageScreen() {
     setSaving(true);
     try {
       await chaptersAPI.submitForReview(chapterId);
-      Alert.alert('Thành công', 'Chapter đã được gửi cho editor duyệt.');
+      Alert.alert(t('common.success'), t('mobile.manage.chapterSubmitted'));
       if (selectedSeriesId) loadChapters(selectedSeriesId);
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message);
+      Alert.alert(t('common.error'), err.message);
     } finally {
       setSaving(false);
     }
@@ -256,22 +258,22 @@ function ManageScreen() {
       setSearchQuery('');
       setSearchResults([]);
       loadAssistants(selectedSeriesId);
-      Alert.alert('Thành công', 'Đã thêm trợ lý.');
+      Alert.alert(t('common.success'), t('mobile.manage.assistantAdded'));
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message);
+      Alert.alert(t('common.error'), err.message);
     }
   };
 
   const handleRemoveAssistant = (userId: string) => {
     if (!selectedSeriesId) return;
-    Alert.alert('Xác nhận', 'Xóa trợ lý này khỏi tác phẩm?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Xóa', style: 'destructive', onPress: async () => {
+    Alert.alert(t('mobile.manage.confirm'), t('mobile.manage.removeAssistantConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: async () => {
         try {
           await seriesAPI.removeDedicatedAssistant(selectedSeriesId, userId);
           loadAssistants(selectedSeriesId);
         } catch (err: any) {
-          Alert.alert('Lỗi', err.message);
+          Alert.alert(t('common.error'), err.message);
         }
       }}
     ]);
@@ -292,7 +294,7 @@ function ManageScreen() {
               <ChevronLeft size={24} color="#fff" />
             </Pressable>
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <ThemedText style={styles.headerSubtitle}>TÁC PHẨM</ThemedText>
+              <ThemedText style={styles.headerSubtitle}>{t('mobile.manage.workEyebrow')}</ThemedText>
               <ThemedText type="title" style={styles.headerTitle} numberOfLines={1}>{selectedSeries.title}</ThemedText>
             </View>
             {(selectedSeries.status === 'Draft' || selectedSeries.status === 'Rejected') && (
@@ -306,12 +308,12 @@ function ManageScreen() {
             {/* Status Card */}
             <View style={styles.statusCard}>
               <View style={styles.statusRow}>
-                <ThemedText style={styles.statusLabel}>Trạng thái xuất bản</ThemedText>
-                <View style={styles.badge}><ThemedText style={styles.badgeText}>{selectedSeries.status || 'Draft'}</ThemedText></View>
+                <ThemedText style={styles.statusLabel}>{t('mobile.manage.publicationStatus')}</ThemedText>
+                <View style={styles.badge}><ThemedText style={styles.badgeText}>{selectedSeries.status || t('mobile.studio.draftStatus')}</ThemedText></View>
               </View>
               
               <View style={[styles.statusRow, { marginTop: 12 }]}>
-                <ThemedText style={styles.statusLabel}>Tantou Editor</ThemedText>
+                <ThemedText style={styles.statusLabel}>{t('mobile.manage.tantouEditor')}</ThemedText>
                 {selectedSeries.editorId ? (
                   <View style={{ alignItems: 'flex-end' }}>
                     <ThemedText style={styles.editorName}>
@@ -323,13 +325,13 @@ function ManageScreen() {
                   </View>
                 ) : (
                   <View style={styles.inviteBtn}>
-                    <ThemedText style={styles.inviteBtnText}>Chờ EB phân công</ThemedText>
+                    <ThemedText style={styles.inviteBtnText}>{t('mobile.manage.waitingBoard')}</ThemedText>
                   </View>
                 )}
               </View>
 
               <View style={[styles.statusRow, { marginTop: 12 }]}>
-                <ThemedText style={styles.statusLabel}>Trợ lý riêng</ThemedText>
+                <ThemedText style={styles.statusLabel}>{t('mobile.manage.dedicatedAssistant')}</ThemedText>
                 <Pressable style={styles.assistantsBtn} onPress={() => setShowAssistantsModal(true)}>
                   <Users size={14} color="#fff" style={{ marginRight: 6 }} />
                   <ThemedText style={styles.inviteBtnText}>{dedicatedAssistants.length} Trợ lý</ThemedText>
@@ -364,7 +366,7 @@ function ManageScreen() {
             {loadingChapters ? (
               <ActivityIndicator color="#fb7185" style={{ marginTop: 20 }} />
             ) : chapters.length === 0 ? (
-              <ThemedText style={styles.emptyText}>Chưa có chương nào.</ThemedText>
+              <ThemedText style={styles.emptyText}>{t('mobile.manage.noChapters')}</ThemedText>
             ) : (
               chapters.map(chap => (
                 <View key={chap._id} style={styles.chapterCard}>
@@ -406,7 +408,7 @@ function ManageScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContentFull}>
               <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Quản lý Trợ lý</ThemedText>
+                <ThemedText style={styles.modalTitle}>{t('mobile.manage.assistantManagement')}</ThemedText>
                 <Pressable onPress={() => setShowAssistantsModal(false)}><X color="#fff" /></Pressable>
               </View>
               
@@ -414,7 +416,7 @@ function ManageScreen() {
                 <Search size={18} color="#94a3b8" />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Tìm kiếm trợ lý bằng tên/email..."
+                  placeholder={t('mobile.manage.searchAssistant')}
                   placeholderTextColor="#64748b"
                   value={searchQuery}
                   onChangeText={searchAssistants}
@@ -425,7 +427,7 @@ function ManageScreen() {
 
               {searchResults.length > 0 && (
                 <View style={styles.searchResults}>
-                  <ThemedText style={styles.sectionTitle}>Kết quả tìm kiếm</ThemedText>
+                  <ThemedText style={styles.sectionTitle}>{t('mobile.manage.searchResult')}</ThemedText>
                   {searchResults.map(u => (
                     <View key={u._id} style={styles.assistantItem}>
                       <View>
@@ -433,7 +435,7 @@ function ManageScreen() {
                         <ThemedText style={styles.editorItemEmail}>{u.email}</ThemedText>
                       </View>
                       <Pressable style={styles.addAssistantBtn} onPress={() => handleAddAssistant(u._id)}>
-                        <ThemedText style={styles.addAssistantText}>Thêm</ThemedText>
+                        <ThemedText style={styles.addAssistantText}>{t('mobile.manage.add')}</ThemedText>
                       </Pressable>
                     </View>
                   ))}
@@ -443,7 +445,7 @@ function ManageScreen() {
               <ThemedText style={[styles.sectionTitle, { marginTop: 20 }]}>Trợ lý hiện tại ({dedicatedAssistants.length})</ThemedText>
               <ScrollView style={{ flex: 1 }}>
                 {dedicatedAssistants.length === 0 ? (
-                  <ThemedText style={styles.emptyText}>Chưa có trợ lý nào.</ThemedText>
+                  <ThemedText style={styles.emptyText}>{t('mobile.manage.noAssistants')}</ThemedText>
                 ) : (
                   dedicatedAssistants.map(a => {
                     const u = typeof a.userId === 'object' ? a.userId : { _id: a.userId, displayName: 'Unknown' };
@@ -474,14 +476,14 @@ function ManageScreen() {
                 <Pressable onPress={() => setShowChapterForm(false)}><X color="#fff" /></Pressable>
               </View>
 
-              <ThemedText style={styles.inputLabel}>Số chương</ThemedText>
-              <TextInput style={styles.input} value={chapterNumber} onChangeText={setChapterNumber} keyboardType="numeric" placeholderTextColor="#64748b" placeholder="VD: 1" />
+              <ThemedText style={styles.inputLabel}>{t('mobile.manage.chapterCount')}</ThemedText>
+              <TextInput style={styles.input} value={chapterNumber} onChangeText={setChapterNumber} keyboardType="numeric" placeholderTextColor="#64748b" placeholder={t('mobile.manage.chapterNumberPlaceholder')} />
 
-              <ThemedText style={styles.inputLabel}>Tên chương</ThemedText>
-              <TextInput style={styles.input} value={chapterTitle} onChangeText={setChapterTitle} placeholderTextColor="#64748b" placeholder="Nhập tên chương..." />
+              <ThemedText style={styles.inputLabel}>{t('mobile.manage.chapterName')}</ThemedText>
+              <TextInput style={styles.input} value={chapterTitle} onChangeText={setChapterTitle} placeholderTextColor="#64748b" placeholder={t('mobile.manage.chapterTitlePlaceholder')} />
 
               <Pressable style={[styles.primaryBtn, { marginTop: 20 }]} onPress={saveChapter} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>Lưu Chương</ThemedText>}
+                {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>{t('mobile.manage.saveChapter')}</ThemedText>}
               </Pressable>
             </View>
           </View>
@@ -498,8 +500,8 @@ function ManageScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={styles.headerSubtitle}>QUẢN LÝ SERIES</ThemedText>
-            <ThemedText type="title" style={styles.headerTitle}>Tác phẩm của tôi</ThemedText>
+            <ThemedText style={styles.headerSubtitle}>{t('mobile.manage.eyebrow')}</ThemedText>
+            <ThemedText type="title" style={styles.headerTitle}>{t('mobile.manage.title')}</ThemedText>
           </View>
           <Pressable style={styles.createBtn} onPress={() => openSeriesForm()}>
             <Plus size={20} color="#fff" />
@@ -521,7 +523,7 @@ function ManageScreen() {
           ) : seriesList.length === 0 ? (
             <View style={styles.emptyState}>
               <BookOpen size={48} color="#64748b" />
-              <ThemedText style={styles.emptyText}>Bạn chưa có tác phẩm nào.</ThemedText>
+              <ThemedText style={styles.emptyText}>{t('mobile.manage.noSeries')}</ThemedText>
             </View>
           ) : (
             seriesList.map(series => (
@@ -548,7 +550,7 @@ function ManageScreen() {
                       </Pressable>
                     )}
                     <View style={styles.actionBtnSecondary}>
-                      <ThemedText style={styles.actionBtnText}>Quản lý chi tiết</ThemedText>
+                      <ThemedText style={styles.actionBtnText}>{t('mobile.manage.manageDetail')}</ThemedText>
                     </View>
                   </View>
                 </View>
@@ -568,11 +570,11 @@ function ManageScreen() {
             </View>
 
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-              <ThemedText style={styles.inputLabel}>Tên truyện</ThemedText>
-              <TextInput style={styles.input} value={seriesTitle} onChangeText={setSeriesTitle} placeholderTextColor="#64748b" placeholder="Nhập tên truyện..." />
+              <ThemedText style={styles.inputLabel}>{t('mobile.manage.seriesName')}</ThemedText>
+              <TextInput style={styles.input} value={seriesTitle} onChangeText={setSeriesTitle} placeholderTextColor="#64748b" placeholder={t('mobile.manage.seriesTitlePlaceholder')} />
 
-              <ThemedText style={styles.inputLabel}>Mô tả</ThemedText>
-              <TextInput style={[styles.input, { height: 100, textAlignVertical: 'top' }]} multiline value={seriesDescription} onChangeText={setSeriesDescription} placeholderTextColor="#64748b" placeholder="Nội dung chính..." />
+              <ThemedText style={styles.inputLabel}>{t('mobile.manage.description')}</ThemedText>
+              <TextInput style={[styles.input, { height: 100, textAlignVertical: 'top' }]} multiline value={seriesDescription} onChangeText={setSeriesDescription} placeholderTextColor="#64748b" placeholder={t('mobile.manage.descriptionPlaceholder')} />
 
               <ThemedText style={styles.inputLabel}>Tags truyện</ThemedText>
               <View style={styles.tagGrid}>
@@ -595,14 +597,14 @@ function ManageScreen() {
               </View>
               <ThemedText style={styles.tagHint}>Chọn một hoặc nhiều tag có sẵn.</ThemedText>
 
-              <ThemedText style={styles.inputLabel}>Ảnh bìa (URL)</ThemedText>
+              <ThemedText style={styles.inputLabel}>{t('mobile.manage.coverUrl')}</ThemedText>
               <TextInput style={styles.input} value={seriesCoverUrl} onChangeText={setSeriesCoverUrl} placeholderTextColor="#64748b" placeholder="https://..." />
               {seriesCoverUrl ? (
                 <Image source={{ uri: seriesCoverUrl }} style={styles.coverPreview} contentFit="cover" />
               ) : null}
 
               <Pressable style={[styles.primaryBtn, { marginTop: 30, marginBottom: 50 }]} onPress={saveSeries} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>Lưu Tác Phẩm</ThemedText>}
+                {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>{t('mobile.manage.saveSeries')}</ThemedText>}
               </Pressable>
             </ScrollView>
           </View>

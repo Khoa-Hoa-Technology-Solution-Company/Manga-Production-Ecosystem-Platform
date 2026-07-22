@@ -207,10 +207,12 @@ export const commentsAPI = {
   like: (commentId: string) => api.post(`/comments/${commentId}/like`),
 };
 
-// ── Votes API ───────────────────────────────────────
-export const votesAPI = {
+// ── Ratings API ─────────────────────────────────────
+// The backend keeps the legacy /vote route for compatibility; the reader-facing
+// API exposes it as rating-only so the UI has no vote action.
+export const ratingsAPI = {
   getByChapter: (chapterId: string) => api.get(`/chapters/${chapterId}/votes`),
-  vote: (chapterId: string, data: unknown) => api.post(`/chapters/${chapterId}/vote`, data),
+  rate: (chapterId: string, data: unknown) => api.post(`/chapters/${chapterId}/vote`, data),
 };
 
 // ── Notifications API ───────────────────────────────

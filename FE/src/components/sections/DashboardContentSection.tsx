@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Star, BookOpen, Heart, ArrowRight } from 'lucide-react'
+import { Star, BookOpen, ArrowRight } from 'lucide-react'
 import { Card, CardHeader, Badge, Button } from '../ui'
 import { KpiCardsSection } from './KpiCardsSection'
 import { RoleStripSection } from './RoleStripSection'
@@ -22,10 +22,10 @@ interface SubscribedSeries {
     displayName: string
   }
   description: string
-  totalVotes?: number
+  averageRating?: number
 }
 
-interface VotingActivityItem {
+interface RatingActivityItem {
   _id: string
   createdAt?: string
   chapterId?: {
@@ -163,7 +163,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
                 
                 <div className="flex items-center justify-between text-[9px] text-neutral-400 font-medium">
                   <span className="flex items-center gap-0.5">
-                    <Heart className="size-2.5 text-rose-500 fill-current" /> {item.totalVotes || 0}
+                    <Star className="size-2.5 text-amber-500 fill-current" /> {item.averageRating ? item.averageRating.toFixed(1) : '—'}
                   </span>
                   <span className="text-indigo-500 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 font-bold">
                     {t('readerDashboard.readNow')} <ArrowRight className="size-2.5" />
@@ -178,7 +178,7 @@ function ReaderSubscribedSeriesSection({ series, loading }: { series: Subscribed
   )
 }
 
-function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivityItem[], loading: boolean }) {
+function ReaderRatingActivitySection({ ratings, loading }: { ratings: RatingActivityItem[], loading: boolean }) {
   const navigate = useNavigate()
   const { t } = useTranslation()
 
@@ -220,21 +220,21 @@ function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivity
       <CardHeader className="flex-row items-center justify-between gap-2 p-0 mb-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-base font-semibold leading-6 text-neutral-900 flex items-center gap-2">
-            <Heart className="size-4 text-rose-500" />
-            {t('readerDashboard.myVotingHistory')}
+            <Star className="size-4 text-amber-500 fill-amber-400" />
+            {t('readerDashboard.myRatingHistory')}
           </h2>
-          <span className="text-xs leading-4 text-neutral-500 font-medium">{t('readerDashboard.votingHistoryHint')}</span>
+          <span className="text-xs leading-4 text-neutral-500 font-medium">{t('readerDashboard.ratingHistoryHint')}</span>
         </div>
       </CardHeader>
       
-      {votes.length === 0 ? (
+      {ratings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 px-4 text-center rounded-xl bg-neutral-50/50 border border-dashed border-neutral-200">
           <div className="size-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-2 shadow-inner">
-            <Heart className="size-5" />
+            <Star className="size-5" />
           </div>
-          <h3 className="text-xs font-semibold text-neutral-950 mb-0.5">{t('readerDashboard.noVotesTitle')}</h3>
+          <h3 className="text-xs font-semibold text-neutral-950 mb-0.5">{t('readerDashboard.noRatingsTitle')}</h3>
           <p className="text-[10px] text-neutral-500 max-w-[200px] mb-3 leading-normal">
-            {t('readerDashboard.noVotesHint')}
+            {t('readerDashboard.noRatingsHint')}
           </p>
           <Button 
             variant="outline" 
@@ -247,14 +247,14 @@ function ReaderVotingActivitySection({ votes, loading }: { votes: VotingActivity
         </div>
       ) : (
         <div className="relative border-l border-neutral-100 pl-4 space-y-4 ml-1.5 py-1">
-          {votes.map((item) => {
+          {ratings.map((item) => {
             const timeAgo = item.createdAt 
               ? new Date(item.createdAt).toLocaleDateString()
               : t('common.recently')
             return (
               <div key={item._id} className="relative group">
                 <div className="absolute -left-[21.5px] top-1 flex size-3.5 items-center justify-center rounded-full bg-rose-100 border-2 border-white text-rose-500 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-300">
-                  <Heart className="size-[6px] fill-current" />
+                  <Star className="size-[6px] fill-current" />
                 </div>
                 
                 <div className="space-y-0.5">
@@ -303,7 +303,7 @@ export function DashboardContentSection() {
 
   const [readerData, setReaderData] = useState<{
     subscribedSeries: SubscribedSeries[];
-    votedChapters: VotingActivityItem[];
+    ratedChapters: RatingActivityItem[];
   } | null>(null)
   const [loadingReader, setLoadingReader] = useState(false)
 
@@ -314,7 +314,7 @@ export function DashboardContentSection() {
       })
       dashboardAPI.getReaderData()
         .then((res) => {
-          setReaderData(res.data)
+          setReaderData({ ...res.data, ratedChapters: res.data.votedChapters || [] })
         })
         .catch((err) => {
           console.error('Failed to fetch reader dashboard data:', err)
@@ -339,8 +339,8 @@ export function DashboardContentSection() {
             <SeriesRankingSection />
           </div>
           <div className="space-y-6">
-            <ReaderVotingActivitySection 
-              votes={readerData?.votedChapters || []} 
+            <ReaderRatingActivitySection
+              ratings={readerData?.ratedChapters || []}
               loading={loadingReader} 
             />
             <RecentActivitySection />

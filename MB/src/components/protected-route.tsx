@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 
 /**
  * HOC for Protected Reader Route (Block 'reader' role)
- * Redirects to /explore if the user is a reader
+ * Redirects readers to the unified Reader home
  */
 export function withProtectedReaderRoute<P extends object>(Component: React.ComponentType<P>) {
   return function ProtectedReaderRouteWrapper(props: P) {
@@ -16,7 +16,7 @@ export function withProtectedReaderRoute<P extends object>(Component: React.Comp
       if (!loading && !isAuthenticated) {
         router.replace('/login');
       } else if (!loading && isAuthenticated && user?.role?.toLowerCase() === 'reader') {
-        router.replace('/explore');
+        router.replace('/');
       }
     }, [isAuthenticated, loading, user]);
 

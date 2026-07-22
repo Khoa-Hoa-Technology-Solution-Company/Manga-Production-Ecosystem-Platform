@@ -17,17 +17,19 @@ import { withProtectedEditorialBoardRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from 'react-i18next';
 
 const DEFAULT_RUBRIC_CRITERIA = [
-  { key: 'artStyle', label: 'Art Style' },
-  { key: 'storytelling', label: 'Storytelling' },
-  { key: 'characterDesign', label: 'Character Design' },
-  { key: 'pacing', label: 'Pacing & Layout' },
-  { key: 'commercialPotential', label: 'Commercial Potential' },
+  { key: 'artStyle', labelKey: 'editorialBoard.artStyle' },
+  { key: 'storytelling', labelKey: 'editorialBoard.storytelling' },
+  { key: 'characterDesign', labelKey: 'editorialBoard.characterDesign' },
+  { key: 'pacing', labelKey: 'editorialBoard.pacing' },
+  { key: 'commercialPotential', labelKey: 'editorialBoard.commercialPotential' },
 ];
 
 function EditorialBoardScreen() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === 'dark';
@@ -48,9 +50,9 @@ function EditorialBoardScreen() {
     setError(null);
     ebAPI.getPending()
       .then(res => setPendingSeries(res.series || []))
-      .catch(err => setError(err.message || 'Không thể tải danh sách.'))
+      .catch(err => setError(err.message || t('mobile.board.loadError')))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   useEffect(() => { loadPending(); }, [loadPending]);
 
@@ -81,11 +83,11 @@ function EditorialBoardScreen() {
       rubric: rubricScores,
     })
     .then(() => {
-      Alert.alert('Thành công', 'Đã lưu phiếu bầu của bạn.');
+      Alert.alert(t('common.success'), t('mobile.board.savedVote'));
       setShowVoteModal(false);
       loadPending();
     })
-    .catch(err => Alert.alert('Lỗi', err.message))
+    .catch(err => Alert.alert(t('common.error'), err.message))
     .finally(() => setSubmitting(false));
   };
 
@@ -115,14 +117,14 @@ function EditorialBoardScreen() {
 
   const handleFinalDecision = (seriesId: string) => {
     Alert.alert(
-      'Quyết định cuối cùng',
-      'Chọn hình thức phát hành tác phẩm này.',
+      t('mobile.board.finalTitle'),
+      t('mobile.board.finalMessage'),
       [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Từ chối', style: 'destructive', onPress: () => {
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('mobile.board.rejected'), style: 'destructive', onPress: () => {
           ebAPI.makeFinalDecision(seriesId, { decision: 'rejected', comments: 'Changes requested by Editorial Board majority.' })
             .then(() => loadPending())
-            .catch(err => Alert.alert('Lỗi', err.message));
+            .catch(err => Alert.alert(t('common.error'), err.message));
         }},
         { text: 'Xuất bản ngay', onPress: () => submitFinalDecision(seriesId, 'immediate') },
         { text: 'Theo lịch', onPress: () => Alert.alert(
@@ -134,6 +136,14 @@ function EditorialBoardScreen() {
             { text: 'Hủy', style: 'cancel' },
           ]
         ) },
+        { text: t('mobile.board.publish'), onPress: () => {
+          ebAPI.makeFinalDecision(seriesId, { decision: 'approved', publicationSchedule: 'weekly' })
+            .then(() => {
+              Alert.alert(t('mobile.board.publishedTitle'), t('mobile.board.published'));
+              loadPending();
+            })
+            .catch(err => Alert.alert(t('common.error'), err.message));
+        }},
       ]
     );
   };
@@ -152,8 +162,8 @@ function EditorialBoardScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={[styles.headerSubtitle, { color: '#f59e0b' }]}>EDITORIAL BOARD</ThemedText>
-            <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>Hội đồng duyệt</ThemedText>
+            <ThemedText style={[styles.headerSubtitle, { color: '#f59e0b' }]}>{t('mobile.board.eyebrow')}</ThemedText>
+            <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>{t('mobile.board.title')}</ThemedText>
           </View>
         </View>
 
@@ -164,7 +174,7 @@ function EditorialBoardScreen() {
         )}
 
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + Spacing.four }]}
+          contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + Spacing.five }]}
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
@@ -172,7 +182,7 @@ function EditorialBoardScreen() {
           ) : pendingSeries.length === 0 ? (
             <View style={styles.emptyState}>
               <Shield size={48} color={isDark ? '#64748b' : '#94a3b8'} />
-              <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>Chưa có tác phẩm nào chờ hội đồng duyệt.</ThemedText>
+              <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>{t('mobile.board.empty')}</ThemedText>
             </View>
           ) : (
             pendingSeries.map(series => {
@@ -186,21 +196,21 @@ function EditorialBoardScreen() {
                     <BookOpen size={20} color="#f59e0b" />
                     <ThemedText style={[styles.seriesTitle, { color: theme.text }]} numberOfLines={1}>{series.title}</ThemedText>
                     <View style={styles.badge}>
-                      <ThemedText style={styles.badgeText}>Bầu chọn</ThemedText>
+                      <ThemedText style={styles.badgeText}>{t('mobile.board.voteLabel')}</ThemedText>
                     </View>
                   </View>
 
-                  <ThemedText style={[styles.descText, { color: theme.textSecondary }]} numberOfLines={2}>{series.description || 'Chưa có mô tả'}</ThemedText>
+                  <ThemedText style={[styles.descText, { color: theme.textSecondary }]} numberOfLines={2}>{series.description || t('mobile.board.noDescription')}</ThemedText>
 
                   {/* Vote Progress Bar */}
                   <View style={styles.voteProgressWrap}>
                     <View style={styles.voteLabels}>
                       <View style={styles.voteLabelRow}>
                         <ThumbsUp size={12} color="#22c55e" />
-                        <ThemedText style={[styles.voteLabelText, { color: '#22c55e' }]}>{approve} Đồng ý</ThemedText>
+                        <ThemedText style={[styles.voteLabelText, { color: '#22c55e' }]}>{t('mobile.board.approveCount', { count: approve })}</ThemedText>
                       </View>
                       <View style={styles.voteLabelRow}>
-                        <ThemedText style={[styles.voteLabelText, { color: '#ef4444' }]}>{reject} Từ chối</ThemedText>
+                        <ThemedText style={[styles.voteLabelText, { color: '#ef4444' }]}>{t('mobile.board.rejectCount', { count: reject })}</ThemedText>
                         <ThumbsDown size={12} color="#ef4444" />
                       </View>
                     </View>
@@ -213,12 +223,12 @@ function EditorialBoardScreen() {
                   <View style={styles.actionRow}>
                     <Pressable style={[styles.voteBtn, { backgroundColor: '#6366f1' }]} onPress={() => openVoteModal(series)}>
                       <Gavel size={16} color="#fff" />
-                      <ThemedText style={styles.actionBtnText}>Bỏ phiếu</ThemedText>
+                      <ThemedText style={styles.actionBtnText}>{t('mobile.board.vote')}</ThemedText>
                     </Pressable>
                     {user?.isEbHead && (
                       <Pressable style={[styles.finalBtn, { backgroundColor: '#10b981' }]} onPress={() => handleFinalDecision(series._id)}>
                         <Send size={16} color="#fff" />
-                        <ThemedText style={styles.actionBtnText}>Quyết định cuối</ThemedText>
+                        <ThemedText style={styles.actionBtnText}>{t('mobile.board.finalDecision')}</ThemedText>
                       </Pressable>
                     )}
                   </View>
@@ -234,20 +244,20 @@ function EditorialBoardScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1b4b' : '#fff' }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={[styles.modalTitle, { color: theme.text }]}>Bỏ phiếu Hội Đồng</ThemedText>
+              <ThemedText style={[styles.modalTitle, { color: theme.text }]}>{t('mobile.board.voteModal')}</ThemedText>
               <Pressable onPress={() => setShowVoteModal(false)} hitSlop={12}>
                 <X size={22} color={theme.textSecondary} />
               </Pressable>
             </View>
-            <ThemedText style={[styles.modalDesc, { color: theme.textSecondary }]}>Đánh giá tác phẩm &quot;{selectedSeries?.title}&quot;</ThemedText>
+            <ThemedText style={[styles.modalDesc, { color: theme.textSecondary }]}>{t('mobile.board.reviewSeries', { title: selectedSeries?.title })}</ThemedText>
 
             <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
               {/* Rubric Sliders */}
               <View style={[styles.rubricSection, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' }]}>
                 <View style={styles.rubricHeader}>
-                  <ThemedText style={[styles.rubricTitle, { color: theme.text }]}>RUBRIC SCORES</ThemedText>
+                  <ThemedText style={[styles.rubricTitle, { color: theme.text }]}>{t('mobile.board.rubric')}</ThemedText>
                   <View style={[styles.maxBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9', borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0' }]}>
-                    <ThemedText style={[styles.maxBadgeText, { color: theme.textSecondary }]}>Max 10</ThemedText>
+                    <ThemedText style={[styles.maxBadgeText, { color: theme.textSecondary }]}>{t('mobile.board.max')}</ThemedText>
                   </View>
                 </View>
 
@@ -258,7 +268,7 @@ function EditorialBoardScreen() {
                     return (
                       <View key={c.key} style={styles.sliderRow}>
                         <View style={styles.sliderLabelRow}>
-                          <ThemedText style={[styles.sliderLabel, { color: theme.text }]}>{c.label}</ThemedText>
+                          <ThemedText style={[styles.sliderLabel, { color: theme.text }]}>{c.label || (c.labelKey ? t(c.labelKey) : c.key)}</ThemedText>
                           <ThemedText style={styles.sliderScore}>{score}/10</ThemedText>
                         </View>
                         <Slider
@@ -281,7 +291,7 @@ function EditorialBoardScreen() {
               {/* Comment */}
               <TextInput
                 style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0', color: theme.text }]}
-                placeholder="Nhận xét chuyên môn (không bắt buộc)..."
+                placeholder={t('mobile.board.commentPlaceholder')}
                 placeholderTextColor={theme.textSecondary}
                 value={voteComment}
                 onChangeText={setVoteComment}
@@ -291,13 +301,13 @@ function EditorialBoardScreen() {
               {/* Average & Auto Decision */}
               <View style={[styles.decisionCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' }]}>
                 <View>
-                  <ThemedText style={[styles.avgLabel, { color: theme.textSecondary }]}>Điểm trung bình</ThemedText>
+                  <ThemedText style={[styles.avgLabel, { color: theme.textSecondary }]}>{t('mobile.board.average')}</ThemedText>
                   <ThemedText style={styles.avgScore}>{averageScore.toFixed(1)}/10</ThemedText>
                 </View>
                 <View style={[styles.decisionBadge, { backgroundColor: autoDecision === 'approved' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)' }]}>
                   {autoDecision === 'approved' ? <ThumbsUp size={14} color="#22c55e" /> : <ThumbsDown size={14} color="#ef4444" />}
                   <ThemedText style={{ color: autoDecision === 'approved' ? '#22c55e' : '#ef4444', fontSize: 12, fontWeight: '700' }}>
-                    {autoDecision === 'approved' ? 'Đồng ý' : 'Từ chối'}
+                    {autoDecision === 'approved' ? t('mobile.board.approved') : t('mobile.board.rejected')}
                   </ThemedText>
                 </View>
               </View>
@@ -314,7 +324,7 @@ function EditorialBoardScreen() {
                   <>
                     {autoDecision === 'approved' ? <ThumbsUp size={18} color="#fff" /> : <ThumbsDown size={18} color="#fff" />}
                     <ThemedText style={styles.submitBtnText}>
-                      {autoDecision === 'approved' ? 'Ghi nhận — Đồng ý' : 'Ghi nhận — Từ chối'}
+                      {autoDecision === 'approved' ? t('mobile.board.recordApprove') : t('mobile.board.recordReject')}
                     </ThemedText>
                   </>
                 )}

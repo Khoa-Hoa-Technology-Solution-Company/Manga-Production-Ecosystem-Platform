@@ -51,22 +51,23 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { withProtectedReaderRoute } from '@/components/protected-route';
 import { seriesAPI, chaptersAPI, pagesAPI, zonesAPI, tasksAPI, dashboardAPI, getImageUrl } from '@/lib/api';
+import { useTranslation } from 'react-i18next';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const roles = [
-  { id: 'editor', title: 'Editor', desc: 'Chia vùng, vẽ phân cảnh truyện trên mobile.', icon: Layers3, accent: '#0ea5e9' },
-  { id: 'uploader', title: 'Uploader', desc: 'Sắp trang, đăng chương mới, duyệt chất lượng.', icon: Plus, accent: '#22c55e' },
-  { id: 'manager', title: 'Manager', desc: 'Theo dõi tiến độ, duyệt nội dung và phân phối việc.', icon: Users2, accent: '#8b5cf6' },
-  { id: 'assistant', title: 'Assistant', desc: 'Nhận việc tự do, theo dõi thu nhập và hoàn thành task.', icon: Briefcase, accent: '#f43f5e' },
+  { id: 'editor', titleKey: 'mobile.studio.roleEditor', descKey: 'mobile.studio.roleEditorDesc', icon: Layers3, accent: '#0ea5e9' },
+  { id: 'uploader', titleKey: 'mobile.studio.roleUploader', descKey: 'mobile.studio.roleUploaderDesc', icon: Plus, accent: '#22c55e' },
+  { id: 'manager', titleKey: 'mobile.studio.roleManager', descKey: 'mobile.studio.roleManagerDesc', icon: Users2, accent: '#8b5cf6' },
+  { id: 'assistant', titleKey: 'mobile.studio.roleAssistant', descKey: 'mobile.studio.roleAssistantDesc', icon: Briefcase, accent: '#f43f5e' },
 ];
 
 const zoneTypes = [
-  { key: 'background', label: 'Khung Nền', color: '#3b82f6' },
-  { key: 'characters', label: 'Nhân Vật', color: '#f97316' },
-  { key: 'effects', label: 'Hiệu Ứng', color: '#a855f7' },
-  { key: 'dialog', label: 'Thoại', color: '#22c55e' },
-  { key: 'sfx', label: 'Âm Thanh', color: '#eab308' },
+  { key: 'background', labelKey: 'mobile.studio.zoneBackground', color: '#3b82f6' },
+  { key: 'characters', labelKey: 'mobile.studio.zoneCharacters', color: '#f97316' },
+  { key: 'effects', labelKey: 'mobile.studio.zoneEffects', color: '#a855f7' },
+  { key: 'dialog', labelKey: 'mobile.studio.zoneDialog', color: '#22c55e' },
+  { key: 'sfx', labelKey: 'mobile.studio.zoneSfx', color: '#eab308' },
 ];
 
 interface Zone {
@@ -83,6 +84,7 @@ interface Zone {
 
 function StudioScreen() {
   const theme = useTheme();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
@@ -139,9 +141,9 @@ function StudioScreen() {
       .then((data) => {
         const mapped = (data.tasks || []).map((t: any) => ({
           id: t._id,
-          title: t.title || `${t.type || 'Nhiệm vụ'} Manga`,
-          series: t.seriesId?.title || 'Tác phẩm',
-          deadline: t.deadline ? new Date(t.deadline).toLocaleDateString('vi-VN') : '1 ngày',
+          title: t.title || `${t.type || t('mobile.studio.taskFallback')}`,
+          series: t.seriesId?.title || t('mobile.studio.workFallback'),
+          deadline: t.deadline ? new Date(t.deadline).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.studio.oneDay'),
           status: t.status === 'open' 
             ? 'available' 
             : (t.status === 'assigned' || t.status === 'in_progress') 
@@ -149,13 +151,13 @@ function StudioScreen() {
               : t.status === 'review' 
                 ? 'review' 
                 : 'completed',
-          desc: t.description || 'Nhiệm vụ sản xuất truyện tranh của hệ thống.',
+          desc: t.description || t('mobile.studio.taskDescription'),
         }));
         setFreelanceTasks(mapped);
       })
       .catch((err) => {
         console.error('Studio fetch tasks error:', err);
-        setError(err.message || 'Không thể kết nối đến máy chủ.');
+        setError(err.message || t('mobile.studio.serverError'));
       });
 
     // 2. Fetch Kanban Tasks for Manager
@@ -168,10 +170,10 @@ function StudioScreen() {
         draftItems.forEach((c: any) => {
           mappedKanban.push({
             id: c._id,
-            title: c.title || `Chương ${c.chapterNumber}`,
-            role: c.seriesId?.title || 'Tác phẩm',
+            title: c.title || t('mobile.manage.defaultChapter', { number: c.chapterNumber }),
+            role: c.seriesId?.title || t('mobile.studio.workFallback'),
             status: 'To Do',
-            note: `Chương số ${c.chapterNumber} đang phác thảo.`,
+            note: t('mobile.studio.draftNote', { number: c.chapterNumber }),
           });
         });
 
@@ -179,10 +181,10 @@ function StudioScreen() {
         reviewingItems.forEach((c: any) => {
           mappedKanban.push({
             id: c._id,
-            title: c.title || `Chương ${c.chapterNumber}`,
-            role: c.seriesId?.title || 'Tác phẩm',
+            title: c.title || t('mobile.manage.defaultChapter', { number: c.chapterNumber }),
+            role: c.seriesId?.title || t('mobile.studio.workFallback'),
             status: 'In Progress',
-            note: `Đang kiểm duyệt chất lượng chương truyện.`,
+            note: t('mobile.studio.reviewingNote'),
           });
         });
 
@@ -190,10 +192,10 @@ function StudioScreen() {
         approvedItems.forEach((c: any) => {
           mappedKanban.push({
             id: c._id,
-            title: c.title || `Chương ${c.chapterNumber}`,
-            role: c.seriesId?.title || 'Tác phẩm',
+            title: c.title || t('mobile.manage.defaultChapter', { number: c.chapterNumber }),
+            role: c.seriesId?.title || t('mobile.studio.workFallback'),
             status: 'Review',
-            note: `Đã duyệt. Sắp xếp để phát hành lên hệ thống.`,
+            note: t('mobile.studio.approvedNote'),
           });
         });
 
@@ -201,10 +203,10 @@ function StudioScreen() {
         publishedItems.forEach((c: any) => {
           mappedKanban.push({
             id: c._id,
-            title: c.title || `Chương ${c.chapterNumber}`,
-            role: c.seriesId?.title || 'Tác phẩm',
+            title: c.title || t('mobile.manage.defaultChapter', { number: c.chapterNumber }),
+            role: c.seriesId?.title || t('mobile.studio.workFallback'),
             status: 'Approved',
-            note: `Đã phát hành và mở khóa cho độc giả đọc.`,
+            note: t('mobile.studio.publishedNote'),
           });
         });
         
@@ -212,7 +214,7 @@ function StudioScreen() {
       })
       .catch((err) => {
         console.error('Studio fetch workflow error:', err);
-        setError(err.message || 'Không thể kết nối đến máy chủ.');
+        setError(err.message || t('mobile.studio.serverError'));
       });
 
     // 3. Fetch Editor Pages list (Cascade series -> chapters -> pages)
@@ -259,7 +261,7 @@ function StudioScreen() {
       .then((data) => {
         const mappedZones = (data.zones || []).map((z: any) => ({
           id: z._id,
-          name: z.name || 'Vùng mới vẽ',
+          name: z.name || t('mobile.studio.newZone'),
           type: z.type || 'background',
           color: zoneTypes.find((t) => t.key === z.type)?.color || '#3b82f6',
           x: z.x || 20,
@@ -281,11 +283,11 @@ function StudioScreen() {
         setFreelanceTasks((prev) =>
           prev.map((t) => (t.id === id ? { ...t, status: 'progress' } : t))
         );
-        Alert.alert("Thành công", "Bạn đã nhận nhiệm vụ freelance này.");
+        Alert.alert(t('common.success'), t('mobile.studio.accepted'));
       })
       .catch((err) => {
         console.error('Accept task error:', err);
-        Alert.alert("Lỗi", err.message || "Không thể nhận nhiệm vụ này.");
+        Alert.alert(t('common.error'), err.message || t('mobile.studio.permissionError'));
       });
   };
 
@@ -313,11 +315,11 @@ function StudioScreen() {
             setFreelanceTasks((prev) =>
               prev.map((t) => (t.id === id ? { ...t, status: 'review' } : t))
             );
-            Alert.alert("Thành công", "Đã nộp kết quả công việc thành công.");
+            Alert.alert(t('common.success'), t('mobile.studio.submitted'));
           })
           .catch((err) => {
             console.error('Submit task error:', err);
-            Alert.alert("Lỗi", err.message || "Không thể nộp kết quả.");
+            Alert.alert(t('common.error'), err.message || t('mobile.studio.permissionError'));
           })
           .finally(() => {
             setUploadingTaskId(null);
@@ -400,7 +402,7 @@ function StudioScreen() {
             setZones((prev) => [...prev, newZone]);
             setSelectedZoneId(z._id);
           }).catch(err => {
-            Alert.alert("Lỗi", "Không thể lưu vùng chọn: " + err.message);
+            Alert.alert(t('common.error'), t('mobile.studio.saveZoneError', { error: err.message }));
           });
         }
       }
@@ -479,18 +481,18 @@ function StudioScreen() {
       'Review': 'Approved',
       'Approved': 'Published',
     };
-    const dbStatus = dbStatusMap[nextStatus] || 'Draft';
+    const dbStatus = dbStatusMap[nextStatus] || t('mobile.studio.draftStatus');
     
     chaptersAPI.updateStatus(taskId, dbStatus)
       .then(() => {
         setKanbanTasks((prev) =>
           prev.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t))
         );
-        Alert.alert("Thành công", `Đã chuyển chương sang trạng thái ${nextStatus}.`);
+        Alert.alert(t('common.success'), t('mobile.studio.statusChanged', { status: nextStatus }));
       })
       .catch((err) => {
         console.error('Transition task error:', err);
-        Alert.alert("Lỗi phân quyền hoặc kết nối", err.message || "Không thể chuyển đổi trạng thái chương này.");
+        Alert.alert(t('mobile.studio.permissionTitle'), err.message || t('mobile.studio.permissionError'));
       });
   };
 
@@ -510,8 +512,8 @@ function StudioScreen() {
           <ThemedView style={styles.heroCard}>
             <View style={styles.heroTop}>
               <View style={{ flex: 1 }}>
-                <ThemedText type="small" style={styles.topBadgeText}>CREATOR STUDIO</ThemedText>
-                <ThemedText type="title" style={styles.heroTitle}>Manga Workspace</ThemedText>
+                <ThemedText type="small" style={styles.topBadgeText}>{t('mobile.studio.eyebrow')}</ThemedText>
+                <ThemedText type="title" style={styles.heroTitle}>{t('mobile.studio.title')}</ThemedText>
                 <ThemedText style={styles.heroDesc}>
                   Không gian sản xuất truyện tối ưu cho thiết bị di động. Phân vùng trang, duyệt chương, quản trị tiến độ nhóm.
                 </ThemedText>
@@ -525,7 +527,7 @@ function StudioScreen() {
               <Sparkles size={16} color="#fb7185" />
               <ThemedText style={styles.errorBannerText}>{error}</ThemedText>
               <Pressable onPress={loadData} style={styles.retryBtn}>
-                <ThemedText style={styles.retryText}>Thử lại</ThemedText>
+                <ThemedText style={styles.retryText}>{t('mobile.studio.retry')}</ThemedText>
               </Pressable>
             </View>
           )}
@@ -547,8 +549,8 @@ function StudioScreen() {
                   <View style={[styles.roleIconWrap, { backgroundColor: role.accent }]}>
                     <Icon size={14} color="#fff" />
                   </View>
-                  <ThemedText style={[styles.roleTitle, active && { color: '#fff' }]}>{role.title}</ThemedText>
-                  <ThemedText style={styles.roleDescText} numberOfLines={2}>{role.desc}</ThemedText>
+                  <ThemedText style={[styles.roleTitle, active && { color: '#fff' }]}>{t(role.titleKey)}</ThemedText>
+                  <ThemedText style={styles.roleDescText} numberOfLines={2}>{t(role.descKey)}</ThemedText>
                 </Pressable>
               );
             })}
@@ -561,16 +563,16 @@ function StudioScreen() {
               {/* Canvas Controls Toolbar */}
               <ThemedView style={styles.toolCard}>
                 <View style={styles.sectionHeader}>
-                  <ThemedText type="smallBold" style={styles.sectionTitle}>HỘP CÔNG CỤ CANVAS</ThemedText>
-                  <ThemedText style={styles.zoomPillText}>Zoom: {zoom}%</ThemedText>
+                  <ThemedText type="smallBold" style={styles.sectionTitle}>{t('mobile.studio.canvasTools')}</ThemedText>
+                  <ThemedText style={styles.zoomPillText}>{t('mobile.studio.zoom', { zoom })}</ThemedText>
                 </View>
                 
                 <View style={styles.modeRow}>
                   {[
-                    { key: 'select', label: 'Chọn', icon: Move },
-                    { key: 'zone', label: 'Vẽ Vùng', icon: LayoutGrid },
-                    { key: 'paint', label: 'Brush', icon: Brush },
-                    { key: 'text', label: 'Chữ', icon: PenTool },
+                    { key: 'select', label: t('mobile.studio.toolSelect'), icon: Move },
+                    { key: 'zone', label: t('mobile.studio.toolZone'), icon: LayoutGrid },
+                    { key: 'paint', label: t('mobile.studio.toolPaint'), icon: Brush },
+                    { key: 'text', label: t('mobile.studio.toolText'), icon: PenTool },
                   ].map((item) => {
                     const Icon = item.icon;
                     const active = canvasTool === item.key;
@@ -591,7 +593,7 @@ function StudioScreen() {
                   <View style={styles.zoomGroup}>
                     <Pressable onPress={() => setZoom((z) => Math.max(50, z - 10))} style={styles.zoomBtn}><ZoomOut size={14} color="#fff" /></Pressable>
                     <Pressable onPress={() => setZoom((z) => Math.min(150, z + 10))} style={styles.zoomBtn}><ZoomIn size={14} color="#fff" /></Pressable>
-                    <Pressable onPress={() => setZoom(100)} style={styles.zoomResetBtn}><ThemedText style={styles.zoomResetText}>Reset</ThemedText></Pressable>
+                    <Pressable onPress={() => setZoom(100)} style={styles.zoomResetBtn}><ThemedText style={styles.zoomResetText}>{t('mobile.studio.reset')}</ThemedText></Pressable>
                   </View>
 
                   <Pressable
@@ -607,7 +609,7 @@ function StudioScreen() {
                     style={styles.clearBtn}
                   >
                     <Trash2 size={13} color="#fff" />
-                    <ThemedText style={styles.clearBtnText}>Xóa Bản Vẽ</ThemedText>
+                    <ThemedText style={styles.clearBtnText}>{t('mobile.studio.clearDrawing')}</ThemedText>
                   </Pressable>
                 </View>
               </ThemedView>
@@ -615,8 +617,8 @@ function StudioScreen() {
               {/* Touch-Native Comic Canvas (Vẽ phân vùng) */}
               <ThemedView style={styles.canvasContainerCard}>
                 <View style={styles.sectionHeader}>
-                  <ThemedText type="smallBold" style={styles.sectionTitle}>BẢN VẼ PHÂN VÙNG TRANG 12</ThemedText>
-                  <View style={styles.greenPill}><ThemedText style={styles.greenPillText}>Đang Biên Tập</ThemedText></View>
+                  <ThemedText type="smallBold" style={styles.sectionTitle}>{t('mobile.studio.pageZones', { page: 12 })}</ThemedText>
+                  <View style={styles.greenPill}><ThemedText style={styles.greenPillText}>{t('mobile.studio.editing')}</ThemedText></View>
                 </View>
 
                 {/* Canvas Bounding Area */}
@@ -736,7 +738,7 @@ function StudioScreen() {
               {/* Zone details sidebar list panel */}
               <ThemedView style={styles.zonesCard}>
                 <View style={styles.sectionHeader}>
-                  <ThemedText type="smallBold" style={styles.sectionTitle}>DANH SÁCH KHUNG TRUYỆN</ThemedText>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>{t('mobile.studio.zoneList')}</ThemedText>
                   <ThemedText style={styles.zoneCountText}>{zones.length} phân vùng</ThemedText>
                 </View>
 
@@ -777,24 +779,24 @@ function StudioScreen() {
 
                         {active && (
                           <View style={styles.activeZoneProps}>
-                            <ThemedText style={styles.propLabel}>Loại phân vùng:</ThemedText>
+                            <ThemedText style={styles.propLabel}>{t('mobile.studio.zoneType')}</ThemedText>
                             <View style={styles.propGrid}>
-                              {zoneTypes.map((t) => (
+                              {zoneTypes.map((zoneType) => (
                                 <Pressable
-                                  key={t.key}
+                                  key={zoneType.key}
                                   onPress={() =>
                                     setZones((prev) =>
                                       prev.map((z) =>
-                                        z.id === zone.id ? { ...z, type: t.key, color: t.color } : z
+                                        z.id === zone.id ? { ...z, type: zoneType.key, color: zoneType.color } : z
                                       )
                                     )
                                   }
                                   style={[
                                     styles.propChip,
-                                    zone.type === t.key && { backgroundColor: t.color },
+                                    zone.type === zoneType.key && { backgroundColor: zoneType.color },
                                   ]}
                                 >
-                                  <ThemedText style={styles.propChipText}>{t.label}</ThemedText>
+                                  <ThemedText style={styles.propChipText}>{t(zoneType.labelKey)}</ThemedText>
                                 </Pressable>
                               ))}
                             </View>
@@ -807,7 +809,7 @@ function StudioScreen() {
                               style={styles.deleteZoneBtn}
                             >
                               <Trash2 size={11} color="#ef4444" />
-                              <ThemedText style={styles.deleteZoneText}>Xóa phân vùng này</ThemedText>
+                              <ThemedText style={styles.deleteZoneText}>{t('mobile.studio.deleteZone')}</ThemedText>
                             </Pressable>
                           </View>
                         )}
@@ -823,15 +825,15 @@ function StudioScreen() {
             /* UPLOADER SITE - PAGES MANAGEMENT STACK */
             <ThemedView style={styles.uploaderWorkspace}>
               <View style={styles.sectionHeader}>
-                <ThemedText type="smallBold" style={styles.sectionTitle}>QUẢN LÝ DÀN TRANG CHAPTER</ThemedText>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>{t('mobile.studio.chapterLayout')}</ThemedText>
               </View>
 
               <View style={styles.uploaderBox}>
-                <ThemedText style={styles.uploaderBoxTitle}>Tải Lên Trang Truyện Mới</ThemedText>
-                <ThemedText style={styles.uploaderBoxSub}>Định dạng PNG, JPG. Dung lượng tối đa 10MB</ThemedText>
+                <ThemedText style={styles.uploaderBoxTitle}>{t('mobile.studio.uploadPage')}</ThemedText>
+                <ThemedText style={styles.uploaderBoxSub}>{t('mobile.studio.uploadHint')}</ThemedText>
                 <Pressable onPress={handleAddPage} style={styles.uploadCtaBtn}>
                   <Maximize2 size={16} color="#0a051d" />
-                  <ThemedText style={styles.uploadCtaText}>Chọn file từ thiết bị</ThemedText>
+                  <ThemedText style={styles.uploadCtaText}>{t('mobile.studio.chooseFile')}</ThemedText>
                 </Pressable>
               </View>
 
@@ -858,7 +860,7 @@ function StudioScreen() {
             /* MANAGER SITE - KANBAN COLLABORATION BOARD */
             <ThemedView style={styles.managerWorkspace}>
               <View style={styles.sectionHeader}>
-                <ThemedText type="smallBold" style={styles.sectionTitle}>QUẢN TRỊ TIẾN ĐỘ SẢN XUẤT</ThemedText>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>{t('mobile.studio.productionProgress')}</ThemedText>
               </View>
 
               {/* Kanban columns cards */}
@@ -915,7 +917,7 @@ function StudioScreen() {
                     <Clock size={16} color="#3b82f6" />
                   </View>
                   <View>
-                    <ThemedText style={styles.statBoxLabel}>Việc Mới</ThemedText>
+                    <ThemedText style={styles.statBoxLabel}>{t('mobile.studio.newWork')}</ThemedText>
                     <ThemedText style={styles.statBoxVal}>
                       {freelanceTasks.filter((t) => t.status === 'available').length}
                     </ThemedText>
@@ -927,7 +929,7 @@ function StudioScreen() {
                     <Activity size={16} color="#f97316" />
                   </View>
                   <View>
-                    <ThemedText style={styles.statBoxLabel}>Đang Làm</ThemedText>
+                    <ThemedText style={styles.statBoxLabel}>{t('mobile.studio.inProgress')}</ThemedText>
                     <ThemedText style={styles.statBoxVal}>
                       {freelanceTasks.filter((t) => t.status === 'progress').length}
                     </ThemedText>
@@ -939,7 +941,7 @@ function StudioScreen() {
                     <CheckCircle size={16} color="#22c55e" />
                   </View>
                   <View>
-                    <ThemedText style={styles.statBoxLabel}>Hoàn Thành</ThemedText>
+                    <ThemedText style={styles.statBoxLabel}>{t('mobile.studio.done')}</ThemedText>
                     <ThemedText style={styles.statBoxVal}>
                       {freelanceTasks.filter((t) => t.status === 'completed').length}
                     </ThemedText>
@@ -953,11 +955,11 @@ function StudioScreen() {
               <View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipRow}>
                   {[
-                    { key: 'all', label: 'Tất cả' },
-                    { key: 'available', label: 'Việc mới' },
-                    { key: 'progress', label: 'Đang làm' },
-                    { key: 'review', label: 'Chờ duyệt' },
-                    { key: 'completed', label: 'Đã xong' },
+                    { key: 'all', label: t('mobile.studio.filterAll') },
+                    { key: 'available', label: t('mobile.studio.newWork') },
+                    { key: 'progress', label: t('mobile.studio.inProgress') },
+                    { key: 'review', label: t('mobile.studio.filterReview') },
+                    { key: 'completed', label: t('mobile.studio.filterCompleted') },
                   ].map((tab) => {
                     const active = assistantTab === tab.key;
                     return (
@@ -1015,10 +1017,10 @@ function StudioScreen() {
                                   task.status === 'completed' && { color: '#22c55e' },
                                 ]}
                               >
-                                {task.status === 'available' && 'Việc mới'}
-                                {task.status === 'progress' && 'Đang làm'}
-                                {task.status === 'review' && 'Chờ duyệt'}
-                                {task.status === 'completed' && 'Đã xong'}
+                                {task.status === 'available' && t('mobile.studio.taskAvailable')}
+                                {task.status === 'progress' && t('mobile.studio.taskProgress')}
+                                {task.status === 'review' && t('mobile.studio.taskReview')}
+                                {task.status === 'completed' && t('mobile.studio.taskCompleted')}
                               </ThemedText>
                             </View>
                           </View>
@@ -1028,7 +1030,7 @@ function StudioScreen() {
 
                         <View style={styles.taskCardMetaRow}>
                           <View style={styles.metaCol}>
-                            <ThemedText style={styles.metaLabel}>Hạn chót</ThemedText>
+                            <ThemedText style={styles.metaLabel}>{t('mobile.studio.deadline')}</ThemedText>
                             <ThemedText style={styles.metaValueDeadline}>{task.deadline}</ThemedText>
                           </View>
                         </View>
@@ -1041,7 +1043,7 @@ function StudioScreen() {
                               style={styles.taskAcceptBtn}
                             >
                               <Briefcase size={12} color="#fff" />
-                              <ThemedText style={styles.taskAcceptBtnText}>Nhận Việc Này</ThemedText>
+                              <ThemedText style={styles.taskAcceptBtnText}>{t('mobile.studio.acceptTask')}</ThemedText>
                             </Pressable>
                           )}
 
@@ -1052,7 +1054,7 @@ function StudioScreen() {
                                   <View style={styles.progressInfoRow}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                       <UploadCloud size={14} color="#f43f5e" />
-                                      <ThemedText style={styles.progressLoadingText}>Đang tải lên sản phẩm...</ThemedText>
+                                      <ThemedText style={styles.progressLoadingText}>{t('mobile.studio.uploading')}</ThemedText>
                                     </View>
                                     <ThemedText style={styles.progressPercentText}>{progress}%</ThemedText>
                                   </View>
@@ -1066,7 +1068,7 @@ function StudioScreen() {
                                   style={styles.taskSubmitBtn}
                                 >
                                   <UploadCloud size={12} color="#fff" />
-                                  <ThemedText style={styles.taskSubmitBtnText}>Nộp Sản Phẩm</ThemedText>
+                                  <ThemedText style={styles.taskSubmitBtnText}>{t('mobile.studio.submitProduct')}</ThemedText>
                                 </Pressable>
                               )}
                             </View>
@@ -1101,10 +1103,10 @@ function StudioScreen() {
           {activeRole !== 'assistant' && (
             <ThemedView style={styles.bottomPageSlider}>
               <View style={styles.sectionHeader}>
-                <ThemedText type="smallBold" style={styles.sectionTitle}>CÁC TRANG CỦA CHAPTER</ThemedText>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>{t('mobile.studio.chapterPages')}</ThemedText>
                 <Pressable onPress={handleAddPage} style={styles.pageAddBtn}>
                   <Plus size={12} color="#fff" />
-                  <ThemedText style={styles.pageAddText}>Thêm trang</ThemedText>
+                  <ThemedText style={styles.pageAddText}>{t('mobile.studio.addPage')}</ThemedText>
                 </Pressable>
               </View>
 

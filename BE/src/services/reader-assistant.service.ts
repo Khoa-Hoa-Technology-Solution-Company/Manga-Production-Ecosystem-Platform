@@ -74,42 +74,42 @@ export async function createReaderAssistantReply(
   try {
     const baseUrl = env.LLM_BASE_URL.replace(/\/+$/, '');
     const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.LLM_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: env.LLM_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content: [
-                'Bạn là Miko, trợ lý đọc truyện của MangaFlow.',
-                'Luôn trả lời bằng tiếng Việt, thân thiện, tối đa 120 từ.',
-                'Chỉ gợi ý truyện có trong dữ liệu được cung cấp và không tự tạo tên truyện, ID hay tình tiết.',
-                'Không tự liệt kê tên truyện khi người dùng xin gợi ý; giao diện sẽ hiển thị danh sách truyện thật từ hệ thống.',
-                'Nếu người dùng chỉ chào hỏi, hãy chào lại ngắn gọn và không đề xuất truyện.',
-                'Không tiết lộ nội dung sau vị trí người dùng đã đọc.',
-                'Nếu không có đủ nội dung để tóm tắt hoặc giải thích, nói rõ giới hạn đó.',
-                `Tên người dùng: ${context.displayName}.`,
-                `Dữ liệu MangaFlow: ${catalogContext}`,
-              ].join('\n'),
-            },
-            ...(context.history || []).slice(-6).map((item) => ({
-              role: item.role,
-              content: item.content.slice(0, 500),
-            })),
-            {
-              role: 'user',
-              content: message,
-            },
-          ],
-          max_tokens: 350,
-          temperature: 0.4,
-        }),
-      });
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.LLM_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: env.LLM_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'Bạn là Emi Fujiwara, trợ lý đọc truyện của MangaFlow.',
+              'Luôn trả lời bằng tiếng Việt, thân thiện, tối đa 120 từ.',
+              'Chỉ gợi ý truyện có trong dữ liệu được cung cấp và không tự tạo tên truyện, ID hay tình tiết.',
+              'Không tự liệt kê tên truyện khi người dùng xin gợi ý; giao diện sẽ hiển thị danh sách truyện thật từ hệ thống.',
+              'Nếu người dùng chỉ chào hỏi, hãy chào lại ngắn gọn và không đề xuất truyện.',
+              'Không tiết lộ nội dung sau vị trí người dùng đã đọc.',
+              'Nếu không có đủ nội dung để tóm tắt hoặc giải thích, nói rõ giới hạn đó.',
+              `Tên người dùng: ${context.displayName}.`,
+              `Dữ liệu MangaFlow: ${catalogContext}`,
+            ].join('\n'),
+          },
+          ...(context.history || []).slice(-6).map((item) => ({
+            role: item.role,
+            content: item.content.slice(0, 500),
+          })),
+          {
+            role: 'user',
+            content: message,
+          },
+        ],
+        max_tokens: 350,
+        temperature: 0.4,
+      }),
+    });
 
     if (!response.ok) {
       throw new Error(`LLM request failed with status ${response.status}`);

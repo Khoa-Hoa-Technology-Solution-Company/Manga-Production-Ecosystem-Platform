@@ -18,11 +18,9 @@ import {
   BookOpen,
   ChevronRight,
   Eye,
-  Heart,
   Play,
   Sparkles,
   Star,
-  ThumbsUp,
   Users,
 } from 'lucide-react-native';
 
@@ -30,8 +28,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { chaptersAPI, getImageUrl, seriesAPI, votesAPI } from '@/lib/api';
+import { chaptersAPI, getImageUrl, seriesAPI } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from 'react-i18next';
 
 // ── Helpers ────────────────────────────────────────────
 function formatCount(n: number): string {
@@ -39,8 +38,8 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('vi-VN', {
+function formatDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -50,6 +49,7 @@ function formatDate(iso: string): string {
 // ── Component ──────────────────────────────────────────
 export default function SeriesDetailScreen() {
   const theme = useTheme();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
@@ -63,9 +63,6 @@ export default function SeriesDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [subscribing, setSubscribing] = useState(false);
-  const [voting, setVoting] = useState(false);
-  const [voted, setVoted] = useState(false);
-  const [voteCount, setVoteCount] = useState(0);
 
   const [activeTab, setActiveTab] = useState<'chapters' | 'about'>('chapters');
 
@@ -86,48 +83,32 @@ export default function SeriesDetailScreen() {
           .filter((c) => c.status === 'Published')
           .sort((a, b) => a.chapterNumber - b.chapterNumber);
         setChapters(published);
-        setVoteCount((sData.series ?? sData).totalVotes || 0);
       })
       .catch((err) => {
         console.error('SeriesDetail load error:', err);
-        setError(err.message || 'Không thể tải thông tin series.');
+        setError(err.message || t('mobile.series.loadErrorTitle'));
       })
       .finally(() => setLoading(false));
-  }, [seriesId]);
+  }, [seriesId, t]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Also load current user's vote status
-  useEffect(() => {
-    if (!chapters.length) return;
-    const latestChapter = chapters[chapters.length - 1];
-    if (!latestChapter) return;
-    votesAPI
-      .getByChapter(latestChapter._id)
-      .then((data: any) => {
-        if (data.userVote) {
-          setVoted(Boolean(data.userVote.voted));
-        }
-      })
-      .catch(() => {/* silent — vote status is non-critical */});
-  }, [chapters]);
-
   // ── Derived ──────────────────────────────────────
   const series = useMemo(() => {
     if (!seriesData) return null;
     return {
-      title: seriesData.title || 'Untitled',
-      description: seriesData.description || 'Chưa có mô tả.',
-      author: seriesData.mangakaId?.displayName || 'Unknown',
+      title: seriesData.title || t('mobile.series.untitled'),
+      description: seriesData.description || t('mobile.series.noDescription'),
+      author: seriesData.mangakaId?.displayName || t('mobile.series.unknownAuthor'),
       genres: seriesData.genre || [],
       cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesId}/600/900`,
       subscribers: seriesData.subscribers || [],
       readerCount: seriesData.readerCount || 0,
-      status: seriesData.status || 'Ongoing',
+      status: seriesData.status || t('mobile.series.ongoing'),
     };
-  }, [seriesData, seriesId]);
+  }, [seriesData, seriesId, t]);
 
   const isSubscribed = useMemo(
     () => !!user && !!series && series.subscribers.includes(user._id),
@@ -136,39 +117,16 @@ export default function SeriesDetailScreen() {
 
   // ── Actions ──────────────────────────────────────
   const handleSubscribe = async () => {
-    if (!user) { Alert.alert('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để theo dõi series.'); return; }
+    if (!user) { Alert.alert(t('mobile.series.loginRequired'), t('mobile.series.loginToFollow')); return; }
     setSubscribing(true);
     try {
       const res = await seriesAPI.subscribe(seriesId!);
       if (res?.series) setSeriesData(res.series);
-      Alert.alert('Thông báo', res.subscribed ? 'Đã theo dõi series!' : 'Đã bỏ theo dõi series.');
+      Alert.alert(t('notifications.title'), res.subscribed ? t('mobile.series.followed') : t('mobile.series.unfollowed'));
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể thực hiện thao tác.');
+      Alert.alert(t('common.error'), err.message || t('mobile.series.actionError'));
     } finally {
       setSubscribing(false);
-    }
-  };
-
-  const handleVote = async () => {
-    if (!user) { Alert.alert('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để bình chọn.'); return; }
-    const latestChapter = chapters[chapters.length - 1];
-    if (!latestChapter) { Alert.alert('Thông báo', 'Chưa có chương nào để bình chọn.'); return; }
-    setVoting(true);
-    try {
-      await votesAPI.vote(latestChapter._id, { seriesId });
-      if (voted) {
-        setVoteCount((v) => Math.max(0, v - 1));
-        setVoted(false);
-        Alert.alert('Bình chọn', 'Đã rút lại bình chọn.');
-      } else {
-        setVoteCount((v) => v + 1);
-        setVoted(true);
-        Alert.alert('Bình chọn', 'Cảm ơn bạn đã bình chọn! 🎉');
-      }
-    } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể bình chọn.');
-    } finally {
-      setVoting(false);
     }
   };
 
@@ -201,10 +159,10 @@ export default function SeriesDetailScreen() {
           </Pressable>
           <View style={styles.center}>
             <Sparkles size={36} color="#fb7185" />
-            <ThemedText style={[styles.errorTitle, { color: theme.text }]}>Không thể tải</ThemedText>
+            <ThemedText style={[styles.errorTitle, { color: theme.text }]}>{t('mobile.series.loadErrorTitle')}</ThemedText>
             <ThemedText style={[styles.errorSub, { color: theme.textSecondary }]}>{error}</ThemedText>
             <Pressable onPress={loadData} style={styles.retryBtn}>
-              <ThemedText style={styles.retryText}>Thử lại</ThemedText>
+              <ThemedText style={styles.retryText}>{t('mobile.series.retry')}</ThemedText>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -227,7 +185,7 @@ export default function SeriesDetailScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: (BottomTabInset ?? 80) + insets.bottom + 24 },
+            { paddingBottom: (BottomTabInset ?? 104) + insets.bottom + 32 },
           ]}
           showsVerticalScrollIndicator={false}
         >
@@ -284,7 +242,7 @@ export default function SeriesDetailScreen() {
 
               <ThemedText style={[styles.heroTitle, { color: theme.text }]}>{series.title}</ThemedText>
               <ThemedText style={[styles.heroAuthor, { color: theme.textSecondary }]}>
-                Tác giả: {series.author}
+                {t('mobile.series.author')}: {series.author}
               </ThemedText>
 
               {/* Stats row */}
@@ -298,18 +256,13 @@ export default function SeriesDetailScreen() {
                 ]}
               >
                 <View style={styles.statChip}>
-                  <Heart size={13} color="#f43f5e" fill="#f43f5e" />
-                  <ThemedText style={[styles.statText, { color: theme.text }]}>{formatCount(voteCount)} votes</ThemedText>
-                </View>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.15)' }]} />
-                <View style={styles.statChip}>
                   <Eye size={13} color={isDark ? '#a5b4fc' : '#4f46e5'} />
-                  <ThemedText style={[styles.statText, { color: theme.text }]}>{formatCount(series.readerCount)} readers</ThemedText>
+                  <ThemedText style={[styles.statText, { color: theme.text }]}>{formatCount(series.readerCount)} {t('mobile.series.readers')}</ThemedText>
                 </View>
                 <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.15)' }]} />
                 <View style={styles.statChip}>
                   <BookOpen size={13} color="#10b981" />
-                  <ThemedText style={[styles.statText, { color: theme.text }]}>{chapters.length} ch.</ThemedText>
+                  <ThemedText style={[styles.statText, { color: theme.text }]}>{chapters.length} {t('mobile.series.chapters')}</ThemedText>
                 </View>
               </View>
 
@@ -323,7 +276,7 @@ export default function SeriesDetailScreen() {
                 >
                   <LinearGradient colors={['#f43f5e', '#8b5cf6']} style={styles.readBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                     <Play size={16} color="#fff" />
-                    <ThemedText style={styles.readBtnText}>Đọc Ngay</ThemedText>
+                    <ThemedText style={styles.readBtnText}>{t('mobile.series.readNow')}</ThemedText>
                   </LinearGradient>
                 </Pressable>
 
@@ -350,28 +303,6 @@ export default function SeriesDetailScreen() {
                   )}
                 </Pressable>
 
-                {/* Vote button */}
-                <Pressable
-                  onPress={handleVote}
-                  disabled={voting}
-                  style={[
-                    styles.iconBtn,
-                    {
-                      backgroundColor: voted
-                        ? (isDark ? 'rgba(244,63,94,0.15)' : 'rgba(244,63,94,0.1)')
-                        : (isDark ? 'rgba(22, 17, 41, 0.65)' : '#ffffff'),
-                      borderColor: voted
-                        ? 'rgba(244,63,94,0.4)'
-                        : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)'),
-                    }
-                  ]}
-                >
-                  {voting ? (
-                    <ActivityIndicator size="small" color="#f43f5e" />
-                  ) : (
-                    <ThumbsUp size={18} color={voted ? '#f43f5e' : (isDark ? '#ffffff' : '#475569')} fill={voted ? '#f43f5e' : 'none'} />
-                  )}
-                </Pressable>
               </View>
             </View>
           </View>
@@ -390,7 +321,7 @@ export default function SeriesDetailScreen() {
                     { color: activeTab === tab ? '#f43f5e' : theme.textSecondary },
                   ]}
                 >
-                  {tab === 'chapters' ? `Chapters (${chapters.length})` : 'Giới thiệu'}
+                  {tab === 'chapters' ? t('mobile.series.chapterTab', { count: chapters.length }) : t('mobile.series.about')}
                 </ThemedText>
               </Pressable>
             ))}
@@ -403,7 +334,7 @@ export default function SeriesDetailScreen() {
                 <View style={styles.emptyChapters}>
                   <BookOpen size={36} color={theme.textSecondary} style={{ opacity: 0.4 }} />
                   <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-                    Chưa có chương nào được phát hành.
+                    {t('mobile.series.emptyChapters')}
                   </ThemedText>
                 </View>
               ) : (
@@ -438,10 +369,10 @@ export default function SeriesDetailScreen() {
 
                     <View style={styles.chapterInfo}>
                       <ThemedText style={[styles.chapterTitle, { color: theme.text }]} numberOfLines={1}>
-                        {ch.title || `Chapter ${ch.chapterNumber}`}
+                        {ch.title || `${t('mobile.series.chapters')} ${ch.chapterNumber}`}
                       </ThemedText>
                       <ThemedText style={[styles.chapterMeta, { color: theme.textSecondary }]}>
-                        {formatDate(ch.updatedAt || ch.createdAt)}
+                        {formatDate(ch.updatedAt || ch.createdAt, i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
                       </ThemedText>
                     </View>
 
@@ -473,17 +404,17 @@ export default function SeriesDetailScreen() {
               >
                 <View style={styles.aboutRow}>
                   <Users size={14} color={theme.textSecondary} />
-                  <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>Tác giả</ThemedText>
+                  <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>{t('mobile.series.author')}</ThemedText>
                   <ThemedText style={[styles.aboutValue, { color: theme.text }]}>{series.author}</ThemedText>
                 </View>
                 <View style={styles.aboutRow}>
                   <Star size={14} color={theme.textSecondary} />
-                  <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>Thể loại</ThemedText>
+                  <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>{t('mobile.series.genre')}</ThemedText>
                   <ThemedText style={[styles.aboutValue, { color: theme.text }]}>{series.genres.join(', ') || '—'}</ThemedText>
                 </View>
                 <View style={styles.aboutRow}>
                   <BookOpen size={14} color={theme.textSecondary} />
-                  <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>Trạng thái</ThemedText>
+                  <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>{t('mobile.series.status')}</ThemedText>
                   <ThemedText style={[styles.aboutValue, { color: theme.text }]}>{series.status}</ThemedText>
                 </View>
               </View>
@@ -585,10 +516,6 @@ const styles = StyleSheet.create({
   iconBtnActive: {
     backgroundColor: 'rgba(99,102,241,0.15)',
     borderColor: 'rgba(99,102,241,0.4)',
-  },
-  iconBtnVoted: {
-    backgroundColor: 'rgba(244,63,94,0.15)',
-    borderColor: 'rgba(244,63,94,0.4)',
   },
 
   // Tabs

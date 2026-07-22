@@ -14,9 +14,11 @@ import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from 'react-i18next';
 
 export default function AppTabs() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const role = user?.role || 'reader';
 
   return (
@@ -25,38 +27,35 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="index" href="/" asChild>
-            <TabButton>Home</TabButton>
-          </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+            <TabButton>{t('readerHome.title')}</TabButton>
           </TabTrigger>
 
           {role === 'mangaka' && (
             <TabTrigger name="studio" href="/studio" asChild>
-              <TabButton>Studio</TabButton>
+              <TabButton>{t('sidebar.studio')}</TabButton>
             </TabTrigger>
           )}
           {role === 'mangaka' && (
             <TabTrigger name="manage" href="/manage" asChild>
-              <TabButton>Manage</TabButton>
+              <TabButton>{t('sidebar.manage')}</TabButton>
             </TabTrigger>
           )}
 
           {role === 'assistant' && (
             <TabTrigger name="tasks" href="/tasks" asChild>
-              <TabButton>Tasks</TabButton>
+              <TabButton>{t('sidebar.assistant')}</TabButton>
             </TabTrigger>
           )}
 
           {role === 'editor' && (
             <TabTrigger name="editor" href="/editor" asChild>
-              <TabButton>Editor</TabButton>
+              <TabButton>{t('sidebar.editorPortal')}</TabButton>
             </TabTrigger>
           )}
 
           {role === 'editorial_board' && (
             <TabTrigger name="board" href="/board" asChild>
-              <TabButton>Board</TabButton>
+              <TabButton>{t('sidebar.editorialBoard')}</TabButton>
             </TabTrigger>
           )}
         </CustomTabList>

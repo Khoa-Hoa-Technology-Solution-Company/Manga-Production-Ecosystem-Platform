@@ -49,8 +49,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, votesAPI, readerAPI, getImageUrl } from '@/lib/api';
+import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, readerAPI, getImageUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from 'react-i18next';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -105,6 +106,7 @@ const themes = {
 };
 
 export default function ReaderScreen() {
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const {
@@ -138,15 +140,15 @@ export default function ReaderScreen() {
       if (data?.series) {
         setSeriesData(data.series);
         Alert.alert(
-          'Thông báo',
+          t('notifications.title'),
           data.subscribed
-            ? 'Đã đăng ký nhận thông báo chương mới!'
-            : 'Đã hủy đăng ký nhận thông báo.'
+            ? t('mobile.reader.subscribeNotice')
+            : t('mobile.series.unfollowed'),
         );
       }
     } catch (err: any) {
       console.error('Failed to toggle series subscription:', err);
-      Alert.alert('Lỗi', err.message || 'Không thể thực hiện đăng ký.');
+      Alert.alert(t('common.error'), err.message || t('mobile.reader.subscribeError'));
     } finally {
       setSubscribingSeries(false);
     }
@@ -166,8 +168,6 @@ export default function ReaderScreen() {
   const [readingMode, setReadingMode] = useState<'scroll' | 'cinema'>('scroll');
   const [currentPage, setCurrentPage] = useState(() => Math.max(0, Number.parseInt(pageIndexParam || '0', 10) || 0));
   const [bookmarked, setBookmarked] = useState(false);
-  const [voted, setVoted] = useState(false);
-  const [voteCount, setVoteCount] = useState<number>(0);
   const [userRating, setUserRating] = useState(0);
   const [comments, setComments] = useState<any[]>([]);
   const [newCommentText, setNewCommentText] = useState('');
@@ -211,7 +211,7 @@ export default function ReaderScreen() {
       })
       .catch((err) => {
         console.error('Read screen series load error:', err);
-        setError(err.message || 'Không thể kết nối đến máy chủ.');
+        setError(err.message || t('mobile.reader.serverError'));
       })
       .finally(() => setLoading(false));
   };
@@ -242,7 +242,7 @@ export default function ReaderScreen() {
         console.error('Failed to increment view count on mobile:', err);
       });
     }
-  }, [activeChapterIndex, chapters]);
+  }, [activeChapterIndex, chapters, i18n.language, t]);
 
   // Persist the current reader position after the user pauses interaction.
   useEffect(() => {
@@ -288,9 +288,9 @@ export default function ReaderScreen() {
 
         const fetchedComments = (cData.comments || []).map((c: any) => ({
           id: c._id,
-          user: c.userId?.displayName || 'Cộng đồng',
-          initials: (c.userId?.displayName || 'C').slice(0, 2).toUpperCase(),
-          time: new Date(c.createdAt).toLocaleDateString('vi-VN') || 'Vừa xong',
+          user: c.userId?.displayName || t('mobile.reader.community'),
+          initials: (c.userId?.displayName || t('mobile.reader.community')).slice(0, 2).toUpperCase(),
+          time: new Date(c.createdAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') || t('mobile.reader.justNow'),
           text: c.text || '',
           likes: c.likes || 0,
           liked: false,
@@ -301,52 +301,43 @@ export default function ReaderScreen() {
       })
       .catch((err) => {
         console.error('Read screen pages load error:', err);
-        setError(err.message || 'Không thể kết nối đến máy chủ để tải nội dung chương.');
+        setError(err.message || t('mobile.reader.contentError'));
       })
       .finally(() => setLoadingPages(false));
-  }, [activeChapterIndex, chapters]);
+  }, [activeChapterIndex, chapters, i18n.language, t]);
 
   // Derive series metadata
   const series = useMemo(() => {
     if (!seriesData) {
       return {
-        title: 'Đang tải...',
-        chapter: 'Ch. 1',
-        titleEn: 'Loading...',
-        genre: 'Action',
+        title: t('mobile.reader.loading'),
+        chapter: t('mobile.reader.chapter', { number: 1 }),
+        titleEn: t('mobile.reader.loading'),
+        genre: t('mobile.reader.unknownGenre'),
         author: '...',
-        mood: 'Immersive',
+        mood: t('mobile.reader.mood'),
         publishedDate: '...',
         cover: 'https://picsum.photos/800/1200',
         totalPages: 0,
         rating: 4.9,
         ratingCount: 120,
-        voteCount: 0,
       };
     }
     const currentChapter = chapters[activeChapterIndex];
     return {
       title: seriesData.title,
-      chapter: currentChapter ? `Chương ${currentChapter.chapterNumber}` : 'Đang tải...',
+      chapter: currentChapter ? t('mobile.reader.chapter', { number: currentChapter.chapterNumber }) : t('mobile.reader.loading'),
       titleEn: currentChapter?.title || seriesData.title,
-      genre: seriesData.genre?.[0] || 'Unknown',
-      author: seriesData.mangakaId?.displayName || 'Unknown Author',
-      mood: seriesData.genre?.join(', ') || 'Hấp dẫn, kịch tính',
-      publishedDate: currentChapter ? new Date(currentChapter.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
+      genre: seriesData.genre?.[0] || t('mobile.reader.unknownGenre'),
+      author: seriesData.mangakaId?.displayName || t('mobile.reader.unknownAuthor'),
+      mood: seriesData.genre?.join(', ') || t('mobile.reader.mood'),
+      publishedDate: currentChapter ? new Date(currentChapter.createdAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.reader.newUpdated'),
       cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesData._id}/800/1200`,
       totalPages: pages.length,
       rating: 4.9,
       ratingCount: 154,
-      voteCount: seriesData.totalVotes || 0,
     };
-  }, [seriesData, chapters, activeChapterIndex, pages]);
-
-  // Sync voteCount with seriesData
-  useEffect(() => {
-    if (seriesData) {
-      setVoteCount(seriesData.totalVotes || 0);
-    }
-  }, [seriesData]);
+  }, [seriesData, chapters, activeChapterIndex, pages, t, i18n.language]);
 
   // Synchronize horizontal ScrollView offset when currentPage changes programmatically (hotspots/thumbnails)
   useEffect(() => {
@@ -473,28 +464,6 @@ export default function ReaderScreen() {
 
 
 
-  const handleVote = () => {
-    const currentChapter = chapters[activeChapterIndex];
-    if (!currentChapter) return;
-    votesAPI
-      .vote(currentChapter._id, { seriesId: currentChapter.seriesId })
-      .then(() => {
-        if (voted) {
-          setVoteCount((v) => Math.max(0, v - 1));
-          setVoted(false);
-          Alert.alert("Bình chọn", "Đã rút lại bình chọn cho chương này.");
-        } else {
-          setVoteCount((v) => v + 1);
-          setVoted(true);
-          Alert.alert("Bình chọn", "Cảm ơn bạn đã bình chọn cho chương này!");
-        }
-      })
-      .catch((err) => {
-        console.error('Vote error:', err);
-        Alert.alert("Lỗi", err.message || "Không thể thực hiện bình chọn.");
-      });
-  };
-
   const handleAddComment = () => {
     if (!newCommentText.trim()) return;
     const currentChapter = chapters[activeChapterIndex];
@@ -505,9 +474,9 @@ export default function ReaderScreen() {
         const comment = data.comment || {};
         const newComment = {
           id: comment._id || Date.now().toString(),
-          user: comment.userId?.displayName || 'Bạn (Reader)',
+          user: comment.userId?.displayName || t('mobile.reader.readerUser'),
           initials: (comment.userId?.displayName || 'YO').slice(0, 2).toUpperCase(),
-          time: 'Vừa xong',
+          time: t('mobile.reader.justNow'),
           text: comment.text || newCommentText,
           likes: 0,
           liked: false,
@@ -519,7 +488,7 @@ export default function ReaderScreen() {
       })
       .catch((err) => {
         console.error('Add comment error:', err);
-        Alert.alert("Lỗi", err.message || "Không thể gửi bình luận.");
+        Alert.alert(t('common.error'), err.message || t('mobile.reader.commentError'));
       });
   };
 
@@ -534,9 +503,9 @@ export default function ReaderScreen() {
               ...c.replies,
               {
                 id: Date.now().toString(),
-                user: 'Bạn (Reader)',
+                user: t('mobile.reader.readerUser'),
                 initials: 'YO',
-                time: 'Vừa xong',
+                time: t('mobile.reader.justNow'),
                 text: replyText,
                 likes: 0,
                 liked: false,
@@ -684,7 +653,7 @@ export default function ReaderScreen() {
             style={styles.floatingShowUIHint}
           >
             <ChevronDown size={14} color="#ffffff" />
-            <ThemedText style={styles.showUIHintText}>Hiện Menu</ThemedText>
+            <ThemedText style={styles.showUIHintText}>{t('mobile.reader.showMenu')}</ThemedText>
           </Pressable>
         )}
 
@@ -694,16 +663,16 @@ export default function ReaderScreen() {
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
               <ActivityIndicator size="large" color={currentTheme.primary} />
               <ThemedText style={{ color: currentTheme.subText, fontSize: 13 }}>
-                Đang tải trang truyện...
+                {t('mobile.reader.loadingPages')}
               </ThemedText>
             </View>
           ) : error ? (
             <View style={styles.fullscreenErrorWrap}>
               <Sparkles size={36} color="#fb7185" style={{ marginBottom: 12 }} />
-              <ThemedText style={styles.fullscreenErrorTitle}>Không thể tải nội dung</ThemedText>
+              <ThemedText style={styles.fullscreenErrorTitle}>{t('mobile.reader.loadError')}</ThemedText>
               <ThemedText style={styles.fullscreenErrorText}>{error}</ThemedText>
               <Pressable onPress={loadSeriesData} style={styles.fullscreenRetryBtn}>
-                <ThemedText style={styles.fullscreenRetryText}>Thử lại</ThemedText>
+                <ThemedText style={styles.fullscreenRetryText}>{t('mobile.series.retry')}</ThemedText>
               </Pressable>
             </View>
           ) : readingMode === 'scroll' ? (
@@ -740,12 +709,12 @@ export default function ReaderScreen() {
                   <LinearGradient colors={['transparent', 'rgba(10,5,22,0.96)']} style={styles.introOverlay} />
                   <View style={styles.introDetails}>
                     <View style={styles.badgeWrap}>
-                      <View style={styles.introBadge}><Sparkles size={11} color="#fb7185" /><ThemedText style={styles.introBadgeText}>Immersive</ThemedText></View>
+                      <View style={styles.introBadge}><Sparkles size={11} color="#fb7185" /><ThemedText style={styles.introBadgeText}>{t('mobile.reader.immersive')}</ThemedText></View>
                       <View style={styles.introBadge}><MoonStar size={11} color="#a855f7" /><ThemedText style={styles.introBadgeText}>{series.mood}</ThemedText></View>
                     </View>
                     <ThemedText style={styles.introTitle}>{series.title}</ThemedText>
                     <ThemedText style={styles.introMeta}>
-                      Tác giả: {series.author} • {series.genre} • Xuất bản: {series.publishedDate}
+                      {t('mobile.reader.authorMeta', { author: series.author, genre: series.genre, date: series.publishedDate })}
                     </ThemedText>
                   </View>
                 </ImageBackground>
@@ -757,7 +726,7 @@ export default function ReaderScreen() {
                   <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
                     <BookOpen size={48} color={currentTheme.subText} style={{ marginBottom: 12, opacity: 0.5 }} />
                     <ThemedText style={{ color: currentTheme.subText, fontSize: 14, textAlign: 'center' }}>
-                      Chương này chưa có trang truyện nào.
+                      {t('mobile.reader.noPages')}
                     </ThemedText>
                   </View>
                 ) : (
@@ -786,8 +755,8 @@ export default function ReaderScreen() {
                 {/* Five star rating widget */}
                 <LinearGradient colors={[currentTheme.cardBg, 'rgba(39,29,74,0.1)']} style={[styles.ratingCard, { borderColor: currentTheme.cardBorder }]}>
                   <View style={styles.ratingCardHeader}>
-                    <ThemedText style={[styles.ratingCardTitle, { color: currentTheme.text }]}>Đánh giá chương truyện</ThemedText>
-                    <ThemedText style={[styles.ratingCount, { color: currentTheme.subText }]}>{series.rating} ({series.ratingCount} lượt)</ThemedText>
+                    <ThemedText style={[styles.ratingCardTitle, { color: currentTheme.text }]}>{t('mobile.reader.rateChapter')}</ThemedText>
+                    <ThemedText style={[styles.ratingCount, { color: currentTheme.subText }]}>{t('mobile.reader.ratingCount', { rating: series.rating, count: series.ratingCount })}</ThemedText>
                   </View>
                   <View style={styles.starRow}>
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -797,36 +766,22 @@ export default function ReaderScreen() {
                     ))}
                   </View>
                   {userRating > 0 && (
-                    <ThemedText style={styles.userRatingMessage}>Cảm ơn bạn đã chấm {userRating} sao!</ThemedText>
+                    <ThemedText style={styles.userRatingMessage}>{t('mobile.reader.ratingThanks', { count: userRating })}</ThemedText>
                   )}
-                </LinearGradient>
-
-                {/* Vote widget */}
-                <LinearGradient colors={[currentTheme.cardBg, 'rgba(39,29,74,0.1)']} style={[styles.voteCard, { borderColor: currentTheme.cardBorder }]}>
-                  <View>
-                    <ThemedText style={[styles.voteTitle, { color: currentTheme.text }]}>Bầu chọn cho tác phẩm</ThemedText>
-                    <ThemedText style={[styles.voteCount, { color: currentTheme.subText }]}>{voteCount.toLocaleString()} lượt bầu</ThemedText>
-                  </View>
-                  <Pressable onPress={handleVote} style={[styles.voteButton, voted && styles.voteButtonActive]}>
-                    <Heart size={16} color={voted ? '#fff' : '#fb7185'} fill={voted ? '#fff' : 'none'} />
-                    <ThemedText style={[styles.voteButtonText, voted && { color: '#fff' }]}>
-                      {voted ? 'Đã Bầu!' : 'Bầu Chọn'}
-                    </ThemedText>
-                  </Pressable>
                 </LinearGradient>
 
                 {/* Next chapter CTA */}
                 <View style={[styles.nextChapterCard, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder }]}>
                   <ThemedText style={styles.nextText}>
-                    {activeChapterIndex < chapters.length - 1 ? `HẾT ${series.chapter.toUpperCase()}` : 'BẠN ĐÃ ĐỌC HẾT CÁC CHƯƠNG'}
+                    {activeChapterIndex < chapters.length - 1 ? t('mobile.reader.endChapter', { chapter: series.chapter.toUpperCase() }) : t('mobile.reader.readAll')}
                   </ThemedText>
                   <ThemedText style={[styles.nextSub, { color: currentTheme.subText }]}>
-                    {activeChapterIndex < chapters.length - 1 ? 'Nhấn nút để sang chương kế tiếp ngay.' : 'Cảm ơn bạn đã đồng hành cùng bộ truyện này!'}
+                    {activeChapterIndex < chapters.length - 1 ? t('mobile.reader.nextHint') : t('mobile.reader.readAllThanks')}
                   </ThemedText>
                   {activeChapterIndex < chapters.length - 1 && (
                     <Pressable onPress={handleNextChapter} style={styles.nextBtn}>
                       <ChevronUp size={16} color="#0a051d" />
-                      <ThemedText style={styles.nextBtnText}>Lên Chapter Kế</ThemedText>
+                      <ThemedText style={styles.nextBtnText}>{t('mobile.reader.nextChapter')}</ThemedText>
                     </Pressable>
                   )}
                 </View>
@@ -842,7 +797,7 @@ export default function ReaderScreen() {
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                     <BookOpen size={48} color={currentTheme.subText} style={{ marginBottom: 12, opacity: 0.5 }} />
                     <ThemedText style={{ color: currentTheme.subText, fontSize: 14, textAlign: 'center' }}>
-                      Chương này chưa có trang truyện nào.
+                      {t('mobile.reader.noPages')}
                     </ThemedText>
                   </View>
                 ) : (
@@ -890,7 +845,7 @@ export default function ReaderScreen() {
 
                     <View style={styles.cinemaPagerBadge}>
                       <ThemedText style={styles.cinemaPageText}>
-                        Trang {currentPage + 1} / {pages.length}
+                        {t('mobile.reader.page', { current: currentPage + 1, total: pages.length })}
                       </ThemedText>
                     </View>
                   </>
@@ -944,7 +899,7 @@ export default function ReaderScreen() {
               <View style={[styles.drawerHeader, { borderBottomColor: currentTheme.cardBorder }]}>
                 <View style={styles.drawerHeaderTitle}>
                   <MessageCircle size={18} color="#fb7185" />
-                  <ThemedText style={[styles.drawerHeaderTitleText, { color: currentTheme.text }]}>Phòng Trò Chuyện ({comments.length})</ThemedText>
+                  <ThemedText style={[styles.drawerHeaderTitleText, { color: currentTheme.text }]}>{t('mobile.reader.commentsTitle', { count: comments.length })}</ThemedText>
                 </View>
                 <Pressable onPress={() => setShowCommentsTray(false)} style={styles.drawerCloseBtn}>
                   <X size={18} color={currentTheme.text} />
@@ -975,7 +930,7 @@ export default function ReaderScreen() {
                           >
                             <ThumbsUp size={11} color={comment.liked ? '#fb7185' : '#94a3b8'} fill={comment.liked ? '#fb7185' : 'none'} />
                             <ThemedText style={[styles.commentActionText, comment.liked && { color: '#fb7185' }]}>
-                              {comment.likes} Thích
+                              {comment.likes} {t('mobile.reader.likes')}
                             </ThemedText>
                           </Pressable>
 
@@ -983,7 +938,7 @@ export default function ReaderScreen() {
                             onPress={() => setReplyingToId(replyingToId === comment.id ? null : comment.id)}
                             style={styles.commentActionBtn}
                           >
-                            <ThemedText style={styles.commentActionText}>Trả Lời</ThemedText>
+                            <ThemedText style={styles.commentActionText}>{t('mobile.reader.reply')}</ThemedText>
                           </Pressable>
                         </View>
 
@@ -991,7 +946,7 @@ export default function ReaderScreen() {
                         {replyingToId === comment.id && (
                           <View style={styles.replyBoxForm}>
                             <TextInput
-                              placeholder={`Trả lời ${comment.user}...`}
+                              placeholder={t('mobile.reader.replyPlaceholder', { name: comment.user })}
                               placeholderTextColor="#94a3b8"
                               style={[styles.trayWebInput, { backgroundColor: currentTheme.inputBg, color: currentTheme.text }]}
                               value={replyText}
@@ -1022,7 +977,7 @@ export default function ReaderScreen() {
                             >
                               <ThumbsUp size={10} color={reply.liked ? '#fb7185' : '#94a3b8'} fill={reply.liked ? '#fb7185' : 'none'} />
                               <ThemedText style={[styles.commentActionText, reply.liked && { color: '#fb7185' }]}>
-                                {reply.likes} Thích
+                                {reply.likes} {t('mobile.reader.likes')}
                               </ThemedText>
                             </Pressable>
                           </View>
@@ -1037,7 +992,7 @@ export default function ReaderScreen() {
               <View style={[styles.newCommentFooter, { paddingBottom: insets.bottom + 12, borderTopColor: currentTheme.cardBorder }]}>
                 <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']} style={[styles.inputWrap, { borderColor: currentTheme.cardBorder }]}>
                   <TextInput
-                    placeholder="Chia sẻ suy nghĩ của bạn..."
+                    placeholder={t('mobile.reader.commentPlaceholder')}
                     placeholderTextColor="#a5b4fc"
                     style={[styles.commentWebInput, { color: currentTheme.text }]}
                     value={newCommentText}
@@ -1061,7 +1016,7 @@ export default function ReaderScreen() {
               <View style={[styles.drawerHeader, { borderBottomColor: currentTheme.cardBorder }]}>
                 <View style={styles.drawerHeaderTitle}>
                   <Sliders size={18} color="#fb7185" />
-                  <ThemedText style={[styles.drawerHeaderTitleText, { color: currentTheme.text }]}>Cài đặt trải nghiệm</ThemedText>
+                  <ThemedText style={[styles.drawerHeaderTitleText, { color: currentTheme.text }]}>{t('mobile.reader.experienceSettings')}</ThemedText>
                 </View>
                 <Pressable onPress={() => setShowSettings(false)} style={styles.drawerCloseBtn}>
                   <X size={18} color={currentTheme.text} />
@@ -1072,12 +1027,12 @@ export default function ReaderScreen() {
               <ScrollView style={styles.settingsContentScroll} showsVerticalScrollIndicator={false}>
                 {/* Background Themes */}
                 <View style={styles.settingGroup}>
-                  <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>GIAO DIỆN PHÔNG NỀN</ThemedText>
+                  <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>{t('mobile.reader.backgroundTheme')}</ThemedText>
                   <View style={styles.themeSelectorRow}>
                     {[
-                      { key: 'light', label: 'Sáng', dot: '#ffffff' },
+                      { key: 'light', label: t('mobile.reader.light'), dot: '#ffffff' },
                       { key: 'sepia', label: 'Sepia', dot: '#f4ece1' },
-                      { key: 'dark', label: 'Tối', dot: '#07020d' },
+                      { key: 'dark', label: t('mobile.reader.dark'), dot: '#07020d' },
                       { key: 'cinema', label: 'Cinema', dot: '#000000' },
                     ].map((themeOption) => {
                       const active = bgTheme === themeOption.key;
@@ -1101,7 +1056,7 @@ export default function ReaderScreen() {
                 {/* Brightness Presets Slider */}
                 <View style={styles.settingGroup}>
                   <View style={styles.settingHeaderRow}>
-                    <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>ĐỘ SÁNG MÀN HÌNH (DỊU MẮT)</ThemedText>
+                    <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>{t('mobile.reader.brightness')}</ThemedText>
                     <ThemedText style={[styles.settingValueText, { color: currentTheme.text }]}>{brightnessLevel}%</ThemedText>
                   </View>
                   <View style={styles.brightnessPresetsRow}>
@@ -1128,7 +1083,7 @@ export default function ReaderScreen() {
 
                 {/* Reading Mode */}
                 <View style={styles.settingGroup}>
-                  <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>CHẾ ĐỘ ĐỌC TRUYỆN</ThemedText>
+                  <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>{t('mobile.reader.readingMode')}</ThemedText>
                   <View style={styles.modeSelectorRow}>
                     <Pressable
                       onPress={() => {
@@ -1142,7 +1097,7 @@ export default function ReaderScreen() {
                     >
                       <BookOpen size={16} color={readingMode === 'scroll' ? '#0a051d' : currentTheme.text} />
                       <ThemedText style={[styles.modeOptionText, { color: readingMode === 'scroll' ? '#0a051d' : currentTheme.text }]}>
-                        Cuộn Dọc
+                        {t('mobile.reader.verticalScroll')}
                       </ThemedText>
                     </Pressable>
 
@@ -1158,7 +1113,7 @@ export default function ReaderScreen() {
                     >
                       <PanelTop size={16} color={readingMode === 'cinema' ? '#0a051d' : currentTheme.text} />
                       <ThemedText style={[styles.modeOptionText, { color: readingMode === 'cinema' ? '#0a051d' : currentTheme.text }]}>
-                        Cinema Ngang
+                        {t('mobile.reader.horizontalCinema')}
                       </ThemedText>
                     </Pressable>
                   </View>
@@ -1170,7 +1125,7 @@ export default function ReaderScreen() {
                     <View style={styles.settingHeaderRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Activity size={14} color="#fb7185" />
-                        <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>TỰ ĐỘNG CUỘN KHÔNG CHẠM</ThemedText>
+                        <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>{t('mobile.reader.autoScroll')}</ThemedText>
                       </View>
                       <Pressable
                         onPress={() => setAutoScroll(!autoScroll)}
@@ -1179,13 +1134,13 @@ export default function ReaderScreen() {
                           autoScroll && { backgroundColor: '#22c55e' }
                         ]}
                       >
-                        <ThemedText style={styles.autoScrollToggleText}>{autoScroll ? 'Đang bật' : 'Đang tắt'}</ThemedText>
+                        <ThemedText style={styles.autoScrollToggleText}>{autoScroll ? t('mobile.reader.autoOn') : t('mobile.reader.autoOff')}</ThemedText>
                       </Pressable>
                     </View>
 
                     {autoScroll && (
                       <View style={styles.speedControlRow}>
-                        <ThemedText style={[styles.speedLabel, { color: currentTheme.subText }]}>Tốc độ cuộn:</ThemedText>
+                        <ThemedText style={[styles.speedLabel, { color: currentTheme.subText }]}>{t('mobile.reader.scrollSpeed')}</ThemedText>
                         <View style={styles.speedOptionsGrid}>
                           {[1, 2, 3, 4, 5].map((speed) => {
                             const active = scrollSpeed === speed;
@@ -1252,12 +1207,6 @@ const styles = StyleSheet.create({
   starRow: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
   starPressable: { padding: 4 },
   userRatingMessage: { color: '#fbbf24', fontSize: 12, textAlign: 'center', fontWeight: '700' },
-  voteCard: { borderRadius: 20, padding: 16, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  voteTitle: { fontSize: 14, fontWeight: '800' },
-  voteCount: { fontSize: 12 },
-  voteButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(244,63,94,0.1)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(244,63,94,0.3)' },
-  voteButtonActive: { backgroundColor: '#f43f5e', borderColor: '#f43f5e' },
-  voteButtonText: { color: '#fb7185', fontWeight: '800', fontSize: 12 },
   nextChapterCard: { borderRadius: 20, padding: 20, borderWidth: 1, alignItems: 'center', gap: 8 },
   nextText: { color: '#fb7185', fontWeight: '900', letterSpacing: 1.5, fontSize: 12 },
   nextSub: { fontSize: 11, textAlign: 'center' },
