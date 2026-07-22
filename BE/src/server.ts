@@ -9,14 +9,14 @@ async function start() {
   // Connect to MongoDB
   await connectDB();
 
-  // Start scheduled chapter publisher background worker
-  startScheduler();
-
   // Create HTTP server
   const server = http.createServer(app);
 
   // Initialize Socket.io
   initSocket(server);
+
+  // Start publisher after Socket.io so due-publication notifications are realtime.
+  startScheduler();
 
   // Start server
   server.listen(env.PORT, env.HOST, () => {

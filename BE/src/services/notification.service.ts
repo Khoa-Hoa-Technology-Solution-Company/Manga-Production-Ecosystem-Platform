@@ -213,6 +213,39 @@ export async function notifySeriesPublished(
   }
 }
 
+export async function notifySeriesScheduled(
+  mangakaId: string,
+  editorId: string | undefined,
+  seriesTitle: string,
+  seriesId: string,
+  schedule: 'weekly' | 'monthly',
+  startAt: Date
+): Promise<void> {
+  const cadence = schedule === 'weekly' ? 'weekly' : 'monthly';
+  const formattedStart = startAt.toLocaleString('en-GB', { timeZone: 'UTC', timeZoneName: 'short' });
+  await createNotification({
+    userId: mangakaId,
+    type: 'system',
+    title: 'Series Publication Scheduled',
+    message: `Editorial Board approved "${seriesTitle}". Publication starts ${formattedStart} and repeats ${cadence}.`,
+    relatedId: seriesId,
+    relatedType: 'Series',
+    target: 'mangaka_series',
+  });
+
+  if (editorId) {
+    await createNotification({
+      userId: editorId,
+      type: 'system',
+      title: 'Series Publication Scheduled',
+      message: `"${seriesTitle}" is scheduled to start ${formattedStart} and publish ${cadence}.`,
+      relatedId: seriesId,
+      relatedType: 'Series',
+      target: 'editor_portfolio',
+    });
+  }
+}
+
 export async function notifySeriesEBRejected(
   mangakaId: string,
   seriesTitle: string,

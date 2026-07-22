@@ -10,6 +10,7 @@ import { DEFAULT_CRITERIA } from './rubric-template.controller';
 import {
   notifySeriesPublished,
   notifySeriesEBRejected,
+  notifySeriesScheduled,
   createNotification,
   notifyNewSeriesToSubscribers,
 } from '../services/notification.service';
@@ -324,7 +325,7 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       return;
     }
     const seriesId = String(req.params.seriesId);
-    const { publicationSchedule, comments } = req.body;
+    const { publicationMode, publicationSchedule, publicationStartAt, comments } = req.body;
 
     const series = await Series.findById(seriesId);
     if (!series) {
@@ -374,10 +375,29 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
     const mangakaId = series.mangakaId.toString();
     const editorId = series.editorId?.toString();
 
-    const normalizedSchedule = publicationSchedule ? String(publicationSchedule).toLowerCase() : 'weekly';
-    if (!['weekly', 'monthly'].includes(normalizedSchedule)) {
-      res.status(400).json({ error: 'Publication schedule must be "weekly" or "monthly".' });
-      return;
+    const normalizedMode = publicationMode ? String(publicationMode).toLowerCase() : 'immediate';
+    const normalizedSchedule = publicationSchedule ? String(publicationSchedule).toLowerCase() : undefined;
+    let scheduledStart: Date | undefined;
+    if (finalDecision === 'approved') {
+      if (!['immediate', 'scheduled'].includes(normalizedMode)) {
+        res.status(400).json({ error: 'Publication mode must be "immediate" or "scheduled".' });
+        return;
+      }
+      if (normalizedMode === 'scheduled') {
+        if (!normalizedSchedule || !['weekly', 'monthly'].includes(normalizedSchedule)) {
+          res.status(400).json({ error: 'Scheduled publication must be weekly or monthly.' });
+          return;
+        }
+        scheduledStart = new Date(publicationStartAt);
+        if (!publicationStartAt || Number.isNaN(scheduledStart.getTime())) {
+          res.status(400).json({ error: 'A valid publication start date is required.' });
+          return;
+        }
+        if (scheduledStart.getTime() <= Date.now()) {
+          res.status(400).json({ error: 'Publication start date must be in the future.' });
+          return;
+        }
+      }
     }
 
     const updatedSeries = await finalizeSeriesByEditorialBoard(
@@ -385,14 +405,28 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       finalDecision,
       req.user!,
       comments,
-      normalizedSchedule as 'weekly' | 'monthly'
+      {
+        mode: normalizedMode as 'immediate' | 'scheduled',
+        schedule: normalizedSchedule as 'weekly' | 'monthly' | undefined,
+        startAt: scheduledStart,
+      }
     );
 
     if (finalDecision === 'approved') {
-
       try {
-        await notifySeriesPublished(mangakaId, editorId, series.title, series._id.toString());
-        await notifyNewSeriesToSubscribers(series._id.toString(), series.title);
+        if (normalizedMode === 'scheduled' && scheduledStart && normalizedSchedule) {
+          await notifySeriesScheduled(
+            mangakaId,
+            editorId,
+            series.title,
+            series._id.toString(),
+            normalizedSchedule as 'weekly' | 'monthly',
+            scheduledStart
+          );
+        } else {
+          await notifySeriesPublished(mangakaId, editorId, series.title, series._id.toString());
+          await notifyNewSeriesToSubscribers(series._id.toString(), series.title);
+        }
       } catch (err) {
         console.error('Failed to send publish notification:', err);
       }
@@ -404,7 +438,74 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       }
     }
 
-    res.json({ series: updatedSeries, message: `Series ${finalDecision} by participant majority (${votesFor} for vs ${votesAgainst} against).` });
+    const publicationMessage = finalDecision === 'approved'
+      ? normalizedMode === 'scheduled'
+        ? ` Publication starts on ${scheduledStart!.toISOString()} (${normalizedSchedule}).`
+        : ' The launch chapter was published immediately.'
+      : '';
+    res.json({
+      series: updatedSeries,
+      message: `Series ${finalDecision} by participant majority (${votesFor} for vs ${votesAgainst} against).${publicationMessage}`,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * PATCH /api/eb/schedule/:seriesId
+ * Change the cadence for an already active series. The next approved chapter
+ * is placed on the next cadence slot; this does not reopen EB review.
+ */
+export async function updatePublicationSchedule(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can change publication schedules.' });
+      return;
+    }
+    const schedule = String(req.body.publicationSchedule || '').toLowerCase();
+    if (!['weekly', 'monthly'].includes(schedule)) {
+      res.status(400).json({ error: 'Publication schedule must be weekly or monthly.' });
+      return;
+    }
+    const series = await Series.findById(req.params.seriesId);
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+    if (series.status !== 'Active') {
+      res.status(400).json({ error: 'Only active series can have their publication schedule changed.' });
+      return;
+    }
+
+    const nextPublicationAt = new Date();
+    if (schedule === 'weekly') nextPublicationAt.setUTCDate(nextPublicationAt.getUTCDate() + 7);
+    else nextPublicationAt.setUTCMonth(nextPublicationAt.getUTCMonth() + 1);
+
+    series.publicationMode = 'scheduled';
+    series.publicationSchedule = schedule as 'weekly' | 'monthly';
+    series.publicationStartAt = nextPublicationAt;
+    series.nextPublicationAt = nextPublicationAt;
+    const nextChapter = await Chapter.findOne({ seriesId: series._id, status: 'Approved' }).sort({ chapterNumber: 1 });
+    if (nextChapter) {
+      nextChapter.scheduledPublishAt = nextPublicationAt;
+      await nextChapter.save();
+    }
+    await series.save();
+
+    try {
+      await notifySeriesScheduled(
+        series.mangakaId.toString(),
+        series.editorId?.toString(),
+        series.title,
+        series._id.toString(),
+        schedule as 'weekly' | 'monthly',
+        nextPublicationAt
+      );
+    } catch (notificationError) {
+      console.error('Failed to notify about updated publication schedule:', notificationError);
+    }
+    res.json({ series, message: `Publication schedule changed to ${schedule}.` });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

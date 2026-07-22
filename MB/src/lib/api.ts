@@ -417,7 +417,13 @@ export const ebAPI = {
   getDashboard: () => apiFetch<{ dashboard: any }>('/eb/dashboard'),
   castVote: (seriesId: string, data: { decision: string; comments?: string; rubric?: Record<string, number> }) =>
     apiFetch(`/eb/vote/${seriesId}`, { method: 'POST', body: data }),
-  makeFinalDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
+  makeFinalDecision: (seriesId: string, data: {
+    decision: string;
+    publicationMode?: 'immediate' | 'scheduled';
+    publicationSchedule?: 'weekly' | 'monthly';
+    publicationStartAt?: string;
+    comments?: string;
+  }) =>
     apiFetch(`/eb/decision/${seriesId}`, { method: 'PATCH', body: data }),
   inputReaderVotes: (seriesId: string, data: { weeklyVotes: number }) =>
     apiFetch(`/eb/reader-votes/${seriesId}`, { method: 'POST', body: data }),

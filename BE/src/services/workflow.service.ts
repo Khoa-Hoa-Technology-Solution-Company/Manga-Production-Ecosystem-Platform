@@ -71,7 +71,22 @@ export async function transitionChapterStatus(
   if (newStatus === 'Published') {
     if (!isAssignedEditor) throw new Error('Only the assigned Tantou Editor can publish an approved chapter.');
     if (series.status !== 'Active') throw new Error('A chapter can only be published after the series becomes Active.');
+    if (series.publicationMode === 'scheduled') {
+      throw new Error('This series uses automatic scheduled publication. The chapter will publish at the next available slot.');
+    }
     chapter.publishedAt = new Date();
+  }
+
+  if (newStatus === 'Approved' && series.publicationMode === 'scheduled' && series.nextPublicationAt) {
+    const alreadyScheduled = await Chapter.exists({
+      _id: { $ne: chapter._id },
+      seriesId: series._id,
+      status: 'Approved',
+      scheduledPublishAt: { $exists: true },
+    });
+    if (!alreadyScheduled) chapter.scheduledPublishAt = series.nextPublicationAt;
+  } else if (currentStatus === 'Approved' && newStatus !== 'Published') {
+    chapter.scheduledPublishAt = undefined;
   }
 
   chapter.status = newStatus;

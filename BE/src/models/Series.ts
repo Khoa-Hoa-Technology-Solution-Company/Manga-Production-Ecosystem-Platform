@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { SERIES_TAG_OPTIONS } from '../constants/series-tags';
 
 export interface IDedicatedAssistant {
   userId: mongoose.Types.ObjectId;
@@ -16,6 +17,7 @@ export interface ISeries extends Document {
   title: string;
   description: string;
   genre: string[];
+  tags?: string[];
   coverImage?: string;
   mangakaId: mongoose.Types.ObjectId;
   editorId?: mongoose.Types.ObjectId;
@@ -27,7 +29,13 @@ export interface ISeries extends Document {
   readerCount: number;
   averageRating: number;
   ratingCount: number;
+  publicationMode?: 'immediate' | 'scheduled';
   publicationSchedule?: 'weekly' | 'monthly';
+  publicationStartAt?: Date;
+  nextPublicationAt?: Date;
+  publicationStartedAt?: Date;
+  lastPublishedAt?: Date;
+  publicationApprovedBy?: mongoose.Types.ObjectId;
   cancellationRisk: boolean;
   deadline?: Date;
   editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none';
@@ -49,6 +57,7 @@ const seriesSchema = new Schema<ISeries>(
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
     genre: [{ type: String, required: true }],
+    tags: [{ type: String, enum: SERIES_TAG_OPTIONS }],
     coverImage: { type: String },
     mangakaId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     editorId: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -60,7 +69,13 @@ const seriesSchema = new Schema<ISeries>(
     readerCount: { type: Number, default: 0 },
     averageRating: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
+    publicationMode: { type: String, enum: ['immediate', 'scheduled'] },
     publicationSchedule: { type: String, enum: ['weekly', 'monthly'] },
+    publicationStartAt: { type: Date },
+    nextPublicationAt: { type: Date },
+    publicationStartedAt: { type: Date },
+    lastPublishedAt: { type: Date },
+    publicationApprovedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     cancellationRisk: { type: Boolean, default: false },
     deadline: { type: Date },
     editorStatus: { type: String, enum: ['pending', 'accepted', 'rejected', 'none'], default: 'none' },
@@ -92,5 +107,6 @@ const seriesSchema = new Schema<ISeries>(
 seriesSchema.index({ mangakaId: 1 });
 seriesSchema.index({ status: 1 });
 seriesSchema.index({ weeklyVotes: -1 });
+seriesSchema.index({ publicationMode: 1, nextPublicationAt: 1 });
 
 export const Series = mongoose.model<ISeries>('Series', seriesSchema);

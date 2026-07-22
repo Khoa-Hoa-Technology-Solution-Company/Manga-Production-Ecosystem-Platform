@@ -91,6 +91,30 @@ function EditorialBoardScreen() {
     .finally(() => setSubmitting(false));
   };
 
+  const submitFinalDecision = (seriesId: string, mode: 'immediate' | 'scheduled', schedule?: 'weekly' | 'monthly') => {
+    const startAt = new Date();
+    if (mode === 'scheduled') {
+      if (schedule === 'weekly') startAt.setDate(startAt.getDate() + 7);
+      else startAt.setMonth(startAt.getMonth() + 1);
+    }
+    ebAPI.makeFinalDecision(seriesId, {
+      decision: 'approved',
+      publicationMode: mode,
+      publicationSchedule: schedule,
+      publicationStartAt: mode === 'scheduled' ? startAt.toISOString() : undefined,
+    })
+      .then(() => {
+        Alert.alert(
+          mode === 'scheduled' ? 'Đã lên lịch' : 'Đã xuất bản',
+          mode === 'scheduled'
+            ? `Bắt đầu ${schedule === 'weekly' ? 'hàng tuần' : 'hàng tháng'} vào ${startAt.toLocaleString()}.`
+            : 'Series đã Active và chapter được duyệt đầu tiên đã được xuất bản.'
+        );
+        loadPending();
+      })
+      .catch(err => Alert.alert('Lỗi', err.message));
+  };
+
   const handleFinalDecision = (seriesId: string) => {
     Alert.alert(
       t('mobile.board.finalTitle'),
@@ -102,6 +126,16 @@ function EditorialBoardScreen() {
             .then(() => loadPending())
             .catch(err => Alert.alert(t('common.error'), err.message));
         }},
+        { text: 'Xuất bản ngay', onPress: () => submitFinalDecision(seriesId, 'immediate') },
+        { text: 'Theo lịch', onPress: () => Alert.alert(
+          'Chu kỳ xuất bản',
+          'Chọn chu kỳ bắt đầu sau lần duyệt này.',
+          [
+            { text: 'Hàng tuần', onPress: () => submitFinalDecision(seriesId, 'scheduled', 'weekly') },
+            { text: 'Hàng tháng', onPress: () => submitFinalDecision(seriesId, 'scheduled', 'monthly') },
+            { text: 'Hủy', style: 'cancel' },
+          ]
+        ) },
         { text: t('mobile.board.publish'), onPress: () => {
           ebAPI.makeFinalDecision(seriesId, { decision: 'approved', publicationSchedule: 'weekly' })
             .then(() => {

@@ -222,7 +222,7 @@ export function MangakaSeriesManagerPage() {
   const handleSaveSeries = async (data: {
     title: string
     description: string
-    genre: string
+    tags: string[]
     coverFile: File | null
     coverUrl: string
     script?: string
@@ -236,11 +236,10 @@ export function MangakaSeriesManagerPage() {
   }) => {
     setSaving(true)
     try {
-      const genreArray = data.genre.split(',').map((g) => g.trim()).filter(Boolean)
       const formData = new FormData()
       formData.append('title', data.title)
       formData.append('description', data.description)
-      formData.append('genre', genreArray.join(', '))
+      formData.append('tags', JSON.stringify(data.tags))
       if (data.coverFile) formData.append('coverImageFile', data.coverFile)
       if (data.coverUrl) formData.append('coverImage', data.coverUrl)
       if (data.script !== undefined) formData.append('script', data.script)

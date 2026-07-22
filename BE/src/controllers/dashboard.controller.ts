@@ -172,7 +172,12 @@ export async function getRankings(req: Request, res: Response): Promise<void> {
     const role = req.user!.role;
 
     let filter: any = { status: { $in: ['Active', 'Completed'] } };
-    if (role === 'mangaka') {
+    if (role === 'reader') {
+      filter.$or = [
+        { publicationMode: { $ne: 'scheduled' } },
+        { publicationStartedAt: { $exists: true, $ne: null } },
+      ];
+    } else if (role === 'mangaka') {
       filter.mangakaId = userId;
     } else if (role === 'editor') {
       filter.editorId = userId;
