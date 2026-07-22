@@ -12,6 +12,7 @@ router.get('/pending', ctrl.getPendingReview);
 router.get('/dashboard', ctrl.getDashboard);
 router.post('/vote/:seriesId', ctrl.castVote);
 router.patch('/decision/:seriesId', ctrl.makeFinalDecision);
+router.patch('/schedule/:seriesId', ctrl.updatePublicationSchedule);
 router.post('/reader-votes/:seriesId', ctrl.inputReaderVotes);
 router.patch('/cancel/:seriesId', ctrl.cancelSeries);
 

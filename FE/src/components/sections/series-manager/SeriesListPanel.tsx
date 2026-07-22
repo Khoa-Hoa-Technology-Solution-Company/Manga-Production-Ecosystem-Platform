@@ -24,7 +24,7 @@ export function SeriesListPanel({
     return seriesList.filter((s) => {
       const titleMatch = s.title.toLowerCase().includes(searchQuery.toLowerCase())
       const descMatch = s.description?.toLowerCase().includes(searchQuery.toLowerCase()) || false
-      const genreMatch = toGenreText(s.genre).toLowerCase().includes(searchQuery.toLowerCase())
+      const genreMatch = toGenreText(s.tags?.length ? s.tags : s.genre).toLowerCase().includes(searchQuery.toLowerCase())
       return titleMatch || descMatch || genreMatch
     })
   }, [seriesList, searchQuery])
@@ -163,10 +163,10 @@ export function SeriesListPanel({
                         {series.totalChapters}
                       </span>
                     )}
-                    {series.genre && (
+                    {(series.tags?.length || series.genre) && (
                       <span className="inline-flex items-center gap-0.5 rounded-md bg-neutral-100 px-1.5 py-0.5 text-[9px] text-neutral-600 font-medium border border-neutral-200/30 truncate max-w-[100px]">
                         <Layers3 className="size-2.5" />
-                        {toGenreText(series.genre)}
+                        {toGenreText(series.tags?.length ? series.tags : series.genre)}
                       </span>
                     )}
                   </div>

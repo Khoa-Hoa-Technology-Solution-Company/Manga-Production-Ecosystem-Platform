@@ -11,6 +11,12 @@ export interface WorkflowActor {
   isEbHead?: boolean;
 }
 
+export interface PublicationDecisionOptions {
+  mode: 'immediate' | 'scheduled';
+  schedule?: 'weekly' | 'monthly';
+  startAt?: Date;
+}
+
 async function recordEvent(
   seriesId: string,
   action: string,
@@ -151,7 +157,7 @@ export async function finalizeSeriesByEditorialBoard(
   decision: 'approved' | 'rejected',
   actor: WorkflowActor,
   comments?: string,
-  publicationSchedule: 'weekly' | 'monthly' = 'weekly'
+  publication: PublicationDecisionOptions = { mode: 'immediate' }
 ) {
   if (actor.role !== 'editorial_board' || !actor.isEbHead) {
     throw new Error('Only the Head of the Editorial Board can finalize a series decision.');
@@ -161,6 +167,17 @@ export async function finalizeSeriesByEditorialBoard(
   if (series.status !== 'Pending_EB') throw new Error('Series is not pending Editorial Board review.');
   if (decision === 'rejected' && !comments?.trim()) {
     throw new Error('Editorial Board feedback is required when requesting changes.');
+  }
+  if (decision === 'approved' && publication.mode === 'scheduled') {
+    if (!publication.schedule || !['weekly', 'monthly'].includes(publication.schedule)) {
+      throw new Error('Scheduled publication requires a weekly or monthly cadence.');
+    }
+    if (!publication.startAt || Number.isNaN(publication.startAt.getTime())) {
+      throw new Error('Scheduled publication requires a valid start date.');
+    }
+    if (publication.startAt.getTime() <= Date.now()) {
+      throw new Error('Scheduled publication must start in the future.');
+    }
   }
 
   const existingPublishedChapter = decision === 'approved'
@@ -174,18 +191,39 @@ export async function finalizeSeriesByEditorialBoard(
   }
 
   const fromStatus = series.status;
+  const approvedAt = new Date();
   series.status = decision === 'approved' ? 'Active' : 'Draft';
-  series.publicationSchedule = decision === 'approved' ? publicationSchedule : series.publicationSchedule;
   series.rejectionNotes = decision === 'approved' ? '' : comments!.trim();
+  if (decision === 'approved') {
+    series.publicationMode = publication.mode;
+    series.publicationSchedule = publication.mode === 'scheduled' ? publication.schedule : undefined;
+    series.publicationStartAt = publication.mode === 'scheduled' ? publication.startAt : approvedAt;
+    series.nextPublicationAt = publication.mode === 'scheduled' ? publication.startAt : undefined;
+    series.publicationStartedAt = publication.mode === 'immediate'
+      ? (existingPublishedChapter?.publishedAt || approvedAt)
+      : existingPublishedChapter?.publishedAt;
+    series.lastPublishedAt = publication.mode === 'immediate'
+      ? (existingPublishedChapter?.publishedAt || approvedAt)
+      : existingPublishedChapter?.publishedAt;
+    series.publicationApprovedBy = actor._id as any;
+  }
   await series.save();
-  await recordEvent(seriesId, `eb_${decision}`, fromStatus, series.status, actor, comments);
+  await recordEvent(
+    seriesId,
+    decision === 'approved' ? `eb_approved_${publication.mode}` : 'eb_rejected',
+    fromStatus,
+    series.status,
+    actor,
+    comments
+  );
 
   // Publishing a series must never expose an empty reader page. Publish the
   // earliest approved chapter as the launch chapter; later approved chapters
   // remain scheduled for the Tantou Editor to publish individually.
-  if (launchChapter) {
+  if (launchChapter && publication.mode === 'immediate') {
     launchChapter.status = 'Published';
-    launchChapter.publishedAt = new Date();
+    launchChapter.publishedAt = approvedAt;
+    launchChapter.scheduledPublishAt = undefined;
     await launchChapter.save();
     await WorkflowEvent.create({
       entityType: 'Chapter',
@@ -206,6 +244,9 @@ export async function finalizeSeriesByEditorialBoard(
     } catch (error) {
       console.error('Failed to notify subscribers about the launch chapter:', error);
     }
+  } else if (launchChapter && publication.mode === 'scheduled') {
+    launchChapter.scheduledPublishAt = publication.startAt;
+    await launchChapter.save();
   }
   return series;
 }

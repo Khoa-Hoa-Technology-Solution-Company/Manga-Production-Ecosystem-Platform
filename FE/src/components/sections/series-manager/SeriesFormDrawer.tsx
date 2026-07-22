@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { Upload, X, Plus, Trash2, FileText, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '../../ui'
-import { toGenreText, seriesCoverUrl, type SeriesData } from './utils'
+import { seriesCoverUrl, type SeriesData } from './utils'
 import { uploadAPI } from '../../../lib/api'
+import { SERIES_TAG_OPTIONS, formatSeriesTag, toTagArray } from '../../../constants/seriesTags'
 
 interface SeriesFormDrawerProps {
   isOpen: boolean
@@ -11,7 +12,7 @@ interface SeriesFormDrawerProps {
   onSave: (data: {
     title: string
     description: string
-    genre: string
+    tags: string[]
     coverFile: File | null
     coverUrl: string
     script?: string
@@ -37,7 +38,7 @@ export function SeriesFormDrawer({
   const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [genre, setGenre] = useState('action, fantasy')
+  const [tags, setTags] = useState<string[]>(['action', 'fantasy'])
   const [coverUrlInput, setCoverUrlInput] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -61,7 +62,7 @@ export function SeriesFormDrawer({
       Promise.resolve().then(() => {
         setTitle(initialSeries.title || '')
         setDescription(initialSeries.description || '')
-        setGenre(toGenreText(initialSeries.genre))
+        setTags(toTagArray(initialSeries.tags?.length ? initialSeries.tags : initialSeries.genre))
         setCoverUrlInput(initialSeries.coverImage || '')
         setCoverPreview(seriesCoverUrl(initialSeries.coverImage))
         setCoverFile(null)
@@ -74,7 +75,7 @@ export function SeriesFormDrawer({
       Promise.resolve().then(() => {
         setTitle('')
         setDescription('')
-        setGenre('action, fantasy')
+        setTags(['action', 'fantasy'])
         setCoverUrlInput('')
         setCoverPreview('')
         setCoverFile(null)
@@ -163,10 +164,11 @@ export function SeriesFormDrawer({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !description.trim()) return
+    if (tags.length === 0) return
     await onSave({
       title: title.trim(),
       description: description.trim(),
-      genre: genre.trim(),
+      tags,
       coverFile,
       coverUrl: coverUrlInput.trim(),
       script: script.trim(),
@@ -232,17 +234,32 @@ export function SeriesFormDrawer({
             />
           </div>
 
-          {/* Genres */}
+          {/* Series tags */}
           <div className="space-y-1.5">
-            <label htmlFor="series-genre" className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-              {t('seriesManager.seriesGenres', 'Genres (comma separated)')}
+            <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              {t('seriesManager.seriesGenres', 'Series Tags')}
             </label>
-            <Input
-              id="series-genre"
-              value={genre}
-              onChange={(e) => setGenre(e.target.value)}
-              placeholder="e.g. Action, Fantasy, Adventure"
-            />
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3 sm:grid-cols-3">
+              {SERIES_TAG_OPTIONS.map((tag) => {
+                const selected = tags.includes(tag)
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setTags((current) => selected
+                      ? current.filter((item) => item !== tag)
+                      : [...current, tag])}
+                    className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors ${selected
+                      ? 'border-indigo-500 bg-indigo-600 text-white'
+                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-indigo-300 hover:bg-indigo-50'
+                      }`}
+                  >
+                    {formatSeriesTag(tag)}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[10px] text-neutral-400">Select one or more tags. Custom text is not accepted.</p>
           </div>
 
 

@@ -42,6 +42,7 @@ import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } fr
 import { useAuth } from '../../lib/auth'
 import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI, annotationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
+import { SERIES_TAG_OPTIONS, formatSeriesTag } from '../../constants/seriesTags'
 
 /* ── Types ────────────────────────────────────────────── */
 type ZoneData = {
@@ -249,7 +250,7 @@ function StudioWorkspacePageContent() {
   const [showCreateChapterDialog, setShowCreateChapterDialog] = useState(false)
   const [newSeriesTitle, setNewSeriesTitle] = useState('')
   const [newSeriesDescription, setNewSeriesDescription] = useState('')
-  const [newSeriesGenre, setNewSeriesGenre] = useState('action, fantasy')
+  const [newSeriesTags, setNewSeriesTags] = useState<string[]>(['action', 'fantasy'])
   const [newSeriesCoverImage, setNewSeriesCoverImage] = useState('')
   const [newChapterNumber, setNewChapterNumber] = useState('1')
   const [newChapterTitle, setNewChapterTitle] = useState('Chapter 1')
@@ -2381,24 +2382,19 @@ function StudioWorkspacePageContent() {
   }, [shareUserQuery])
 
   const handleCreateSeries = async () => {
-    if (!newSeriesTitle.trim() || !newSeriesDescription.trim()) return
+    if (!newSeriesTitle.trim() || !newSeriesDescription.trim() || newSeriesTags.length === 0) return
     try {
-      const genre = newSeriesGenre
-        .split(',')
-        .map((g) => g.trim())
-        .filter(Boolean)
-
       const res = await seriesAPI.create({
         title: newSeriesTitle.trim(),
         description: newSeriesDescription.trim(),
-        genre,
+        tags: newSeriesTags,
         coverImage: newSeriesCoverImage.trim() || undefined,
       })
 
       setShowCreateSeriesDialog(false)
       setNewSeriesTitle('')
       setNewSeriesDescription('')
-      setNewSeriesGenre('action, fantasy')
+      setNewSeriesTags(['action', 'fantasy'])
       setNewSeriesCoverImage('')
       await refreshSeriesAndChapters(res.data.series?._id)
     } catch (error) {
@@ -3890,8 +3886,27 @@ function StudioWorkspacePageContent() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">Genres</label>
-              <Input value={newSeriesGenre} onChange={(e) => setNewSeriesGenre(e.target.value)} placeholder="action, fantasy" />
+              <label className="text-xs font-medium text-neutral-700 mb-1 block">Series tags</label>
+              <div className="flex flex-wrap gap-2">
+                {SERIES_TAG_OPTIONS.map((tag) => {
+                  const selected = newSeriesTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNewSeriesTags((current) => selected
+                        ? current.filter((item) => item !== tag)
+                        : [...current, tag])}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${selected
+                        ? 'border-neutral-950 bg-neutral-950 text-white'
+                        : 'border-neutral-200 bg-neutral-50 text-neutral-600 hover:border-neutral-400'}`}
+                    >
+                      {formatSeriesTag(tag)}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1 text-[10px] text-neutral-400">Select one or more tags from the list.</p>
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-700 mb-1 block">Cover image URL</label>

@@ -11,6 +11,7 @@ import { seriesAPI, chaptersAPI, authAPI, getImageUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { withProtectedMangakaRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
+import { SERIES_TAG_OPTIONS, formatSeriesTag } from '@/constants/series-tags';
 import { useTheme } from '@/hooks/use-theme';
 
 function ManageScreen() {
@@ -32,7 +33,7 @@ function ManageScreen() {
   const [editingSeries, setEditingSeries] = useState<any>(null);
   const [seriesTitle, setSeriesTitle] = useState('');
   const [seriesDescription, setSeriesDescription] = useState('');
-  const [seriesGenre, setSeriesGenre] = useState('');
+  const [seriesTags, setSeriesTags] = useState<string[]>(['action', 'fantasy']);
   const [seriesCoverUrl, setSeriesCoverUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -97,13 +98,18 @@ function ManageScreen() {
       setEditingSeries(series);
       setSeriesTitle(series.title || '');
       setSeriesDescription(series.description || '');
-      setSeriesGenre(Array.isArray(series.genre) ? series.genre.join(', ') : series.genre || '');
+      const existingTags = Array.isArray(series.tags) && series.tags.length > 0
+        ? series.tags
+        : Array.isArray(series.genre)
+          ? series.genre
+          : typeof series.genre === 'string' ? series.genre.split(',') : [];
+      setSeriesTags(existingTags.map((tag: string) => tag.toLowerCase().trim()).filter(Boolean));
       setSeriesCoverUrl(series.coverImage || '');
     } else {
       setEditingSeries(null);
       setSeriesTitle('');
       setSeriesDescription('');
-      setSeriesGenre('');
+      setSeriesTags(['action', 'fantasy']);
       setSeriesCoverUrl('');
     }
     setShowSeriesForm(true);
@@ -111,12 +117,13 @@ function ManageScreen() {
 
   const saveSeries = async () => {
     if (!seriesTitle.trim()) return Alert.alert('Lỗi', 'Vui lòng nhập tên truyện');
+    if (seriesTags.length === 0) return Alert.alert('Lỗi', 'Vui lòng chọn ít nhất một tag');
     setSaving(true);
     try {
       const data = {
         title: seriesTitle,
         description: seriesDescription,
-        genre: seriesGenre,
+        tags: seriesTags,
         coverImage: seriesCoverUrl,
       };
       if (editingSeries) {
@@ -535,9 +542,11 @@ function ManageScreen() {
                     <ThemedText style={styles.metaText}>{series.status}</ThemedText>
                   </View>
                   <View style={styles.actionRow}>
-                    <Pressable style={styles.actionBtn} onPress={() => deleteSeries(series._id)}>
-                      <Trash2 size={14} color="#ef4444" />
-                    </Pressable>
+                    {series.status === 'Draft' && (
+                      <Pressable style={styles.actionBtn} onPress={() => deleteSeries(series._id)}>
+                        <Trash2 size={14} color="#ef4444" />
+                      </Pressable>
+                    )}
                     <View style={styles.actionBtnSecondary}>
                       <ThemedText style={styles.actionBtnText}>Quản lý chi tiết</ThemedText>
                     </View>
@@ -565,8 +574,26 @@ function ManageScreen() {
               <ThemedText style={styles.inputLabel}>Mô tả</ThemedText>
               <TextInput style={[styles.input, { height: 100, textAlignVertical: 'top' }]} multiline value={seriesDescription} onChangeText={setSeriesDescription} placeholderTextColor="#64748b" placeholder="Nội dung chính..." />
 
-              <ThemedText style={styles.inputLabel}>Thể loại (cách nhau dấu phẩy)</ThemedText>
-              <TextInput style={styles.input} value={seriesGenre} onChangeText={setSeriesGenre} placeholderTextColor="#64748b" placeholder="Action, Fantasy..." />
+              <ThemedText style={styles.inputLabel}>Tags truyện</ThemedText>
+              <View style={styles.tagGrid}>
+                {SERIES_TAG_OPTIONS.map((tag) => {
+                  const selected = seriesTags.includes(tag);
+                  return (
+                    <Pressable
+                      key={tag}
+                      style={[styles.tagChip, selected && styles.tagChipSelected]}
+                      onPress={() => setSeriesTags((current) => selected
+                        ? current.filter((item) => item !== tag)
+                        : [...current, tag])}
+                    >
+                      <ThemedText style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>
+                        {formatSeriesTag(tag)}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <ThemedText style={styles.tagHint}>Chọn một hoặc nhiều tag có sẵn.</ThemedText>
 
               <ThemedText style={styles.inputLabel}>Ảnh bìa (URL)</ThemedText>
               <TextInput style={styles.input} value={seriesCoverUrl} onChangeText={setSeriesCoverUrl} placeholderTextColor="#64748b" placeholder="https://..." />
@@ -667,6 +694,12 @@ const styles = StyleSheet.create({
   
   inputLabel: { color: '#cbd5e1', fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 16 },
   input: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, color: '#fff', fontSize: 15 },
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.05)' },
+  tagChipSelected: { borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.2)' },
+  tagChipText: { color: '#cbd5e1', fontSize: 12 },
+  tagChipTextSelected: { color: '#fff', fontWeight: '700' },
+  tagHint: { color: '#94a3b8', fontSize: 11, marginTop: 8 },
   coverPreview: { width: '100%', height: 150, borderRadius: 12, marginTop: 10 },
   
   primaryBtn: { backgroundColor: '#fb7185', padding: 16, borderRadius: 12, alignItems: 'center' },

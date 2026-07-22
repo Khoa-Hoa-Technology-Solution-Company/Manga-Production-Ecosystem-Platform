@@ -89,10 +89,34 @@ function EditorialBoardScreen() {
     .finally(() => setSubmitting(false));
   };
 
+  const submitFinalDecision = (seriesId: string, mode: 'immediate' | 'scheduled', schedule?: 'weekly' | 'monthly') => {
+    const startAt = new Date();
+    if (mode === 'scheduled') {
+      if (schedule === 'weekly') startAt.setDate(startAt.getDate() + 7);
+      else startAt.setMonth(startAt.getMonth() + 1);
+    }
+    ebAPI.makeFinalDecision(seriesId, {
+      decision: 'approved',
+      publicationMode: mode,
+      publicationSchedule: schedule,
+      publicationStartAt: mode === 'scheduled' ? startAt.toISOString() : undefined,
+    })
+      .then(() => {
+        Alert.alert(
+          mode === 'scheduled' ? 'Đã lên lịch' : 'Đã xuất bản',
+          mode === 'scheduled'
+            ? `Bắt đầu ${schedule === 'weekly' ? 'hàng tuần' : 'hàng tháng'} vào ${startAt.toLocaleString()}.`
+            : 'Series đã Active và chapter được duyệt đầu tiên đã được xuất bản.'
+        );
+        loadPending();
+      })
+      .catch(err => Alert.alert('Lỗi', err.message));
+  };
+
   const handleFinalDecision = (seriesId: string) => {
     Alert.alert(
       'Quyết định cuối cùng',
-      'Bạn muốn duyệt phát hành tác phẩm này?',
+      'Chọn hình thức phát hành tác phẩm này.',
       [
         { text: 'Hủy', style: 'cancel' },
         { text: 'Từ chối', style: 'destructive', onPress: () => {
@@ -100,14 +124,16 @@ function EditorialBoardScreen() {
             .then(() => loadPending())
             .catch(err => Alert.alert('Lỗi', err.message));
         }},
-        { text: 'Duyệt Phát Hành', onPress: () => {
-          ebAPI.makeFinalDecision(seriesId, { decision: 'approved', publicationSchedule: 'weekly' })
-            .then(() => {
-              Alert.alert('Đã xuất bản', 'Series đã Active và chapter được duyệt đầu tiên đã được xuất bản.');
-              loadPending();
-            })
-            .catch(err => Alert.alert('Lỗi', err.message));
-        }},
+        { text: 'Xuất bản ngay', onPress: () => submitFinalDecision(seriesId, 'immediate') },
+        { text: 'Theo lịch', onPress: () => Alert.alert(
+          'Chu kỳ xuất bản',
+          'Chọn chu kỳ bắt đầu sau lần duyệt này.',
+          [
+            { text: 'Hàng tuần', onPress: () => submitFinalDecision(seriesId, 'scheduled', 'weekly') },
+            { text: 'Hàng tháng', onPress: () => submitFinalDecision(seriesId, 'scheduled', 'monthly') },
+            { text: 'Hủy', style: 'cancel' },
+          ]
+        ) },
       ]
     );
   };

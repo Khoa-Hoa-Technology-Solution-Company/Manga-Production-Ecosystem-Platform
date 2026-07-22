@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
+import { normalizeSeriesTags } from '../constants/series-tags';
 import { Series } from '../models/Series';
 import { Chapter } from '../models/Chapter';
 import { User } from '../models/User';
@@ -54,6 +55,10 @@ export async function getAll(req: Request, res: Response): Promise<void> {
       } else {
         filter.status = { $in: ['Active', 'Completed'] };
       }
+      filter.$or = [
+        { publicationMode: { $ne: 'scheduled' } },
+        { publicationStartedAt: { $exists: true, $ne: null } },
+      ];
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -98,7 +103,8 @@ export async function getById(req: Request, res: Response): Promise<void> {
     const requesterId = req.user?._id?.toString();
     const mangakaId = (series.mangakaId as any)?._id?.toString() || series.mangakaId?.toString();
     const editorId = (series.editorId as any)?._id?.toString() || series.editorId?.toString();
-    const isPublic = ['Active', 'Completed'].includes(series.status);
+    const isPublic = ['Active', 'Completed'].includes(series.status)
+      && (series.publicationMode !== 'scheduled' || !!series.publicationStartedAt);
     const mayView = isPublic
       || req.user?.role === 'editorial_board'
       || (req.user?.role === 'mangaka' && mangakaId === requesterId)
@@ -118,12 +124,11 @@ export async function getById(req: Request, res: Response): Promise<void> {
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { title, description, script, scriptFile, characterDesigns } = req.body;
-    const genre = Array.isArray(req.body.genre)
-      ? req.body.genre
-      : String(req.body.genre || '')
-        .split(',')
-        .map((item: string) => item.trim())
-        .filter(Boolean);
+    const tags = normalizeSeriesTags(req.body.tags ?? req.body.genre);
+    if (tags.length === 0) {
+      res.status(400).json({ error: 'Select at least one valid series tag.' });
+      return;
+    }
 
     let coverImage = typeof req.body.coverImage === 'string' ? req.body.coverImage : undefined;
 
@@ -147,7 +152,8 @@ export async function create(req: Request, res: Response): Promise<void> {
     const series = await Series.create({
       title,
       description,
-      genre,
+      genre: tags,
+      tags,
       coverImage,
       mangakaId: req.user?._id,
       editorStatus: 'none',
@@ -191,9 +197,21 @@ export async function updateMetadata(req: Request, res: Response): Promise<void>
         if (req.body[key] !== undefined) (series as any)[key] = req.body[key];
       }
       if (req.body.genre !== undefined) {
-        series.genre = Array.isArray(req.body.genre)
-          ? req.body.genre
-          : String(req.body.genre).split(',').map((item) => item.trim()).filter(Boolean);
+        const tags = normalizeSeriesTags(req.body.tags ?? req.body.genre);
+        if (tags.length === 0) {
+          res.status(400).json({ error: 'Select at least one valid series tag.' });
+          return;
+        }
+        series.genre = tags;
+        series.tags = tags;
+      } else if (req.body.tags !== undefined) {
+        const tags = normalizeSeriesTags(req.body.tags);
+        if (tags.length === 0) {
+          res.status(400).json({ error: 'Select at least one valid series tag.' });
+          return;
+        }
+        series.genre = tags;
+        series.tags = tags;
       }
       if (typeof req.body.coverImage === 'string') series.coverImage = req.body.coverImage;
       if (req.file) series.coverImage = await uploadToR2(req.file, 'series');
@@ -572,9 +590,29 @@ export async function getEditors(req: Request, res: Response): Promise<void> {
 
 export async function remove(req: Request, res: Response): Promise<void> {
   try {
-    const series = await Series.findOneAndDelete({ _id: req.params.id, mangakaId: req.user?._id });
+    const series = await Series.findOne({ _id: req.params.id, mangakaId: req.user?._id });
     if (!series) {
       res.status(404).json({ error: 'Series not found or you do not own it.' });
+      return;
+    }
+
+    // Published or submitted series must remain available for readers and the
+    // production/audit history. Permanent deletion is currently limited to
+    // drafts only; other lifecycle actions can be added separately later.
+    if (series.status !== 'Draft') {
+      res.status(403).json({ error: 'Only Draft series can be deleted.' });
+      return;
+    }
+
+    // Re-check the status in the delete predicate to avoid deleting a series
+    // if its workflow status changes between the read and the delete.
+    const deletedSeries = await Series.findOneAndDelete({
+      _id: series._id,
+      mangakaId: req.user?._id,
+      status: 'Draft',
+    });
+    if (!deletedSeries) {
+      res.status(409).json({ error: 'Series status changed. Only Draft series can be deleted.' });
       return;
     }
     res.json({ message: 'Series deleted.' });

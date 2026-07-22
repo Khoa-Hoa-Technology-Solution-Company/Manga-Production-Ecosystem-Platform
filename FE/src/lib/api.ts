@@ -89,8 +89,16 @@ export const ebAPI = {
   getDashboard: () => api.get('/eb/dashboard'),
   castVote: (seriesId: string, data: { decision: string; comments?: string; rubric?: Record<string, number> }) =>
     api.post(`/eb/vote/${seriesId}`, data),
-  makeFinalDecision: (seriesId: string, data: { decision: string; publicationSchedule?: string; comments?: string }) =>
+  makeFinalDecision: (seriesId: string, data: {
+    decision: string;
+    publicationMode?: 'immediate' | 'scheduled';
+    publicationSchedule?: 'weekly' | 'monthly';
+    publicationStartAt?: string;
+    comments?: string;
+  }) =>
     api.patch(`/eb/decision/${seriesId}`, data),
+  updatePublicationSchedule: (seriesId: string, publicationSchedule: 'weekly' | 'monthly') =>
+    api.patch(`/eb/schedule/${seriesId}`, { publicationSchedule }),
   inputReaderVotes: (seriesId: string, data: { weeklyVotes: number }) =>
     api.post(`/eb/reader-votes/${seriesId}`, data),
   cancelSeries: (seriesId: string, data: { reason: string }) =>

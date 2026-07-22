@@ -53,7 +53,8 @@ export interface SeriesData {
   _id: string
   title: string
   description?: string
-  genre?: string
+  genre?: string | string[]
+  tags?: string[]
   coverImage?: string
   mangakaId?: string | { _id: string }
   status?: string

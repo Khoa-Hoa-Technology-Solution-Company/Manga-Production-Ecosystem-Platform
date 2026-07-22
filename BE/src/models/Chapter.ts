@@ -26,6 +26,7 @@ export interface IChapter extends Document {
   views: number;
   publishedAt?: Date;
   publicationDeadline?: Date;
+  scheduledPublishAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,11 +56,13 @@ const chapterSchema = new Schema<IChapter>(
     views: { type: Number, default: 0 },
     publishedAt: { type: Date },
     publicationDeadline: { type: Date },
+    scheduledPublishAt: { type: Date },
   },
   { timestamps: true }
 );
 
 chapterSchema.index({ seriesId: 1, chapterNumber: 1 }, { unique: true });
 chapterSchema.index({ status: 1 });
+chapterSchema.index({ status: 1, scheduledPublishAt: 1 });
 
 export const Chapter = mongoose.model<IChapter>('Chapter', chapterSchema);

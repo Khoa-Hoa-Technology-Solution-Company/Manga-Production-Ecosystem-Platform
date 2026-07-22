@@ -5,7 +5,13 @@ import { ReadingProgress } from '../models/ReadingProgress';
 import { Series } from '../models/Series';
 import { createReaderAssistantReply } from '../services/reader-assistant.service';
 
-const publishedSeriesFilter = { status: { $in: ['Active', 'Completed'] } };
+const publishedSeriesFilter = {
+  status: { $in: ['Active', 'Completed'] },
+  $or: [
+    { publicationMode: { $ne: 'scheduled' } },
+    { publicationStartedAt: { $exists: true, $ne: null } },
+  ],
+};
 
 function clamp(value: unknown, min: number, max: number): number {
   const numeric = Number(value);

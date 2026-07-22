@@ -22,6 +22,12 @@ const DEFAULT_CRITERIA = [
   { key: 'commercialPotential', label: 'Commercial Potential' }
 ]
 
+const getDefaultPublicationStart = () => {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  date.setSeconds(0, 0)
+  return date.toISOString().slice(0, 16)
+}
+
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
   _id: string
@@ -36,6 +42,8 @@ type SeriesItem = {
   weeklyVotes: number
   readerCount: number
   publicationSchedule?: string
+  publicationMode?: 'immediate' | 'scheduled'
+  nextPublicationAt?: string
   cancellationRisk?: boolean
   rank?: number
   createdAt: string
@@ -227,7 +235,9 @@ export function EditorialBoardPortalPage() {
 
   // Final Decision state
   const [decisionSeriesId, setDecisionSeriesId] = useState<string | null>(null)
+  const [decisionPublicationMode, setDecisionPublicationMode] = useState<'immediate' | 'scheduled'>('immediate')
   const [decisionSchedule, setDecisionSchedule] = useState<'weekly' | 'monthly'>('weekly')
+  const [decisionStartAt, setDecisionStartAt] = useState(getDefaultPublicationStart)
   const [submittingDecision, setSubmittingDecision] = useState(false)
 
   // Schedule decision state
@@ -427,22 +437,37 @@ export function EditorialBoardPortalPage() {
   }
 
   const handleFinalDecision = async (seriesId: string, decision: 'approved' | 'rejected') => {
+    const startDate = decisionStartAt ? new Date(decisionStartAt) : null
+    if (decision === 'approved' && decisionPublicationMode === 'scheduled'
+      && (!startDate || Number.isNaN(startDate.getTime()))) {
+      alert('Choose a future date and time for scheduled publication.')
+      return
+    }
     setSubmittingDecision(true)
     try {
       await ebAPI.makeFinalDecision(seriesId, {
         decision,
-        publicationSchedule: decision === 'approved' ? decisionSchedule : undefined,
+        publicationMode: decision === 'approved' ? decisionPublicationMode : undefined,
+        publicationSchedule: decision === 'approved' && decisionPublicationMode === 'scheduled' ? decisionSchedule : undefined,
+        publicationStartAt: decision === 'approved' && decisionPublicationMode === 'scheduled'
+          ? startDate!.toISOString()
+          : undefined,
         comments: decision === 'rejected'
           ? 'Changes requested by Editorial Board majority. Review the member vote comments for detailed feedback.'
           : undefined,
       })
       alert(decision === 'approved'
-        ? 'Series is now Active and its first approved chapter has been published.'
+        ? decisionPublicationMode === 'scheduled'
+          ? `Publication scheduled for ${startDate!.toLocaleString()}.`
+          : 'Series is now Active and its first approved chapter has been published.'
         : 'The series was returned for revision.')
       setDecisionSeriesId(null)
+      setDecisionPublicationMode('immediate')
+      setDecisionStartAt(getDefaultPublicationStart())
       fetchData()
     } catch (err) {
       console.error('Failed to make final decision:', err)
+      alert((err as any)?.response?.data?.error || 'Failed to complete the publication decision.')
     } finally {
       setSubmittingDecision(false)
     }
@@ -450,10 +475,7 @@ export function EditorialBoardPortalPage() {
 
   const handleSetSchedule = async (seriesId: string) => {
     try {
-      await ebAPI.makeFinalDecision(seriesId, {
-        decision: 'approved',
-        publicationSchedule: selectedSchedule,
-      })
+      await ebAPI.updatePublicationSchedule(seriesId, selectedSchedule)
       setScheduleSeriesId(null)
       fetchData()
     } catch (err) {
@@ -818,7 +840,12 @@ export function EditorialBoardPortalPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={getStatusBadge(series.status)}>
-                          {series.publicationSchedule ? `${series.status} (${series.publicationSchedule})` : series.status}
+                              <span>{series.publicationSchedule ? `${series.status} (${series.publicationSchedule})` : series.status}</span>
+                              {series.publicationMode === 'scheduled' && series.nextPublicationAt && (
+                                <span className="mt-0.5 block text-[9px] font-normal text-neutral-400">
+                                  Next: {new Date(series.nextPublicationAt).toLocaleString()}
+                                </span>
+                              )}
                         </Badge>
                         {series.updatedAt && (
                           <span className="text-xs text-neutral-400">
@@ -1178,6 +1205,9 @@ export function EditorialBoardPortalPage() {
                                 onClick={() => {
                                   setDecisionSeriesId(series._id)
                                   setVotingSeriesId(null)
+                                  setDecisionPublicationMode('immediate')
+                                  setDecisionSchedule('weekly')
+                                  setDecisionStartAt(getDefaultPublicationStart())
                                 }}
                                 disabled={!series.meeting || series.meeting.votesCount < series.meeting.participantsCount}
                               >
@@ -1372,23 +1402,57 @@ export function EditorialBoardPortalPage() {
                             <div className="space-y-4">
                               <div>
                                 <label className="mb-1.5 block text-xs font-bold text-indigo-955">
-                                  {t('editorialBoard.publicationSchedule')}
+                                  Publication method
                                 </label>
-                                <div className="flex gap-2 max-w-sm">
-                                  {(['weekly', 'monthly'] as const).map((s) => (
+                                <div className="flex gap-2 max-w-xl">
+                                  {([
+                                    ['immediate', 'Publish immediately'],
+                                    ['scheduled', 'Publish on a schedule'],
+                                  ] as const).map(([mode, label]) => (
                                     <button
-                                      key={s}
-                                      onClick={() => setDecisionSchedule(s)}
-                                      className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${decisionSchedule === s
+                                      key={mode}
+                                      onClick={() => setDecisionPublicationMode(mode)}
+                                      className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${decisionPublicationMode === mode
                                         ? 'bg-indigo-600 text-white shadow-sm border border-indigo-650'
                                         : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-200'
                                         }`}
                                     >
-                                      {t(`editorialBoard.${s}`)}
+                                      {label}
                                     </button>
                                   ))}
                                 </div>
                               </div>
+                              {decisionPublicationMode === 'scheduled' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-indigo-100 bg-white/80 p-3">
+                                  <div>
+                                    <label className="mb-1.5 block text-xs font-bold text-indigo-955">Cadence</label>
+                                    <div className="flex gap-2">
+                                      {(['weekly', 'monthly'] as const).map((s) => (
+                                        <button
+                                          key={s}
+                                          onClick={() => setDecisionSchedule(s)}
+                                          className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold ${decisionSchedule === s
+                                            ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                            : 'bg-white text-neutral-600 border border-neutral-200'
+                                            }`}
+                                        >
+                                          {t(`editorialBoard.${s}`)}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="mb-1.5 block text-xs font-bold text-indigo-955">First publication</label>
+                                    <Input
+                                      type="datetime-local"
+                                      value={decisionStartAt}
+                                      min={getDefaultPublicationStart()}
+                                      onChange={(e) => setDecisionStartAt(e.target.value)}
+                                      className="h-9 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              )}
                               <div className="flex gap-2 pt-1">
                                 <Button
                                   size="sm"
@@ -1958,7 +2022,12 @@ export function EditorialBoardPortalPage() {
                             <td className="px-6 py-4 text-center font-bold text-neutral-600">{series.totalVotes}</td>
                             <td className="px-6 py-4 text-center">
                               <Badge className={getStatusBadge(series.status)}>
-                                {series.publicationSchedule ? `${series.status} (${series.publicationSchedule})` : series.status}
+                                <span>{series.publicationSchedule ? `${series.status} (${series.publicationSchedule})` : series.status}</span>
+                                {series.publicationMode === 'scheduled' && series.nextPublicationAt && (
+                                  <span className="mt-0.5 block text-[9px] font-normal text-neutral-400">
+                                    Next: {new Date(series.nextPublicationAt).toLocaleString()}
+                                  </span>
+                                )}
                               </Badge>
                             </td>
                             <td className="px-6 py-4 text-right">

@@ -50,6 +50,7 @@ export function SeriesDetailPanel({
   const isSeriesMetadataLocked = ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')
   const isChapterProductionLocked = selectedSeries.status === 'Pending_EB'
     || (selectedSeries.status === 'Pending_Editor' && selectedSeries.editorStatus !== 'accepted')
+  const canDeleteSeries = selectedSeries.status === 'Draft'
 
   // Calculate statistics
   const totalPages = selectedChapters.reduce((sum, chapter) => sum + (chapter.totalPages || 0), 0)
@@ -86,10 +87,10 @@ export function SeriesDetailPanel({
                 <h2 className="text-xl font-bold text-neutral-900 tracking-tight leading-tight">
                   {selectedSeries.title}
                 </h2>
-                {selectedSeries.genre && (
+                {(selectedSeries.tags?.length || selectedSeries.genre) && (
                   <p className="text-xs text-neutral-400 mt-1.5 flex items-center gap-1 font-semibold uppercase tracking-wider">
                     <Layers3 className="size-3 text-neutral-400" />
-                    {toGenreText(selectedSeries.genre)}
+                    {toGenreText(selectedSeries.tags?.length ? selectedSeries.tags : selectedSeries.genre)}
                   </p>
                 )}
               </div>
@@ -130,16 +131,18 @@ export function SeriesDetailPanel({
                       <Pencil className="mr-1.5 size-3.5" />
                       {t('common.edit', 'Edit')}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 px-3 rounded-xl text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50"
-                      disabled={isSeriesMetadataLocked || saving}
-                      onClick={() => setShowConfirmDeleteSeries(true)}
-                    >
-                      <Trash2 className="mr-1.5 size-3.5" />
-                      {t('common.delete', 'Delete')}
-                    </Button>
+                    {canDeleteSeries && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-3 rounded-xl text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50"
+                        disabled={saving}
+                        onClick={() => setShowConfirmDeleteSeries(true)}
+                      >
+                        <Trash2 className="mr-1.5 size-3.5" />
+                        {t('common.delete', 'Delete')}
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
