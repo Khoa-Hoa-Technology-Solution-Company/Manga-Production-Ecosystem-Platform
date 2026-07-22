@@ -15,8 +15,47 @@ import {
   notifyNewSeriesToSubscribers,
 } from '../services/notification.service';
 import { finalizeSeriesByEditorialBoard } from '../services/series-workflow.service';
+import { computeSeriesPerformance } from '../services/series-performance.service';
 
-const CANCELLATION_RISK_THRESHOLD = 10;
+export async function getPerformanceRankings(req: Request, res: Response): Promise<void> {
+  try {
+    const periodType = req.query.period === 'monthly' ? 'monthly' : 'weekly';
+    const referenceDate = req.query.date ? new Date(String(req.query.date)) : new Date();
+    if (Number.isNaN(referenceDate.getTime())) {
+      res.status(400).json({ error: 'date must be a valid ISO date.' });
+      return;
+    }
+
+    const rankings = await computeSeriesPerformance(periodType, referenceDate);
+    const order = req.query.order === 'asc' ? 1 : -1;
+    if (order === 1) {
+      const riskOrder: Record<string, number> = { closure_review: 0, at_risk: 1, watch: 2, healthy: 3, insufficient_data: 4 };
+      rankings.sort((a, b) => (riskOrder[a.riskLevel] ?? 5) - (riskOrder[b.riskLevel] ?? 5) || a.score - b.score);
+    } else {
+      rankings.sort((a, b) => b.score - a.score);
+    }
+    res.json({
+      periodType,
+      periodStart: rankings[0]?.periodStart || null,
+      periodEnd: rankings[0]?.periodEnd || null,
+      rankings: rankings.map((item, index) => ({
+        ...item.series,
+        ...item,
+        _id: item.series._id,
+        performanceId: item._id,
+        rank: index + 1,
+      })),
+      thresholds: {
+        minimumRatings: 20,
+        minimumPublishedChapters: 3,
+        minimumActiveDays: 30,
+        lowRating: 3,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
 
 /**
  * GET /api/eb/pending
@@ -517,6 +556,9 @@ export async function updatePublicationSchedule(req: Request, res: Response): Pr
  */
 export async function inputReaderVotes(req: Request, res: Response): Promise<void> {
   try {
+    res.status(410).json({ error: 'Manual reader vote input has been retired. Rankings now use reader ratings and chapter reactions.' });
+    return;
+    /*
     if (!req.user?.isEbHead) {
       res.status(403).json({ error: 'Only the Head of the Editorial Board can record reader vote metrics.' });
       return;
@@ -541,6 +583,7 @@ export async function inputReaderVotes(req: Request, res: Response): Promise<voi
     await series.save();
 
     res.json({ series, message: 'Weekly votes updated.' });
+    */
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

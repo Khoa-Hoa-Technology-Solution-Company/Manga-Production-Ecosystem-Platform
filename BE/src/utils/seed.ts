@@ -6,13 +6,21 @@ import { Chapter } from '../models/Chapter';
 import { Page } from '../models/Page';
 import { Zone } from '../models/Zone';
 import { Task } from '../models/Task';
-import { Vote } from '../models/Vote';
 import { Comment } from '../models/Comment';
 import { Notification } from '../models/Notification';
 import { Annotation } from '../models/Annotation';
 import { EBVote } from '../models/EBVote';
 import { Meeting } from '../models/Meeting';
 import { Layer } from '../models/Layer';
+import { Vote } from '../models/Vote';
+import { Reaction } from '../models/Reaction';
+import { ReactionEvent } from '../models/ReactionEvent';
+import { SeriesRating } from '../models/SeriesRating';
+import { SeriesRatingEvent } from '../models/SeriesRatingEvent';
+import { ReadingProgress } from '../models/ReadingProgress';
+import { ReaderActivityEvent } from '../models/ReaderActivityEvent';
+import { SeriesPerformance } from '../models/SeriesPerformance';
+import { recalculateSeriesRating } from '../services/series-rating.service';
 
 async function seed() {
   await connectDB();
@@ -27,7 +35,14 @@ async function seed() {
     Page.deleteMany({}),
     Zone.deleteMany({}),
     Task.deleteMany({}),
+    Reaction.deleteMany({}),
+    ReactionEvent.deleteMany({}),
     Vote.deleteMany({}),
+    SeriesRating.deleteMany({}),
+    SeriesRatingEvent.deleteMany({}),
+    ReadingProgress.deleteMany({}),
+    ReaderActivityEvent.deleteMany({}),
+    SeriesPerformance.deleteMany({}),
     Comment.deleteMany({}),
     Notification.deleteMany({}),
     Annotation.deleteMany({}),
@@ -77,6 +92,7 @@ async function seed() {
       title: 'Shadow Blade Saga',
       description: 'In a world where ancient swords choose their wielders, a young ronin discovers a blade that can cut through fate itself.',
       genre: ['Action', 'Fantasy'],
+      tags: ['action', 'fantasy'],
       coverImage: '/manga/cover-action.png',
       mangakaId: mangaka._id,
       editorId: editor._id,
@@ -88,7 +104,9 @@ async function seed() {
       readerCount: 380000,
       averageRating: 4.8,
       ratingCount: 310,
+      publicationMode: 'immediate',
       publicationSchedule: 'weekly',
+      publicationStartedAt: new Date('2026-03-01'),
       script: `Chapter 42: The Blade Awakens\n[Scene 1: The chamber of souls. Ancient runic columns glow with dark energy. Yuki, breathing heavily, clutches his bleeding side. Kuro stands before him, a smug grin on his face.]\nKuro: "You are foolish, Yuki. The Shadow Blade cannot be tamed by a weak-willed ronin."\nYuki: "It chose me... because I do not fight for power. I fight for those who cannot."\n[Scene 2: Yuki grips the hilt with both hands. The runes on the blade ignite in bright white flame. The air vibrates. Kuro\'s smile fades.]\nKuro: "Impossible! The flames of redemption... they shouldn\'t exist!"\n[Scene 3: Yuki dashes forward, leaving a trail of light. A massive shockwave shatters the dark chamber.]`,
       characterDesigns: [
         { name: 'Yuki', role: 'Protagonist', description: 'A young ronin with a scar over his left eye, wielder of the white-flamed Shadow Blade.', image: '/manga/char-drake.png' },
@@ -105,6 +123,7 @@ async function seed() {
       title: 'Neon Samurai',
       description: 'A cyberpunk reimagining of the samurai era in a neon-lit Tokyo of 2089. Steel clashing against plasma.',
       genre: ['Sci-Fi', 'Action'],
+      tags: ['sci-fi', 'action'],
       coverImage: '/manga/cover-scifi.png',
       mangakaId: mangaka._id,
       editorId: editor._id,
@@ -116,7 +135,9 @@ async function seed() {
       readerCount: 280000,
       averageRating: 4.5,
       ratingCount: 180,
+      publicationMode: 'immediate',
       publicationSchedule: 'weekly',
+      publicationStartedAt: new Date('2026-02-01'),
       script: `Chapter 105: Neon Requiem\n[Scene 1: Neon-lit Tokyo rooftop. Cyber-samurai Hiroshi stands under the pouring rain. His cybernetic eye blinks red.]\nHiroshi: "System override complete. There\'s no turning back."\n[Scene 2: The sky flashes. Dr. Aris arrives in a hover-car, throwing him his plasma katana.]\nAris: "Catch! Make them pay for what they did to the sector!"`,
       characterDesigns: [
         { name: 'Hiroshi', role: 'Protagonist', description: 'A cybernetic samurai with a visor, fighting against tech-corps.', image: '/manga/char-drake.png' },
@@ -127,6 +148,7 @@ async function seed() {
       title: 'Lunar Whispers',
       description: 'A mystical romance between a moon spirit and a mortal scholar in feudal Japan.',
       genre: ['Romance', 'Fantasy'],
+      tags: ['romance', 'fantasy'],
       coverImage: '/manga/cover-fantasy.png',
       mangakaId: mangaka._id,
       editorStatus: 'none',
@@ -148,6 +170,7 @@ async function seed() {
       title: 'Dragon Hunter',
       description: 'Drake trails the legendary Ignis dragon through the Burning Peaks to avenge his lost village.',
       genre: ['Action', 'Fantasy'],
+      tags: ['action', 'fantasy'],
       coverImage: '/manga/cover-horror.png',
       mangakaId: mangaka2._id,
       editorId: editor2._id,
@@ -170,6 +193,7 @@ async function seed() {
       title: 'Gothic Chronicles',
       description: 'A gothic horror tale about a vampire hunter uncovering a secret society in Victorian London.',
       genre: ['Mystery', 'Horror'],
+      tags: ['mystery', 'horror'],
       coverImage: '/manga/cover-horror.png',
       mangakaId: mangaka2._id,
       editorId: editor2._id,
@@ -191,6 +215,7 @@ async function seed() {
       title: 'Space Academy',
       description: 'An eager recruit trying to fit into the stellar defense academy in a futuristic galactic capital.',
       genre: ['Sci-Fi', 'Comedy'],
+      tags: ['sci-fi', 'comedy'],
       coverImage: '/manga/cover-scifi.png',
       mangakaId: mangaka._id,
       editorId: editor2._id,
@@ -212,6 +237,7 @@ async function seed() {
       title: 'Time Travel Paradox',
       description: 'A brilliant scientist goes back in time and accidentally prevents his own birth, leading to cosmic anomalies.',
       genre: ['Sci-Fi', 'Mystery'],
+      tags: ['sci-fi', 'mystery'],
       coverImage: '/manga/cover-action.png',
       mangakaId: mangaka2._id,
       editorId: editor._id,
@@ -230,6 +256,7 @@ async function seed() {
       title: 'Lost Kingdom',
       description: 'An adventure story of finding a lost continent beneath the ocean with steam-powered submarines.',
       genre: ['Adventure', 'Sci-Fi'],
+      tags: ['adventure', 'sci-fi'],
       coverImage: '/manga/cover-fantasy.png',
       mangakaId: mangaka._id,
       editorId: editor._id,
@@ -248,6 +275,7 @@ async function seed() {
       title: 'Cybernetic Ninja',
       description: 'In a futuristic cyberpunk metropolis, a lone cybernetic ninja uncovers a massive corporate conspiracy.',
       genre: ['Sci-Fi', 'Action'],
+      tags: ['sci-fi', 'action'],
       coverImage: '/manga/cover-ninja.png',
       mangakaId: mangaka._id,
       editorId: editor._id,
@@ -259,7 +287,9 @@ async function seed() {
       readerCount: 1500,
       averageRating: 4.8,
       ratingCount: 15,
+      publicationMode: 'immediate',
       publicationSchedule: 'weekly',
+      publicationStartedAt: new Date('2026-04-01'),
       script: 'Chapter 1: Silent Protocol',
       characterDesigns: [
         { name: 'Ryu', role: 'Protagonist', description: 'A cybernetic ninja with high-frequency blades.', image: '/manga/char-drake.png' }
@@ -269,6 +299,7 @@ async function seed() {
       title: 'Under the Cherry Blossom',
       description: 'A touching slice-of-life romance about two high school students meeting under the falling cherry blossoms.',
       genre: ['Romance', 'Drama'],
+      tags: ['romance', 'drama'],
       coverImage: '/manga/cover-cherry.png',
       mangakaId: mangaka2._id,
       editorId: editor2._id,
@@ -280,7 +311,10 @@ async function seed() {
       readerCount: 800,
       averageRating: 4.6,
       ratingCount: 8,
-      publicationSchedule: 'weekly',
+      publicationMode: 'scheduled',
+      publicationSchedule: 'monthly',
+      publicationStartAt: new Date(Date.now() + 3 * 86400000),
+      nextPublicationAt: new Date(Date.now() + 3 * 86400000),
       script: 'Chapter 1: First Petal',
       characterDesigns: [
         { name: 'Sakura', role: 'Protagonist', description: 'A cheerful schoolgirl who loves photography.', image: '/manga/char-leo.png' }
@@ -321,10 +355,10 @@ async function seed() {
     { seriesId: s8._id, chapterNumber: 1, title: 'Ocean Depths', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 5, progress: 100, views: 24000, publishedAt: new Date('2026-02-20') },
 
     // s9 (Cybernetic Ninja)
-    { seriesId: s9._id, chapterNumber: 1, title: 'Silent Protocol', status: 'Reviewing', mangakaId: mangaka._id, editorId: editor._id, totalPages: 3, progress: 100, views: 0 },
+    { seriesId: s9._id, chapterNumber: 1, title: 'Silent Protocol', status: 'Published', mangakaId: mangaka._id, editorId: editor._id, totalPages: 3, progress: 100, views: 0, publishedAt: new Date('2026-04-01') },
 
     // s10 (Under the Cherry Blossom)
-    { seriesId: s10._id, chapterNumber: 1, title: 'First Petal', status: 'Draft', mangakaId: mangaka2._id, totalPages: 3, progress: 100, views: 0 }
+    { seriesId: s10._id, chapterNumber: 1, title: 'First Petal', status: 'Published', mangakaId: mangaka2._id, editorId: editor2._id, totalPages: 3, progress: 100, views: 0, publishedAt: new Date('2026-04-02') }
   ]);
   console.log('  ✅ Chapters seeded successfully.');
 
@@ -665,7 +699,7 @@ async function seed() {
 
   // ── Votes & Comments (Reader engagement) ────────────────────────────
   console.log('❤️ Seeding reader votes & comments...');
-  await Vote.create([
+  if (process.env.SEED_LEGACY_VOTES === 'true') await Vote.create([
     { userId: reader._id, chapterId: chapters[0]._id, seriesId: s1._id, rating: 5, reaction: '🔥' },
     { userId: reader2._id, chapterId: chapters[0]._id, seriesId: s1._id, rating: 5, reaction: '🔥' },
     { userId: reader3._id, chapterId: chapters[0]._id, seriesId: s1._id, rating: 4, reaction: '❤️' },
@@ -676,6 +710,46 @@ async function seed() {
     { userId: reader._id, chapterId: chapters[5]._id, seriesId: s2._id, rating: 5, reaction: '🔥' },
     { userId: reader2._id, chapterId: chapters[5]._id, seriesId: s2._id, rating: 4, reaction: '👏' }
   ]);
+
+  const seededRatings = [
+    { userId: reader._id, seriesId: s1._id, rating: 5 },
+    { userId: reader2._id, seriesId: s1._id, rating: 5 },
+    { userId: reader3._id, seriesId: s1._id, rating: 4 },
+    { userId: reader._id, seriesId: s2._id, rating: 5 },
+    { userId: reader2._id, seriesId: s2._id, rating: 4 },
+    { userId: reader3._id, seriesId: s2._id, rating: 4 },
+    { userId: reader._id, seriesId: s9._id, rating: 5 },
+    { userId: reader2._id, seriesId: s9._id, rating: 4 },
+  ];
+  await SeriesRating.create(seededRatings.map((item) => ({ ...item, source: 'reader' as const })));
+  await SeriesRatingEvent.create(seededRatings.map((item) => ({ ...item, action: 'created' as const })));
+  await Promise.all([s1, s2, s9, s10].map((series) => recalculateSeriesRating(series._id)));
+
+  const seededReactions = [
+    { userId: reader._id, seriesId: s1._id, chapterId: chapters[0]._id, emoji: '🔥' },
+    { userId: reader2._id, seriesId: s1._id, chapterId: chapters[0]._id, emoji: '🔥' },
+    { userId: reader3._id, seriesId: s1._id, chapterId: chapters[0]._id, emoji: '❤️' },
+    { userId: reader._id, seriesId: s1._id, chapterId: chapters[1]._id, emoji: '❤️' },
+    { userId: reader2._id, seriesId: s1._id, chapterId: chapters[1]._id, emoji: '👏' },
+    { userId: reader3._id, seriesId: s1._id, chapterId: chapters[1]._id, emoji: '😮' },
+    { userId: reader._id, seriesId: s2._id, chapterId: chapters[5]._id, emoji: '🔥' },
+    { userId: reader2._id, seriesId: s2._id, chapterId: chapters[5]._id, emoji: '👏' },
+  ];
+  await Reaction.create(seededReactions);
+  await ReactionEvent.create(seededReactions.map((item) => ({ ...item, action: 'set' as const })));
+
+  const activityNow = new Date();
+  const toBangkokDateKey = (date: Date) => new Date(date.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const seededProgress = [
+    { userId: reader._id, seriesId: s1._id, chapterId: chapters[0]._id, chapterIndex: 0, pageIndex: 4, percentage: 100, completed: true, lastReadAt: new Date(activityNow.getTime() - 1 * 86400000) },
+    { userId: reader2._id, seriesId: s1._id, chapterId: chapters[1]._id, chapterIndex: 1, pageIndex: 4, percentage: 100, completed: true, lastReadAt: new Date(activityNow.getTime() - 2 * 86400000) },
+    { userId: reader3._id, seriesId: s2._id, chapterId: chapters[5]._id, chapterIndex: 0, pageIndex: 4, percentage: 100, completed: true, lastReadAt: new Date(activityNow.getTime() - 3 * 86400000) },
+  ];
+  await ReadingProgress.create(seededProgress);
+  await ReaderActivityEvent.create(seededProgress.map((item) => ({
+    ...item,
+    activityDate: toBangkokDateKey(item.lastReadAt),
+  })));
 
   await Comment.create([
     { userId: reader._id, chapterId: chapters[0]._id, text: 'Incredible battle sequence! The panel composition is masterful.', likes: 142 },

@@ -194,10 +194,17 @@ export default function ReaderScreen() {
 
     Promise.all([
       seriesAPI.getById(seriesId),
-      chaptersAPI.getBySeries(seriesId)
+      chaptersAPI.getBySeries(seriesId),
+      seriesAPI.getRating(seriesId).catch(() => ({ averageRating: 0, ratingCount: 0, userRating: 0 }))
     ])
-      .then(([sData, cData]) => {
-        setSeriesData(sData.series ?? sData);
+      .then(([sData, cData, ratingData]) => {
+        const baseSeries = sData.series ?? sData;
+        setSeriesData({
+          ...baseSeries,
+          averageRating: ratingData.averageRating,
+          ratingCount: ratingData.ratingCount,
+        });
+        setUserRating(ratingData.userRating || 0);
         const chs = (cData.chapters || [])
           .filter((c: any) => c.status === 'Published')
           .sort((a: any, b: any) => a.chapterNumber - b.chapterNumber);
@@ -319,8 +326,8 @@ export default function ReaderScreen() {
         publishedDate: '...',
         cover: 'https://picsum.photos/800/1200',
         totalPages: 0,
-        rating: 4.9,
-        ratingCount: 120,
+        rating: 0,
+        ratingCount: 0,
       };
     }
     const currentChapter = chapters[activeChapterIndex];
@@ -334,8 +341,8 @@ export default function ReaderScreen() {
       publishedDate: currentChapter ? new Date(currentChapter.createdAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.reader.newUpdated'),
       cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesData._id}/800/1200`,
       totalPages: pages.length,
-      rating: 4.9,
-      ratingCount: 154,
+      rating: seriesData.averageRating || 0,
+      ratingCount: seriesData.ratingCount || 0,
     };
   }, [seriesData, chapters, activeChapterIndex, pages, t, i18n.language]);
 
@@ -755,12 +762,28 @@ export default function ReaderScreen() {
                 {/* Five star rating widget */}
                 <LinearGradient colors={[currentTheme.cardBg, 'rgba(39,29,74,0.1)']} style={[styles.ratingCard, { borderColor: currentTheme.cardBorder }]}>
                   <View style={styles.ratingCardHeader}>
-                    <ThemedText style={[styles.ratingCardTitle, { color: currentTheme.text }]}>{t('mobile.reader.rateChapter')}</ThemedText>
+                <ThemedText style={[styles.ratingCardTitle, { color: currentTheme.text }]}>{t('mobile.reader.rateSeries', 'Rate this series')}</ThemedText>
                     <ThemedText style={[styles.ratingCount, { color: currentTheme.subText }]}>{t('mobile.reader.ratingCount', { rating: series.rating, count: series.ratingCount })}</ThemedText>
                   </View>
                   <View style={styles.starRow}>
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <Pressable key={star} onPress={() => setUserRating(star)} style={styles.starPressable}>
+                      <Pressable
+                        key={star}
+                        onPress={async () => {
+                          setUserRating(star);
+                          try {
+                            const next = await seriesAPI.rate(seriesId, star);
+                            setSeriesData((current: any) => current ? {
+                              ...current,
+                              averageRating: next.averageRating,
+                              ratingCount: next.ratingCount,
+                            } : current);
+                          } catch (error: any) {
+                            Alert.alert(t('common.error'), error.message || 'Unable to save rating.');
+                          }
+                        }}
+                        style={styles.starPressable}
+                      >
                         <Star size={32} color={star <= userRating ? '#fbbf24' : '#4b5563'} fill={star <= userRating ? '#fbbf24' : 'none'} />
                       </Pressable>
                     ))}

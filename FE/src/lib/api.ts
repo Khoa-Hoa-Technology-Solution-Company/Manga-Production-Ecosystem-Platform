@@ -87,6 +87,8 @@ export const seriesAPI = {
 export const ebAPI = {
   getPending: () => api.get('/eb/pending'),
   getDashboard: () => api.get('/eb/dashboard'),
+  getPerformanceRankings: (period: 'weekly' | 'monthly', order: 'asc' | 'desc' = 'desc') =>
+    api.get('/eb/performance/rankings', { params: { period, order } }),
   castVote: (seriesId: string, data: { decision: string; comments?: string; rubric?: Record<string, number> }) =>
     api.post(`/eb/vote/${seriesId}`, data),
   makeFinalDecision: (seriesId: string, data: {
@@ -172,6 +174,21 @@ export const dashboardAPI = {
   getReaderData: () => api.get('/dashboard/reader'),
 };
 
+export const readerAPI = {
+  updateProgress: (data: {
+    seriesId: string;
+    chapterId: string;
+    chapterIndex: number;
+    pageIndex: number;
+    percentage: number;
+    completed?: boolean;
+  }) => api.put('/reader/progress', data),
+  getLeaderboard: (period: 'weekly' | 'monthly' = 'weekly') =>
+    api.get('/reader/leaderboard', { params: { period } }),
+  getSeriesRankings: (period: 'weekly' | 'monthly' = 'weekly') =>
+    api.get('/reader/series-rankings', { params: { period } }),
+};
+
 // ── Pages API ───────────────────────────────────────
 export const pagesAPI = {
   getByChapter: (chapterId: string) => api.get(`/pages/chapter/${chapterId}`),
@@ -213,6 +230,12 @@ export const commentsAPI = {
 export const ratingsAPI = {
   getByChapter: (chapterId: string) => api.get(`/chapters/${chapterId}/votes`),
   rate: (chapterId: string, data: unknown) => api.post(`/chapters/${chapterId}/vote`, data),
+};
+
+export const seriesRatingsAPI = {
+  get: (seriesId: string) => api.get(`/series/${seriesId}/rating`),
+  rate: (seriesId: string, rating: number) => api.put(`/series/${seriesId}/rating`, { rating }),
+  remove: (seriesId: string) => api.delete(`/series/${seriesId}/rating`),
 };
 
 // ── Notifications API ───────────────────────────────

@@ -2,8 +2,11 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { Chapter } from '../models/Chapter';
 import { ReadingProgress } from '../models/ReadingProgress';
+import { ReaderActivityEvent } from '../models/ReaderActivityEvent';
 import { Series } from '../models/Series';
 import { createReaderAssistantReply } from '../services/reader-assistant.service';
+import { computeSeriesPerformance } from '../services/series-performance.service';
+import { getReaderLeaderboard as loadReaderLeaderboard, ReaderRankingPeriod } from '../services/reader-ranking.service';
 
 const publishedSeriesFilter = {
   status: { $in: ['Active', 'Completed'] },
@@ -17,6 +20,10 @@ function clamp(value: unknown, min: number, max: number): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return min;
   return Math.min(max, Math.max(min, numeric));
+}
+
+function bangkokDateKey(date: Date) {
+  return new Date(date.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function mapSeries(series: any) {
@@ -101,6 +108,8 @@ export async function updateProgress(req: Request, res: Response): Promise<void>
     }
 
     const percentage = clamp(req.body.percentage, 0, 100);
+    const completed = Boolean(req.body.completed);
+    const now = new Date();
     const progress = await ReadingProgress.findOneAndUpdate(
       { userId: req.user!._id, seriesId },
       {
@@ -109,14 +118,68 @@ export async function updateProgress(req: Request, res: Response): Promise<void>
           chapterIndex: Math.floor(clamp(req.body.chapterIndex, 0, 100000)),
           pageIndex: Math.floor(clamp(req.body.pageIndex, 0, 100000)),
           percentage,
-          completed: Boolean(req.body.completed),
-          lastReadAt: new Date(),
+          completed,
+          lastReadAt: now,
         },
       },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     );
 
+    const activityDate = bangkokDateKey(now);
+    const existingActivity = await ReaderActivityEvent.findOne({
+      userId: req.user!._id,
+      chapterId,
+      activityDate,
+    }).select('completed');
+    await ReaderActivityEvent.findOneAndUpdate(
+      { userId: req.user!._id, chapterId, activityDate },
+      {
+        $set: {
+          seriesId,
+          lastReadAt: now,
+          completed: Boolean(existingActivity?.completed) || completed,
+        },
+        $max: { maxPercentage: percentage },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     res.json({ progress });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getReaderLeaderboard(req: Request, res: Response): Promise<void> {
+  try {
+    const period: ReaderRankingPeriod = req.query.period === 'monthly' ? 'monthly' : 'weekly';
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+    res.json(await loadReaderLeaderboard(period, new Date(), limit));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getSeriesRankings(req: Request, res: Response): Promise<void> {
+  try {
+    const period = req.query.period === 'monthly' ? 'monthly' : 'weekly';
+    const rankings = await computeSeriesPerformance(period, new Date(), false);
+    const now = new Date();
+    const visibleRankings = rankings
+      .filter((item: any) => item.publishedChapterCount > 0)
+      .filter((item: any) => item.series.publicationMode !== 'scheduled' || !!item.series.publicationStartedAt && new Date(item.series.publicationStartedAt) <= now)
+      .sort((a: any, b: any) => b.score - a.score)
+      .map((item: any, index: number) => ({
+        ...item.series,
+        _id: item.series._id,
+        totalChapters: item.publishedChapterCount,
+        performanceScore: item.score,
+        weightedRating: item.weightedRating,
+        ratingCount: item.ratingCount,
+        reactionCount: item.reactionCount,
+        rank: index + 1,
+      }));
+    res.json({ period, rankings: visibleRankings });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

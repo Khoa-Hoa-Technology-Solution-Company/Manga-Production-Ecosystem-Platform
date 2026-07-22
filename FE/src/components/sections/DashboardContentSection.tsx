@@ -260,10 +260,10 @@ function ReaderRatingActivitySection({ ratings, loading }: { ratings: RatingActi
                 <div className="space-y-0.5">
                   <div className="flex items-center justify-between gap-2">
                     <span 
-                      onClick={() => navigate(`/read/${item.chapterId?._id}`)}
+                      onClick={() => item.chapterId?._id ? navigate(`/read/${item.chapterId._id}`) : navigate('/discover')}
                       className="text-xs font-semibold text-neutral-950 hover:text-indigo-600 transition-colors cursor-pointer select-none line-clamp-1"
                     >
-                      {item.seriesId?.title} — Ch. {item.chapterId?.chapterNumber || 0}
+                      {item.seriesId?.title}{item.chapterId ? ` — Ch. ${item.chapterId.chapterNumber || 0}` : ''}
                     </span>
                     <span className="text-[9px] text-neutral-400 font-semibold shrink-0">
                       {timeAgo}
@@ -314,7 +314,7 @@ export function DashboardContentSection() {
       })
       dashboardAPI.getReaderData()
         .then((res) => {
-          setReaderData({ ...res.data, ratedChapters: res.data.votedChapters || [] })
+          setReaderData({ ...res.data, ratedChapters: res.data.ratedSeries || [] })
         })
         .catch((err) => {
           console.error('Failed to fetch reader dashboard data:', err)

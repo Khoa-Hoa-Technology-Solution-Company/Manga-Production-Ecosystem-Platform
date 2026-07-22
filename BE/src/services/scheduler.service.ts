@@ -6,6 +6,7 @@ import {
   notifyNewSeriesToSubscribers,
   notifySeriesPublished,
 } from './notification.service';
+import { refreshCurrentPerformance } from './series-performance.service';
 
 function advanceSchedule(from: Date, schedule: 'weekly' | 'monthly'): Date {
   const next = new Date(from);
@@ -31,6 +32,7 @@ function nextFutureSlot(from: Date, schedule: 'weekly' | 'monthly', now: Date): 
 }
 
 let isRunning = false;
+let lastPerformanceRefreshAt = 0;
 
 /**
  * Checks for approved chapters that have reached their publication deadline
@@ -41,6 +43,11 @@ export async function checkAndPublishScheduledChapters(): Promise<void> {
   isRunning = true;
   try {
     const now = new Date();
+
+    if (now.getTime() - lastPerformanceRefreshAt >= 10 * 60 * 1000) {
+      lastPerformanceRefreshAt = now.getTime();
+      refreshCurrentPerformance().catch((error) => console.error('[Scheduler] Performance refresh failed:', error));
+    }
 
     const dueSeries = await Series.find({
       status: 'Active',

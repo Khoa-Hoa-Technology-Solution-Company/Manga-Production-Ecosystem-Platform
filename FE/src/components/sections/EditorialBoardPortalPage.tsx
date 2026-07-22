@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
-import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI, seriesAPI } from '../../lib/api'
+import { ebAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI, seriesAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 
 const DEFAULT_CRITERIA = [
@@ -40,6 +40,18 @@ type SeriesItem = {
   totalChapters: number
   totalVotes: number
   weeklyVotes: number
+  averageRating?: number
+  ratingCount?: number
+  weightedRating?: number
+  newRatingCount?: number
+  reactionCount?: number
+  uniqueReactors?: number
+  score?: number
+  trendPercent?: number
+  riskLevel?: 'insufficient_data' | 'healthy' | 'watch' | 'at_risk' | 'closure_review'
+  consecutivePoorPeriods?: number
+  eligibleForRisk?: boolean
+  publishedChapterCount?: number
   readerCount: number
   publicationSchedule?: string
   publicationMode?: 'immediate' | 'scheduled'
@@ -177,6 +189,7 @@ export function EditorialBoardPortalPage() {
   }
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
+  const [rankingPeriod, setRankingPeriod] = useState<'weekly' | 'monthly'>('weekly')
   const [loading, setLoading] = useState(true)
 
   // Assign Editor Tab states
@@ -284,7 +297,6 @@ export function EditorialBoardPortalPage() {
     { key: 'votes', label: t('editorialBoard.pendingVotes'), icon: <Gavel className="size-3.5" />, count: pendingSeries.length },
     { key: 'meetings', label: t('editorialBoard.meetingsTab', 'Meetings'), icon: <Calendar className="size-3.5" /> },
     { key: 'rankings', label: t('editorialBoard.seriesRankings'), icon: <Trophy className="size-3.5" /> },
-    { key: 'input', label: t('editorialBoard.inputVotes'), icon: <BarChart3 className="size-3.5" /> },
     ...(user?.isEbHead ? [{ key: 'rubrics', label: 'Rubric Criteria', icon: <Palette className="size-3.5" /> }] : []),
   ]
 
@@ -293,7 +305,7 @@ export function EditorialBoardPortalPage() {
     try {
       const [pendingRes, rankingsRes, dashboardRes, meetingsRes, rubricsRes, pendingEditorRes, editorsRes] = await Promise.all([
         ebAPI.getPending().catch(() => ({ data: { series: [], activeTemplate: null } })),
-        dashboardAPI.getRankings().catch(() => ({ data: { rankings: [] } })),
+        ebAPI.getPerformanceRankings(rankingPeriod, 'asc').catch(() => ({ data: { rankings: [] } })),
         ebAPI.getDashboard().catch(() => ({ data: { stats: { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 }, atRiskSeries: [], recentDecisions: [], overdueChapters: [] } })),
         meetingAPI.getAll().catch(() => ({ data: { meetings: [] } })),
         rubricTemplateAPI.getAll().catch(() => ({ data: { rubrics: [] } })),
@@ -332,7 +344,7 @@ export function EditorialBoardPortalPage() {
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, rankingPeriod])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])
@@ -753,18 +765,6 @@ export function EditorialBoardPortalPage() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="gap-1.5 rounded-lg text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                                    onClick={() => {
-                                      setInputVotesSeriesId(series._id)
-                                      setInputVotesCount(String(series.weeklyVotes || 0))
-                                    }}
-                                  >
-                                    <BarChart3 className="size-3" />
-                                    {t('editorialBoard.maintain')}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
                                     className="gap-1.5 rounded-lg border border-red-200 !bg-red-50 text-xs !text-red-600 hover:!bg-red-100"
                                     onClick={() => setCancelSeriesId(series._id)}
                                   >
@@ -904,7 +904,7 @@ export function EditorialBoardPortalPage() {
           )}
 
           {/* Low Rating Alerts */}
-          {lowRatingChapters.length > 0 && (
+          {import.meta.env.VITE_ENABLE_LEGACY_EB_ALERTS === 'true' && lowRatingChapters.length > 0 && (
             <Card className="overflow-hidden">
               <CardContent className="p-0">
                 <div className="border-b border-neutral-100 bg-gradient-to-r from-amber-50/60 to-orange-50/30 px-5 py-4">
@@ -1949,6 +1949,24 @@ export function EditorialBoardPortalPage() {
       {/* ────── RANKINGS TAB ────── */}
       {activeTab === 'rankings' && (
         <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-neutral-900">Series performance ranking</p>
+              <p className="text-xs text-neutral-500">Rating quality, new ratings and chapter reactions for the selected period.</p>
+            </div>
+            <div className="flex rounded-xl border border-neutral-200 bg-white p-1">
+              {(['weekly', 'monthly'] as const).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => setRankingPeriod(period)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${rankingPeriod === period ? 'bg-neutral-950 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+                >
+                  {period === 'weekly' ? 'This week' : 'This month'}
+                </button>
+              ))}
+            </div>
+          </div>
           {rankings.length === 0 ? (
             <Card className="rounded-2xl border border-neutral-100 bg-white">
               <CardContent className="flex flex-col items-center justify-center py-20 text-center">
@@ -1968,8 +1986,10 @@ export function EditorialBoardPortalPage() {
                       <tr className="border-b border-neutral-100 bg-neutral-50/80 text-left">
                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.rank')}</th>
                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.series')}</th>
-                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.weeklyVotes')}</th>
-                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.totalVotes')}</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">Rating</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">New ratings</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">Reactions</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">Risk</th>
                         <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.status')}</th>
                         <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-neutral-400">{t('editorialBoard.action')}</th>
                       </tr>
@@ -2004,22 +2024,23 @@ export function EditorialBoardPortalPage() {
                             </td>
                             <td className="px-6 py-4 text-center">
                               <div className="flex flex-col items-center gap-1">
-                                <span className={`inline-flex items-center gap-1 font-bold text-xs ${series.weeklyVotes > 0 ? 'text-emerald-700' : 'text-neutral-500'}`}>
-                                  {series.weeklyVotes > 0 ? (
-                                    <TrendingUp className="size-3.5" />
-                                  ) : (
-                                    <TrendingDown className="size-3.5" />
-                                  )}
-                                  {series.weeklyVotes}
+                                <span className={`inline-flex items-center gap-1 font-bold text-xs ${(series.weightedRating || 0) >= 3 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                  {(series.weightedRating || 0) >= 3 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                                  {(series.weightedRating || 0).toFixed(2)} / 5
                                 </span>
-                                {series.cancellationRisk && (
-                                  <div className="w-16 h-1 rounded-full bg-rose-105 overflow-hidden mt-1">
-                                    <div className="h-full bg-rose-500 w-[20%] animate-pulse" />
-                                  </div>
-                                )}
+                                <span className="text-[10px] text-neutral-400">{series.ratingCount || 0} ratings</span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-center font-bold text-neutral-600">{series.totalVotes}</td>
+                            <td className="px-6 py-4 text-center font-bold text-neutral-600">{series.newRatingCount || 0}</td>
+                            <td className="px-6 py-4 text-center text-neutral-600">
+                              <span className="font-bold">{series.reactionCount || 0}</span>
+                              <span className="block text-[10px] text-neutral-400">{series.uniqueReactors || 0} readers</span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${series.riskLevel === 'closure_review' ? 'border-rose-200 bg-rose-50 text-rose-700' : series.riskLevel === 'at_risk' ? 'border-orange-200 bg-orange-50 text-orange-700' : series.riskLevel === 'watch' ? 'border-amber-200 bg-amber-50 text-amber-700' : series.riskLevel === 'insufficient_data' ? 'border-neutral-200 bg-neutral-50 text-neutral-500' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                                {series.riskLevel === 'closure_review' ? 'Closure review' : series.riskLevel === 'at_risk' ? 'At risk' : series.riskLevel === 'watch' ? 'Watch' : series.riskLevel === 'insufficient_data' ? 'Need data' : 'Healthy'}
+                              </span>
+                            </td>
                             <td className="px-6 py-4 text-center">
                               <Badge className={getStatusBadge(series.status)}>
                                 <span>{series.publicationSchedule ? `${series.status} (${series.publicationSchedule})` : series.status}</span>
@@ -2116,58 +2137,6 @@ export function EditorialBoardPortalPage() {
                           )}
                         </div>
 
-                        {/* Input Reader Votes */}
-                        <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-3xs flex flex-col justify-between text-left">
-                          <div>
-                            <div className="mb-3 flex items-center gap-2 text-xs font-bold text-neutral-700">
-                              <BarChart3 className="size-4 text-emerald-600" />
-                              {t('editorialBoard.inputWeeklyVotes')}
-                            </div>
-                            <p className="text-[11px] text-neutral-450 leading-relaxed mb-4">Directly input the manual reader performance votes for this period.</p>
-                          </div>
-                          
-                          {inputVotesSeriesId === series._id ? (
-                            <div className="space-y-3 animate-in fade-in duration-200">
-                              <Input
-                                type="number"
-                                min="0"
-                                value={inputVotesCount}
-                                onChange={(e) => setInputVotesCount(e.target.value)}
-                                placeholder="Enter votes..."
-                                className="rounded-xl text-xs bg-white border-neutral-200 focus:border-indigo-500 h-8"
-                              />
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="ghost" className="flex-1 rounded-xl text-xs border border-neutral-200 hover:bg-neutral-100 h-8" onClick={() => setInputVotesSeriesId(null)}>
-                                  {t('common.cancel')}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="flex-1 gap-1 rounded-xl bg-emerald-600 text-xs text-white hover:bg-emerald-700 h-8 font-bold"
-                                  onClick={() => handleInputVotes(series._id)}
-                                  disabled={!user?.isEbHead}
-                                >
-                                  <Send className="size-3" />
-                                  {t('editorialBoard.submitVotes')}
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full gap-1.5 rounded-xl text-xs font-bold h-9 border border-neutral-200 hover:bg-neutral-50 shadow-3xs"
-                              disabled={!user?.isEbHead}
-                              onClick={() => {
-                                setInputVotesSeriesId(series._id)
-                                setInputVotesCount(String(series.weeklyVotes || 0))
-                              }}
-                            >
-                              <BarChart3 className="size-3.5" />
-                              {t('editorialBoard.inputVotes')} ({series.weeklyVotes})
-                            </Button>
-                          )}
-                        </div>
-
                         {/* Cancel Series */}
                         <div className="rounded-2xl border border-rose-100 bg-rose-50/20 p-5 shadow-3xs flex flex-col justify-between text-left">
                           <div>
@@ -2225,7 +2194,7 @@ export function EditorialBoardPortalPage() {
       )}
 
       {/* ────── INPUT VOTES TAB ────── */}
-      {activeTab === 'input' && (
+      {import.meta.env.VITE_ENABLE_LEGACY_EB_INPUT === 'true' && activeTab === 'input' && (
         <div className="space-y-4 max-w-4xl mx-auto">
           <Card className="rounded-2xl border border-neutral-250/70 bg-white shadow-xs overflow-hidden border-t-4 border-t-indigo-650">
             {/* Header section */}
