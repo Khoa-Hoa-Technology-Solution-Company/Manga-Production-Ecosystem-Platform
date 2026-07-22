@@ -4,9 +4,11 @@ import { Series } from '../models/Series';
 import { Chapter } from '../models/Chapter';
 import { Task } from '../models/Task';
 import { Vote } from '../models/Vote';
+import { SeriesRating } from '../models/SeriesRating';
 import { User } from '../models/User';
 import { Notification } from '../models/Notification';
 import { isUserOnline } from '../socket';
+import { getReaderLeaderboard } from '../services/reader-ranking.service';
 
 export async function getStats(req: Request, res: Response): Promise<void> {
   try {
@@ -86,7 +88,7 @@ export async function getStats(req: Request, res: Response): Promise<void> {
       const [subscribedSeries, publishedChapters, totalVotes] = await Promise.all([
         Series.countDocuments({ subscribers: userId }),
         Chapter.countDocuments({ status: 'Published' }),
-        Vote.countDocuments({ userId }),
+        SeriesRating.countDocuments({ userId }),
       ]);
       stats = { subscribedSeries, publishedChapters, totalVotes };
     }
@@ -199,43 +201,10 @@ export async function getRankings(req: Request, res: Response): Promise<void> {
       .limit(20)
       .lean();
 
-    // Aggregate votes to get reader leaderboard
-    const readerLeaderboard = await Vote.aggregate([
-      {
-        $group: {
-          _id: '$userId',
-          votesCount: { $sum: 1 },
-          // Count unique series read (by looking at unique seriesId)
-          uniqueSeries: { $addToSet: '$seriesId' }
-        }
-      },
-      {
-        $project: {
-          userId: '$_id',
-          votesCount: 1,
-          seriesReadCount: { $size: '$uniqueSeries' }
-        }
-      },
-      { $sort: { votesCount: -1 } },
-      { $limit: 10 }
-    ]);
+    const period = req.query.period === 'monthly' ? 'monthly' : 'weekly';
+    const readerLeaderboard = await getReaderLeaderboard(period);
 
-    // Populate user details manually since aggregate populate is complex or not native
-    const populatedLeaderboard = await Promise.all(
-      readerLeaderboard.map(async (item) => {
-        const user = await User.findById(item.userId).select('displayName avatar role').lean();
-        return {
-          userId: item.userId,
-          username: user?.displayName || 'Reader',
-          avatar: user?.avatar,
-          votes: item.votesCount,
-          seriesRead: item.seriesReadCount,
-          role: user?.role
-        };
-      })
-    );
-
-    res.json({ rankings, readerLeaderboard: populatedLeaderboard });
+    res.json({ rankings, readerLeaderboard: readerLeaderboard.rankings, readerLeaderboardPeriod: period });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -325,13 +294,12 @@ export async function getReaderDashboard(req: Request, res: Response): Promise<v
   try {
     const userId = req.user!._id;
 
-    const [subscribedSeries, votedChapters] = await Promise.all([
+    const [subscribedSeries, ratedSeries] = await Promise.all([
       Series.find({ subscribers: userId })
         .populate('mangakaId', 'displayName avatar')
         .lean(),
-      Vote.find({ userId })
+      SeriesRating.find({ userId })
         .populate('seriesId', 'title coverImage')
-        .populate('chapterId', 'chapterNumber title')
         .sort({ createdAt: -1 })
         .limit(10)
         .lean()
@@ -339,7 +307,7 @@ export async function getReaderDashboard(req: Request, res: Response): Promise<v
 
     res.json({
       subscribedSeries,
-      votedChapters
+      ratedSeries
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

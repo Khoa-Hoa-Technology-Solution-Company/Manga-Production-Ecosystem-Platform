@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/series.controller';
+import * as ratingsCtrl from '../controllers/series-ratings.controller';
 import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/rbac';
 import { upload } from '../middleware/upload';
@@ -10,6 +11,9 @@ router.use(authenticate);
 
 router.get('/', ctrl.getAll);
 router.get('/editors', authorize('editorial_board'), ctrl.getEditors);
+router.get('/:id/rating', ratingsCtrl.getSeriesRating);
+router.put('/:id/rating', ratingsCtrl.rateSeries);
+router.delete('/:id/rating', ratingsCtrl.deleteSeriesRating);
 router.get('/:id', ctrl.getById);
 router.post('/', authorize('mangaka'), upload.single('coverImageFile'), ctrl.create);
 router.put('/:id', authorize('mangaka', 'editor'), upload.single('coverImageFile'), ctrl.updateMetadata);

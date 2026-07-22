@@ -7,6 +7,9 @@ import { emitToRoom } from '../socket';
 
 export async function voteForChapter(req: Request, res: Response): Promise<void> {
   try {
+    res.status(410).json({ error: 'Chapter ratings have been retired. Please rate the series instead.' });
+    return;
+    /*
     const { rating } = req.body;
     const chapterId = req.params.id as string;
     const userId = req.user!._id;
@@ -61,6 +64,7 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
     });
 
     res.json({ vote, message: 'Vote recorded.' });
+    */
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -69,10 +73,15 @@ export async function voteForChapter(req: Request, res: Response): Promise<void>
 export async function getVotes(req: Request, res: Response): Promise<void> {
   try {
     const chapterId = req.params.id as string;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      res.status(400).json({ error: 'Invalid chapter ID.' });
+      return;
+    }
+    const chapterObjectId = new mongoose.Types.ObjectId(chapterId);
     const [totalVotes, avgRatingData, reactions] = await Promise.all([
       Vote.countDocuments({ chapterId }),
       Vote.aggregate([
-        { $match: { chapterId: chapterId as any, rating: { $exists: true, $ne: null } } },
+        { $match: { chapterId: chapterObjectId, rating: { $exists: true, $ne: null } } },
         { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
       ]),
       Reaction.aggregate([
@@ -82,8 +91,8 @@ export async function getVotes(req: Request, res: Response): Promise<void> {
       ]),
     ]);
 
-    const userVote = await Vote.findOne({ userId: req.user!._id, chapterId });
-    const userReactionObj = await Reaction.findOne({ userId: req.user!._id, chapterId });
+    const userVote = await Vote.findOne({ userId: req.user!._id, chapterId: chapterObjectId });
+    const userReactionObj = await Reaction.findOne({ userId: req.user!._id, chapterId: chapterObjectId });
 
     res.json({
       totalVotes,

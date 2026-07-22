@@ -85,11 +85,12 @@ const options: swaggerJsdoc.Options = {
         },
         CreateSeriesBody: {
           type: 'object',
-          required: ['title', 'description', 'genre'],
+          required: ['title', 'description', 'tags'],
           properties: {
             title: { type: 'string', example: 'Shadow Blade Saga' },
             description: { type: 'string', example: 'An epic samurai manga' },
             genre: { type: 'array', items: { type: 'string' }, example: ['Action', 'Fantasy'] },
+            tags: { type: 'array', items: { type: 'string' }, example: ['action', 'fantasy'] },
             coverImage: { type: 'string' },
           },
         },
@@ -300,6 +301,27 @@ swaggerSpec.paths = {
       responses: { 200: { description: 'Deleted' }, 404: { description: 'Not found' } },
     },
   },
+  '/series/{id}/rating': {
+    get: {
+      tags: ['Series Ratings'],
+      summary: 'Get series rating summary and current user rating',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Series rating summary' }, 404: { description: 'Not found' } },
+    },
+    put: {
+      tags: ['Series Ratings'],
+      summary: 'Create or update the current reader rating for a series',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['rating'], properties: { rating: { type: 'integer', minimum: 1, maximum: 5 } } } } } },
+      responses: { 200: { description: 'Rating saved' }, 400: { description: 'Invalid rating' } },
+    },
+    delete: {
+      tags: ['Series Ratings'],
+      summary: 'Remove the current reader rating',
+      parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'Rating removed' } },
+    },
+  },
 
   // ── Chapters ──────────────────────────────────────
   '/chapters/series/{seriesId}': {
@@ -374,6 +396,18 @@ swaggerSpec.paths = {
   },
 
   // ── Dashboard ─────────────────────────────────────
+  '/eb/performance/rankings': {
+    get: {
+      tags: ['Editorial Board'],
+      summary: 'Get weekly or monthly series performance rankings',
+      parameters: [
+        { in: 'query', name: 'period', schema: { type: 'string', enum: ['weekly', 'monthly'], default: 'weekly' } },
+        { in: 'query', name: 'date', schema: { type: 'string', format: 'date-time' } },
+        { in: 'query', name: 'order', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } },
+      ],
+      responses: { 200: { description: 'Series performance rankings' }, 403: { description: 'Editorial Board only' } },
+    },
+  },
   '/dashboard/stats': {
     get: {
       tags: ['Dashboard'],

@@ -15,7 +15,7 @@ const reactionSchema = new Schema<IReaction>(
     chapterId: { type: Schema.Types.ObjectId, ref: 'Chapter' },
     emoji: { type: String, required: true, trim: true },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: true }
 );
 
 // Ensure a user can only have one emoji reaction per target (series or series+chapter)

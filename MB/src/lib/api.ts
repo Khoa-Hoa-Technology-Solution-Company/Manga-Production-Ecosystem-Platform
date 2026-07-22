@@ -182,6 +182,9 @@ export const seriesAPI = {
   subscribe: (id: string) =>
     apiFetch<{ series: any; subscribed: boolean }>(`/series/${id}/subscribe`, { method: 'POST' }),
 
+  getRating: (id: string) => apiFetch<{ averageRating: number; ratingCount: number; userRating: number }>(`/series/${id}/rating`),
+  rate: (id: string, rating: number) => apiFetch<{ averageRating: number; ratingCount: number; userRating: number }>(`/series/${id}/rating`, { method: 'PUT', body: { rating } }),
+
   getEditors: () => apiFetch<{ editors: any[] }>('/series/editors'),
 
   getDedicatedAssistants: (seriesId: string) =>

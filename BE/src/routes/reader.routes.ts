@@ -9,6 +9,8 @@ router.use(authenticate);
 router.get('/home', ctrl.getHome);
 router.get('/progress', ctrl.getProgress);
 router.put('/progress', ctrl.updateProgress);
+router.get('/leaderboard', ctrl.getReaderLeaderboard);
+router.get('/series-rankings', ctrl.getSeriesRankings);
 router.post(
   '/assistant/chat',
   rateLimit({

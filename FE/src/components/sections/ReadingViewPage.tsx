@@ -19,7 +19,7 @@ import {
   ThumbsUp,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
-import { commentsAPI, seriesAPI, chaptersAPI, ratingsAPI, pagesAPI, reactionsAPI } from '../../lib/api'
+import { commentsAPI, seriesAPI, chaptersAPI, seriesRatingsAPI, pagesAPI, reactionsAPI, readerAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 import { useAuth } from '../../lib/auth'
 
@@ -100,11 +100,11 @@ const comments = [
 
 /* ── Reactions ───────────────────────────────────────── */
 const reactions = [
-  { emoji: '🔥', label: 'Fire', count: 2841 },
-  { emoji: '❤️', label: 'Love', count: 1923 },
-  { emoji: '😮', label: 'Shocked', count: 847 },
-  { emoji: '😭', label: 'Crying', count: 432 },
-  { emoji: '👏', label: 'Clap', count: 1205 },
+  { emoji: '🔥', label: 'Fire' },
+  { emoji: '❤️', label: 'Love' },
+  { emoji: '😮', label: 'Shocked' },
+  { emoji: '😭', label: 'Crying' },
+  { emoji: '👏', label: 'Clap' },
 ]
 
 export function ReadingViewPage() {
@@ -131,6 +131,7 @@ export function ReadingViewPage() {
   }
   
   const [currentPage, setCurrentPage] = useState(0)
+  const [readingPercentage, setReadingPercentage] = useState(0)
   const [userRating, setUserRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [commentText, setCommentText] = useState('')
@@ -174,6 +175,7 @@ export function ReadingViewPage() {
   const [chapter, setChapter] = useState<any>(null)
   const [series, setSeries] = useState<any>(null)
   const [pagesList, setPagesList] = useState<string[]>(MOCK_PAGES)
+  const [hasRealPages, setHasRealPages] = useState(false)
   const [loading, setLoading] = useState(true)
   const [chaptersList, setChaptersList] = useState<any[]>([])
 
@@ -212,6 +214,8 @@ export function ReadingViewPage() {
 
     // Reset viewer states for new chapter
     setCurrentPage(0)
+    setReadingPercentage(0)
+    setHasRealPages(false)
     setActiveReactions(new Set())
 
     // Load chapter details
@@ -225,8 +229,12 @@ export function ReadingViewPage() {
           try {
             const sRes = await seriesAPI.getById(ch.seriesId)
             setSeries(sRes.data.series)
+            const ratingRes = await seriesRatingsAPI.get(ch.seriesId)
+            setAvgRating(Math.round((ratingRes.data.averageRating || 0) * 10) / 10)
+            setRatingCount(ratingRes.data.ratingCount || 0)
+            setUserRating(ratingRes.data.userRating || 0)
           } catch (err) {
-            console.error('Failed to load series details:', err)
+            console.error('Failed to load series/rating details:', err)
           }
 
           // Load series chapters for navigation
@@ -253,6 +261,7 @@ export function ReadingViewPage() {
         )
         if (p.length > 0) {
           setPagesList(p)
+          setHasRealPages(true)
         } else {
           setPagesList(MOCK_PAGES)
         }
@@ -265,23 +274,6 @@ export function ReadingViewPage() {
         setLoading(false)
       })
 
-    // Load rating summary
-    ratingsAPI.getByChapter(chapterId)
-      .then((res) => {
-        if (res.data.avgRating !== undefined) {
-          setAvgRating(Math.round(res.data.avgRating * 10) / 10)
-        }
-        if (res.data.ratingCount !== undefined) {
-          setRatingCount(res.data.ratingCount)
-        }
-        if (res.data.userVote) {
-          setUserRating(res.data.userVote.rating || 0)
-        } else {
-          setUserRating(0)
-        }
-      })
-      .catch(console.error)
-
     // Load decoupled reactions
     reactionsAPI.get('chapter', chapterId)
       .then((res: any) => {
@@ -289,12 +281,39 @@ export function ReadingViewPage() {
           const mapped = res.data.reactions.map((r: any) => ({ _id: r.emoji, count: r.count }))
           setServerReactions(mapped)
         }
-        if (res.data.userReactions) {
-          setActiveReactions(new Set(res.data.userReactions))
-        }
+        setActiveReactions(res.data.userReaction ? new Set([res.data.userReaction]) : new Set())
       })
       .catch(console.error)
   }, [chapterId])
+
+  // Persist reader activity so the weekly/monthly leaderboard has real reading data.
+  useEffect(() => {
+    if (!user || !series?._id || !chapter?._id || chapter._id !== chapterId || !hasRealPages || !pagesList.length) return
+    const percentage = readingMode === 'paged'
+      ? Math.round(((currentPage + 1) / pagesList.length) * 100)
+      : readingPercentage
+    const timer = window.setTimeout(() => {
+      readerAPI.updateProgress({
+        seriesId: series._id,
+        chapterId: chapterId!,
+        chapterIndex: Math.max(0, currentChapterIndex),
+        pageIndex: currentPage,
+        percentage,
+        completed: percentage >= 95,
+      }).catch((err: any) => console.error('Failed to update reading progress:', err))
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [user, series?._id, chapter?._id, chapterId, hasRealPages, pagesList.length, currentPage, readingPercentage, readingMode, currentChapterIndex])
+
+  const handleViewerScroll = (event: any) => {
+    const element = event.currentTarget as HTMLDivElement
+    const maxScroll = Math.max(1, element.scrollHeight - element.clientHeight)
+    const percentage = Math.round((element.scrollTop / maxScroll) * 100)
+    setReadingPercentage(Math.min(100, Math.max(0, percentage)))
+    if (pagesList.length > 0) {
+      setCurrentPage(Math.min(pagesList.length - 1, Math.floor((percentage / 100) * pagesList.length)))
+    }
+  }
 
   // Setup Socket.io and fetch initial comments
   useEffect(() => {
@@ -363,15 +382,37 @@ export function ReadingViewPage() {
       }
     }
 
+    const handleReactionUpdate = (data: any) => {
+      if (data.reactions) {
+        setServerReactions(data.reactions.map((r: any) => ({ _id: r.emoji, count: r.count })))
+      }
+    }
+
     socketService.on('comment:new', handleNewComment)
     socketService.on('vote:new', handleNewRating)
+    socketService.on('reaction:updated', handleReactionUpdate)
 
     return () => {
       socketService.leaveChapterRoom(activeChapterId)
       socketService.off('comment:new', handleNewComment)
       socketService.off('vote:new', handleNewRating)
+      socketService.off('reaction:updated', handleReactionUpdate)
     }
   }, [activeChapterId])
+
+  useEffect(() => {
+    if (!series?._id) return
+    socketService.joinRoom(`series:${series._id}`)
+    const handleSeriesRating = (data: any) => {
+      setAvgRating(Math.round((data.averageRating || 0) * 10) / 10)
+      setRatingCount(data.ratingCount || 0)
+    }
+    socketService.on('series:rating:updated', handleSeriesRating)
+    return () => {
+      socketService.leaveRoom(`series:${series._id}`)
+      socketService.off('series:rating:updated', handleSeriesRating)
+    }
+  }, [series?._id])
 
   // Keyboard navigation for Paged View
   useEffect(() => {
@@ -456,15 +497,10 @@ export function ReadingViewPage() {
   const handleRate = async (ratingVal: number) => {
     setUserRating(ratingVal)
     try {
-      if (activeChapterId && activeChapterId !== 'fallback') {
-        await ratingsAPI.rate(activeChapterId, { rating: ratingVal, seriesId: chapter?.seriesId })
-        const ratingsRes = await ratingsAPI.getByChapter(activeChapterId)
-        if (ratingsRes.data.avgRating !== undefined) {
-          setAvgRating(Math.round(ratingsRes.data.avgRating * 10) / 10)
-        }
-        if (ratingsRes.data.ratingCount !== undefined) {
-          setRatingCount(ratingsRes.data.ratingCount)
-        }
+      if (series?._id) {
+        const ratingRes = await seriesRatingsAPI.rate(series._id, ratingVal)
+        setAvgRating(Math.round((ratingRes.data.averageRating || 0) * 10) / 10)
+        setRatingCount(ratingRes.data.ratingCount || 0)
       }
     } catch (err) {
       console.error('Failed to rate chapter:', err)
@@ -494,14 +530,12 @@ export function ReadingViewPage() {
     })
 
     try {
-      const res = await reactionsAPI.toggle('chapter', activeChapterId, emoji)
+      const res = await reactionsAPI.toggle('chapter', activeChapterId, hadReaction ? null : emoji)
       if (res.data.reactions) {
         const mapped = res.data.reactions.map((r: any) => ({ _id: r.emoji, count: r.count }))
         setServerReactions(mapped)
       }
-      if (res.data.userReactions) {
-        setActiveReactions(new Set(res.data.userReactions))
-      }
+      setActiveReactions(res.data.userReaction ? new Set([res.data.userReaction]) : new Set())
     } catch (err) {
       console.error('Failed to save reaction:', err)
       // Revert on error
@@ -634,7 +668,7 @@ export function ReadingViewPage() {
           )}
 
           {/* Page display */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center relative">
+          <div onScroll={readingMode === 'scroll' ? handleViewerScroll : undefined} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center relative">
             {loading ? (
               <div className="flex size-full items-center justify-center text-sm text-neutral-500">
                 Loading pages...
@@ -777,7 +811,7 @@ export function ReadingViewPage() {
             {/* Rating */}
             <Card className="rounded-xl p-4 border border-neutral-100">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-neutral-800">Rate this chapter</span>
+                <span className="text-xs font-semibold text-neutral-800">Rate this series</span>
                 <span className="text-xs text-neutral-500">
                   {chapterInfo.rating} ({chapterInfo.ratingCount.toLocaleString()})
                 </span>
@@ -812,7 +846,7 @@ export function ReadingViewPage() {
               <span className="text-xs font-semibold text-neutral-700">Quick Reactions</span>
               <div className="flex gap-2 mt-2 flex-wrap">
                 {reactions.map((r) => {
-                  const serverCount = serverReactions.find(s => s._id === r.emoji)?.count ?? r.count
+                  const serverCount = serverReactions.find(s => s._id === r.emoji)?.count ?? 0
                   const isActive = activeReactions.has(r.emoji)
                   return (
                     <button

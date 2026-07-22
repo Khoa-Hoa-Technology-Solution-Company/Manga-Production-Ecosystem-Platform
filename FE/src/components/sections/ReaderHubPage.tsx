@@ -19,7 +19,7 @@ import {
   User
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Badge, Button, Card, Input, Tabs, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui'
-import { seriesAPI, chaptersAPI, dashboardAPI, authAPI } from '../../lib/api'
+import { seriesAPI, chaptersAPI, dashboardAPI, readerAPI, authAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 
 interface SeriesData {
@@ -34,6 +34,9 @@ interface SeriesData {
   readerCount: number
   status?: string
   subscribers?: string[]
+  performanceScore?: number
+  weightedRating?: number
+  reactionCount?: number
   mangakaId?: {
     displayName: string
   }
@@ -62,22 +65,18 @@ interface LeaderboardItem {
   seriesRead: number
   badge: string
   level: string
+  score: number
+  completedChapters: number
+  activeDays: number
 }
 
 interface RawLeaderboardItem {
   username: string
   seriesRead: number
+  score: number
+  completedChapters: number
+  activeDays: number
 }
-
-/* ── Leaderboard (Mock data preserved) ──────────────── */
-const leaderboard = [
-  { rank: 1, username: 'MangaHunter_99', seriesRead: 89, badge: 'Champion', level: 'Diamond' },
-  { rank: 2, username: 'OtakuSenpai', seriesRead: 76, badge: 'Warrior', level: 'Platinum' },
-  { rank: 3, username: 'InkDrinker', seriesRead: 64, badge: 'Fire', level: 'Gold' },
-  { rank: 4, username: 'PageTurner_X', seriesRead: 58, badge: 'Scholar', level: 'Gold' },
-  { rank: 5, username: 'MoonlitReader', seriesRead: 51, badge: 'Mystic', level: 'Silver' },
-  { rank: 6, username: 'DragonScroll', seriesRead: 45, badge: 'Dragon', level: 'Silver' },
-]
 
 const getBadgeIcon = (badge: string) => {
   switch (badge) {
@@ -96,6 +95,14 @@ const getBadgeIcon = (badge: string) => {
     default:
       return <User className="size-3.5 text-neutral-400 shrink-0" />
   }
+}
+
+const getReaderTier = (score: number) => {
+  if (score >= 100) return { badge: 'Champion', level: 'Diamond' }
+  if (score >= 60) return { badge: 'Warrior', level: 'Platinum' }
+  if (score >= 30) return { badge: 'Fire', level: 'Gold' }
+  if (score >= 15) return { badge: 'Scholar', level: 'Silver' }
+  return { badge: 'Reader', level: 'Bronze' }
 }
 
 
@@ -163,16 +170,18 @@ export function ReaderHubPage() {
   const [seriesList, setSeriesList] = useState<SeriesData[]>([])
   const [newReleases, setNewReleases] = useState<ReleaseData[]>([])
   const [leaderboardList, setLeaderboardList] = useState<LeaderboardItem[]>([])
+  const [rankingPeriod, setRankingPeriod] = useState<'weekly' | 'monthly'>('weekly')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Fetch active/completed series
-    seriesAPI.getAll()
+    // Fetch ranked public series for the selected period.
+    readerAPI.getSeriesRankings(rankingPeriod)
       .then((res) => {
-        setSeriesList(res.data.series || [])
+        setSeriesList(res.data.rankings || [])
       })
       .catch((err) => {
-        console.error('Failed to fetch series for reader hub:', err)
+        console.error('Failed to fetch reader series rankings:', err)
+        setSeriesList([])
       })
       .finally(() => {
         setLoading(false)
@@ -187,44 +196,29 @@ export function ReaderHubPage() {
         console.error('Failed to fetch new releases:', err)
       })
 
-    // Fetch reader rankings
-    dashboardAPI.getRankings()
+    // Fetch reader activity rankings for the selected period.
+    readerAPI.getLeaderboard(rankingPeriod)
       .then((res) => {
-        if (res.data.readerLeaderboard && res.data.readerLeaderboard.length > 0) {
-          const formatted = res.data.readerLeaderboard.map((item: RawLeaderboardItem, idx: number) => {
-            let badge = 'Reader'
-            let level = 'Bronze'
-            if (idx === 0) {
-              badge = 'Champion'
-              level = 'Diamond'
-            } else if (idx === 1) {
-              badge = 'Warrior'
-              level = 'Platinum'
-            } else if (idx === 2) {
-              badge = 'Fire'
-              level = 'Gold'
-            } else if (idx < 5) {
-              badge = 'Scholar'
-              level = 'Silver'
-            }
+        const formatted = (res.data.rankings || []).map((item: RawLeaderboardItem, idx: number) => {
+          const tier = getReaderTier(item.score || 0)
             return {
               rank: idx + 1,
               username: item.username,
               seriesRead: item.seriesRead,
-              badge,
-              level,
+              badge: tier.badge,
+              level: tier.level,
+              score: item.score || 0,
+              completedChapters: item.completedChapters || 0,
+              activeDays: item.activeDays || 0,
             }
           })
-          setLeaderboardList(formatted)
-        } else {
-          setLeaderboardList(leaderboard)
-        }
+        setLeaderboardList(formatted)
       })
       .catch((err) => {
         console.error('Failed to fetch reader rankings:', err)
-        setLeaderboardList(leaderboard)
+        setLeaderboardList([])
       })
-  }, [])
+  }, [rankingPeriod])
 
   const handleReadSeries = async (seriesId: string) => {
     try {
@@ -361,7 +355,23 @@ export function ReaderHubPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Flame className="size-4 text-orange-500" />
-              <h2 className="text-base font-semibold">Hot This Week</h2>
+              <h2 className="text-base font-semibold">Top Rated {rankingPeriod === 'weekly' ? 'This Week' : 'This Month'}</h2>
+            </div>
+            <div className="flex items-center rounded-lg border border-neutral-200 bg-white p-0.5 text-[11px]">
+              <button
+                type="button"
+                className={`rounded-md px-2.5 py-1 font-semibold ${rankingPeriod === 'weekly' ? 'bg-neutral-950 text-white' : 'text-neutral-500'}`}
+                onClick={() => setRankingPeriod('weekly')}
+              >
+                This week
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-2.5 py-1 font-semibold ${rankingPeriod === 'monthly' ? 'bg-neutral-950 text-white' : 'text-neutral-500'}`}
+                onClick={() => setRankingPeriod('monthly')}
+              >
+                This month
+              </button>
             </div>
           </div>
 
@@ -499,7 +509,9 @@ export function ReaderHubPage() {
               <Medal className="size-4 text-amber-500" />
               <h2 className="text-base font-semibold">Reader Leaderboard</h2>
             </div>
-            <span className="text-xs text-neutral-500">This month</span>
+            <span className="text-xs text-neutral-500">
+              {rankingPeriod === 'weekly' ? 'This week' : 'This month'} · completed chapters + consistency
+            </span>
           </div>
 
           <div className="overflow-x-auto">
@@ -510,13 +522,21 @@ export function ReaderHubPage() {
                     <div className="flex items-center gap-1">Rank <ArrowUpDown className="size-3" /></div>
                   </TableHead>
                   <TableHead>Reader</TableHead>
+                  <TableHead>Completed</TableHead>
                   <TableHead>Series Read</TableHead>
+                  <TableHead>Score</TableHead>
                   <TableHead>Badge</TableHead>
                   <TableHead>Level</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leaderboardList.map((row) => (
+                {leaderboardList.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-8 text-center text-sm text-neutral-500">
+                      No reading activity in this period yet.
+                    </TableCell>
+                  </TableRow>
+                ) : leaderboardList.map((row) => (
                   <TableRow key={row.rank} className={row.rank <= 3 ? 'bg-amber-50/30' : ''}>
                     <TableCell className="font-bold">
                       {row.rank <= 3 ? (
@@ -537,7 +557,9 @@ export function ReaderHubPage() {
                         <span className="text-sm font-medium">{row.username}</span>
                       </div>
                     </TableCell>
+                    <TableCell className="text-neutral-500">{row.completedChapters}</TableCell>
                     <TableCell className="text-neutral-500">{row.seriesRead}</TableCell>
+                    <TableCell className="font-semibold text-indigo-600">{row.score}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {getBadgeIcon(row.badge)}

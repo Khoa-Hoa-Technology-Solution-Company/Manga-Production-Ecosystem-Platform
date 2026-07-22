@@ -8,7 +8,8 @@
     "dev:tsnode": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "seed": "ts-node-dev src/utils/seed.ts"
+    "seed": "ts-node-dev src/utils/seed.ts",
+    "migrate:series-ratings": "ts-node-dev src/utils/migrate-series-ratings.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1053.0",

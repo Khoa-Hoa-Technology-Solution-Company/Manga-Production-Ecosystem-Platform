@@ -10,6 +10,7 @@ router.use(authorize('editorial_board'));
 
 router.get('/pending', ctrl.getPendingReview);
 router.get('/dashboard', ctrl.getDashboard);
+router.get('/performance/rankings', ctrl.getPerformanceRankings);
 router.post('/vote/:seriesId', ctrl.castVote);
 router.patch('/decision/:seriesId', ctrl.makeFinalDecision);
 router.patch('/schedule/:seriesId', ctrl.updatePublicationSchedule);
