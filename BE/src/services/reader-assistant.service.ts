@@ -68,11 +68,6 @@ export async function createReaderAssistantReply(
     currentReads: context.currentReads,
     recommendations: context.recommendations,
   });
-  const recentHistory = (context.history || [])
-    .slice(-6)
-    .map((item) => `${item.role}: ${item.content.slice(0, 500)}`)
-    .join('\n');
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
 
@@ -94,6 +89,8 @@ export async function createReaderAssistantReply(
                 'Bạn là Miko, trợ lý đọc truyện của MangaFlow.',
                 'Luôn trả lời bằng tiếng Việt, thân thiện, tối đa 120 từ.',
                 'Chỉ gợi ý truyện có trong dữ liệu được cung cấp và không tự tạo tên truyện, ID hay tình tiết.',
+                'Không tự liệt kê tên truyện khi người dùng xin gợi ý; giao diện sẽ hiển thị danh sách truyện thật từ hệ thống.',
+                'Nếu người dùng chỉ chào hỏi, hãy chào lại ngắn gọn và không đề xuất truyện.',
                 'Không tiết lộ nội dung sau vị trí người dùng đã đọc.',
                 'Nếu không có đủ nội dung để tóm tắt hoặc giải thích, nói rõ giới hạn đó.',
                 `Tên người dùng: ${context.displayName}.`,

@@ -178,9 +178,31 @@ export async function chat(req: Request, res: Response): Promise<void> {
       history,
     });
 
+    const normalizedMessage = message.toLocaleLowerCase('vi-VN');
+    const wantsContinueReading = /đọc tiếp|đang đọc|đọc dở|dang doc|doc do/.test(normalizedMessage);
+    const wantsRecommendations = /gợi ý|đề xuất|nên đọc|muốn đọc|tìm.*truyện|truyện.*nào|recommend|goi y|muon doc/.test(normalizedMessage);
+    const currentRead = context.continueReading[0];
+    const resultSeries = wantsContinueReading
+      ? context.continueReading.slice(0, 1)
+      : wantsRecommendations
+        ? context.recommendations.slice(0, 3)
+        : [];
+
+    let reply = assistantResult.reply;
+    if (wantsContinueReading) {
+      reply = currentRead
+        ? `Bạn đang đọc dở “${currentRead.title}” ở chương ${currentRead.chapterNumber}. Chạm vào thẻ bên dưới để đọc tiếp nhé.`
+        : 'Bạn chưa có bộ truyện nào đang đọc dở. Hãy chọn một bộ trong thư viện để bắt đầu nhé.';
+    } else if (wantsRecommendations) {
+      reply = resultSeries.length > 0
+        ? `Mình tìm thấy ${resultSeries.length} bộ trong thư viện MangaFlow phù hợp để bạn khám phá: ${resultSeries.map((item) => `“${item.title}”`).join(', ')}. Chạm vào từng thẻ để xem chi tiết nhé.`
+        : 'Hiện mình chưa tìm thấy bộ truyện phù hợp trong thư viện MangaFlow. Bạn thử mô tả thể loại hoặc phong cách muốn đọc nhé.';
+    }
+
     res.json({
       ...assistantResult,
-      recommendations: context.recommendations.slice(0, 3),
+      reply,
+      recommendations: resultSeries,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
