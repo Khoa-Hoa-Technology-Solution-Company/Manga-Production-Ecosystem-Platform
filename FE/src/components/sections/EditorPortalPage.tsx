@@ -398,8 +398,10 @@ export function EditorPortalPage() {
   const handleApprove = async (seriesId: string) => {
     setSubmittingAction(true)
     try {
-      const nextStatus = isEB ? 'Active' : 'Pending_EB'
-      await seriesAPI.update(seriesId, { status: nextStatus })
+      if (isEB) {
+        throw new Error('Editorial Board decisions must be finalized from the Editorial Board portal.')
+      }
+      await seriesAPI.editorDecision(seriesId, 'approve')
       await loadApprovals()
     } catch (err) {
       const error = err as { response?: { data?: { error?: string } } }
@@ -420,10 +422,10 @@ export function EditorPortalPage() {
     if (!rejectionNotesInput.trim()) return
     setSubmittingAction(true)
     try {
-      await seriesAPI.update(rejectSeriesId, {
-        status: 'Draft',
-        rejectionNotes: rejectionNotesInput.trim()
-      })
+      if (isEB) {
+        throw new Error('Editorial Board decisions must be finalized from the Editorial Board portal.')
+      }
+      await seriesAPI.editorDecision(rejectSeriesId, 'request_changes', rejectionNotesInput.trim())
       setShowRejectModal(false)
       await loadApprovals()
     } catch (err) {
@@ -768,6 +770,15 @@ export function EditorPortalPage() {
               {portfolio.length} Total
             </Badge>
           </div>
+
+          {!isEB && (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/60 px-4 py-3 text-xs font-medium text-blue-800">
+              {t(
+                'editor.approvalWorkflowHint',
+                'Workflow: inspect the series → audit a Reviewing chapter → approve the chapter → choose “Approve & Send to EB”. At least one chapter must be Approved before forwarding.'
+              )}
+            </div>
+          )}
 
           {/* Collaboration Invites Banner */}
           {invites.length > 0 && (
@@ -1581,7 +1592,7 @@ export function EditorPortalPage() {
                         onClick={() => handleApprove(series._id)}
                       >
                         <Check className="size-3.5" />
-                        {isEB ? t('editor.publish', 'Publish') : t('editor.approve', 'Approve')}
+                        {isEB ? t('editor.publish', 'Publish') : t('editor.approve', 'Approve & Send to EB')}
                       </Button>
                       <Button
                         size="sm"
@@ -1884,10 +1895,11 @@ export function EditorPortalPage() {
             </h2>
             <Button
               onClick={handleOpenMeetingForm}
+              disabled
               className="gap-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold py-2 px-3 shadow-md"
             >
               <Calendar className="size-4" />
-              {t('editorialBoard.scheduleMeeting')}
+              {t('editorialBoard.meetingsManagedByHead', 'Scheduled by EB Head')}
             </Button>
           </div>
 

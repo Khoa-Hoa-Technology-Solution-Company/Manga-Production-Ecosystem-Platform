@@ -18,6 +18,7 @@ export type User = {
   avatar?: string;
   bio?: string;
   totalEarnings?: number;
+  isEbHead?: boolean;
 };
 
 type AuthContextType = {

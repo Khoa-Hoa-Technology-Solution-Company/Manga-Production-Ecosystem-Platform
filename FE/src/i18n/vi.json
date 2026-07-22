@@ -441,6 +441,7 @@
     "seriesDrafts": "Bản thảo truyện",
     "viewDraft": "Xem bản thảo",
     "approve": "Duyệt & gửi lên HĐ",
+    "approvalWorkflowHint": "Quy trình: mở chi tiết series → kiểm tra chapter đang chờ duyệt → duyệt chapter → chọn ‘Duyệt & gửi lên HĐ’. Phải có ít nhất một chapter được duyệt trước khi chuyển hồ sơ.",
     "reject": "Yêu cầu chỉnh sửa",
     "approved": "Đã duyệt",
     "rejected": "Yêu cầu chỉnh sửa",
@@ -608,7 +609,8 @@
     "tab_system": "Hệ thống",
     "tab_social": "Tương tác",
     "noCategoryNotifications": "Không tìm thấy thông báo",
-    "categorySubtitle": "Không có thông báo nào thuộc danh mục này."
+    "categorySubtitle": "Không có thông báo nào thuộc danh mục này.",
+    "markAllRead": "Đánh dấu tất cả đã đọc"
   },
   "settingsPage": {
     "title": "Cài đặt tài khoản",
@@ -630,6 +632,10 @@
     "saving": "Đang lưu..."
   },
   "seriesManager": {
-    "submitReview": "Gửi kiểm duyệt"
+    "submitReview": "Gửi kiểm duyệt",
+    "statusPendingEditor": "Sản xuất cùng Editor",
+    "statusEditorProduction": "Sản xuất cùng Editor",
+    "statusAwaitingEditor": "Chờ Editor nhận việc",
+    "editorProductionHint": "Editor đã nhận phụ trách. Bạn có thể tạo hoặc mở chapter trong Studio, thêm trang rồi gửi chapter cho editor duyệt. Sau khi ít nhất một chapter được duyệt, editor có thể chuyển series lên Hội đồng biên tập."
   }
 }

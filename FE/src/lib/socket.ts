@@ -5,6 +5,8 @@ const SOCKET_URL = rawBaseUrl.replace(/\/api\/?$/, '');
 
 class SocketService {
   private socket: Socket | null = null;
+  private listeners = new Map<string, Set<(data: unknown) => void>>();
+  private rooms = new Set<string>();
 
   connect() {
     if (this.socket) return;
@@ -24,6 +26,9 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('🔌 Socket connected');
+      for (const room of this.rooms) {
+        this.socket?.emit('join:room', room);
+      }
     });
 
     this.socket.on('disconnect', () => {
@@ -33,6 +38,12 @@ class SocketService {
     this.socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error.message);
     });
+
+    for (const [event, callbacks] of this.listeners) {
+      for (const callback of callbacks) {
+        this.socket.on(event, callback);
+      }
+    }
   }
 
   disconnect() {
@@ -40,18 +51,28 @@ class SocketService {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.rooms.clear();
   }
 
   // Event listeners
   on(event: string, callback: (data: unknown) => void) {
-    if (!this.socket) return;
-    this.socket.on(event, callback);
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    const callbacks = this.listeners.get(event)!;
+    if (callbacks.has(callback)) return;
+    callbacks.add(callback);
+    this.socket?.on(event, callback);
   }
 
   off(event: string, callback?: (data: unknown) => void) {
-    if (this.socket) {
-      if (callback) this.socket.off(event, callback);
-      else this.socket.off(event);
+    if (callback) {
+      this.listeners.get(event)?.delete(callback);
+      if (this.listeners.get(event)?.size === 0) this.listeners.delete(event);
+      this.socket?.off(event, callback);
+    } else {
+      this.listeners.delete(event);
+      this.socket?.off(event);
     }
   }
 
@@ -67,15 +88,13 @@ class SocketService {
 
   // Room management
   joinRoom(room: string) {
-    if (this.socket) {
-      this.socket.emit('join:room', room);
-    }
+    this.rooms.add(room);
+    this.socket?.emit('join:room', room);
   }
 
   leaveRoom(room: string) {
-    if (this.socket) {
-      this.socket.emit('leave:room', room);
-    }
+    this.rooms.delete(room);
+    this.socket?.emit('leave:room', room);
   }
 
   joinChapterRoom(chapterId: string) {

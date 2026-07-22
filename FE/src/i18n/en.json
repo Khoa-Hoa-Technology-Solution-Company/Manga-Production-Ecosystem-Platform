@@ -441,6 +441,7 @@
     "seriesDrafts": "Series Drafts",
     "viewDraft": "View Draft",
     "approve": "Approve & Send to EB",
+    "approvalWorkflowHint": "Workflow: inspect the series → audit a Reviewing chapter → approve the chapter → choose ‘Approve & Send to EB’. At least one chapter must be Approved before forwarding.",
     "reject": "Request Revision",
     "approved": "Approved",
     "rejected": "Revision Requested",
@@ -607,7 +608,8 @@
     "tab_system": "System",
     "tab_social": "Social",
     "noCategoryNotifications": "No notifications found",
-    "categorySubtitle": "There are no notifications under this category."
+    "categorySubtitle": "There are no notifications under this category.",
+    "markAllRead": "Mark all read"
   },
   "settingsPage": {
     "title": "Account Settings",
@@ -629,6 +631,10 @@
     "saving": "Saving..."
   },
   "seriesManager": {
-    "submitReview": "Submit for Review"
+    "submitReview": "Submit for Review",
+    "statusPendingEditor": "Editor Production",
+    "statusEditorProduction": "Editor Production",
+    "statusAwaitingEditor": "Awaiting Editor",
+    "editorProductionHint": "The editor accepted the assignment. Create or open a chapter in Studio, add pages, then submit it for review. After at least one chapter is approved, the editor can forward the series to the Editorial Board."
   }
 }

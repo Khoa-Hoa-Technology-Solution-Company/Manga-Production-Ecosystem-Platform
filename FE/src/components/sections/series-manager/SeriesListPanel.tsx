@@ -43,12 +43,14 @@ export function SeriesListPanel({
     }
   }
 
-  const getStatusLabel = (status?: string) => {
+  const getStatusLabel = (status?: string, editorStatus?: string) => {
     switch (status) {
       case 'Active':
         return t('seriesManager.statusActive', 'Active')
       case 'Pending_Editor':
-        return t('seriesManager.statusPendingEditor', 'Under Review')
+        return editorStatus === 'accepted'
+          ? t('seriesManager.statusEditorProduction', 'Editor Production')
+          : t('seriesManager.statusAwaitingEditor', 'Awaiting Editor')
       case 'Pending_EB':
         return t('seriesManager.statusPendingEB', 'EB Review')
       case 'Rejected':
@@ -153,7 +155,7 @@ export function SeriesListPanel({
                         series.status
                       )}`}
                     >
-                      {getStatusLabel(series.status)}
+                      {getStatusLabel(series.status, series.editorStatus)}
                     </span>
                     {series.totalChapters !== undefined && (
                       <span className="inline-flex items-center gap-0.5 rounded-md bg-neutral-100 px-1.5 py-0.5 text-[9px] text-neutral-600 font-medium border border-neutral-200/30">

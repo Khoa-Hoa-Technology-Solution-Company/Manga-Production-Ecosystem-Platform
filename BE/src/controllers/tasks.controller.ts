@@ -159,7 +159,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { seriesId, chapterId, pageId, assignmentLevel = 'page' } = req.body;
 
-    // Validate that the series is Active before allowing task creation
+    // Production is also open during the accepted Tantou Editor stage.
     if (seriesId) {
       const { Series } = await import('../models/Series');
       const series = await Series.findById(seriesId);
@@ -167,8 +167,10 @@ export async function create(req: Request, res: Response): Promise<void> {
         res.status(404).json({ error: 'Series not found.' });
         return;
       }
-      if (series.status !== 'Active') {
-        res.status(400).json({ error: 'Tasks can only be created for Active (published) series. Current status: ' + series.status });
+      const canProduce = series.status === 'Active'
+        || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted');
+      if (!canProduce) {
+        res.status(400).json({ error: 'Tasks require an Active series or a Pending Editor series with an accepted editor. Current status: ' + series.status });
         return;
       }
     }

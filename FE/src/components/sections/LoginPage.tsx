@@ -9,8 +9,6 @@ import { Button, Input } from '../ui';
 const roleOptions = [
   { value: 'mangaka', labelKey: 'roles.mangaka' },
   { value: 'assistant', labelKey: 'roles.assistant' },
-  { value: 'editor', labelKey: 'roles.editor' },
-  { value: 'editorial_board', labelKey: 'roles.editorial_board' },
   { value: 'reader', labelKey: 'roles.reader' },
 ];
 

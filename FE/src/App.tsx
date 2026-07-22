@@ -18,7 +18,7 @@ import { LoginPage } from './components/sections/LoginPage'
 import { EditorPortalPage } from './components/sections/EditorPortalPage'
 import { ManuscriptReviewPage } from './components/sections/ManuscriptReviewPage'
 import { SettingsPage } from './components/sections/SettingsPage'
-import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute, ProtectedEditorialBoardRoute } from './components/layout/ProtectedRoute'
+import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute, ProtectedEditorialBoardRoute, ProtectedReviewerRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
 
@@ -126,6 +126,9 @@ function App() {
 
               <Route element={<ProtectedEditorRoute />}>
                 <Route path="/editor" element={<EditorPortalPage />} />
+              </Route>
+
+              <Route element={<ProtectedReviewerRoute />}>
                 <Route path="/editor/review/:chapterId" element={<ManuscriptReviewPage />} />
               </Route>
 

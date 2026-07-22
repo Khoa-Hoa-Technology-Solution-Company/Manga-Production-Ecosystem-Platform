@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
-import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI } from '../../lib/api'
+import { ebAPI, dashboardAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI, seriesAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 
 const DEFAULT_CRITERIA = [
@@ -171,6 +171,12 @@ export function EditorialBoardPortalPage() {
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Assign Editor Tab states
+  const [unassignedSeries, setUnassignedSeries] = useState<SeriesItem[]>([])
+  const [editorsList, setEditorsList] = useState<any[]>([])
+  const [selectedEditorForSeries, setSelectedEditorForSeries] = useState<Record<string, string>>({})
+  const [assigningSeriesId, setAssigningSeriesId] = useState<string | null>(null)
+
   // Details inspection state
   const [inspectSeriesId, setInspectSeriesId] = useState<string | null>(null)
   const [inspectChapters, setInspectChapters] = useState<ChapterItem[]>([])
@@ -264,6 +270,7 @@ export function EditorialBoardPortalPage() {
 
   const tabs = [
     { key: 'dashboard', label: t('editorialBoard.dashboard'), icon: <LayoutDashboard className="size-3.5" /> },
+    ...(user?.isEbHead ? [{ key: 'assign-editor', label: 'Assign Editor', icon: <User className="size-3.5" />, count: unassignedSeries.length }] : []),
     { key: 'votes', label: t('editorialBoard.pendingVotes'), icon: <Gavel className="size-3.5" />, count: pendingSeries.length },
     { key: 'meetings', label: t('editorialBoard.meetingsTab', 'Meetings'), icon: <Calendar className="size-3.5" /> },
     { key: 'rankings', label: t('editorialBoard.seriesRankings'), icon: <Trophy className="size-3.5" /> },
@@ -274,17 +281,24 @@ export function EditorialBoardPortalPage() {
   /* ── data fetching ── */
   const fetchData = useCallback(async () => {
     try {
-      const [pendingRes, rankingsRes, dashboardRes, meetingsRes, rubricsRes] = await Promise.all([
+      const [pendingRes, rankingsRes, dashboardRes, meetingsRes, rubricsRes, pendingEditorRes, editorsRes] = await Promise.all([
         ebAPI.getPending().catch(() => ({ data: { series: [], activeTemplate: null } })),
         dashboardAPI.getRankings().catch(() => ({ data: { rankings: [] } })),
         ebAPI.getDashboard().catch(() => ({ data: { stats: { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 }, atRiskSeries: [], recentDecisions: [], overdueChapters: [] } })),
         meetingAPI.getAll().catch(() => ({ data: { meetings: [] } })),
         rubricTemplateAPI.getAll().catch(() => ({ data: { rubrics: [] } })),
+        seriesAPI.getAll({ status: 'Pending_Editor', limit: '100' }).catch(() => ({ data: { series: [] } })),
+        seriesAPI.getEditors().catch(() => ({ data: { editors: [] } })),
       ])
 
       setPendingSeries(pendingRes.data.series || [])
       setActiveTemplate(pendingRes.data.activeTemplate || null)
       setRubricTemplates(rubricsRes.data?.rubrics || [])
+
+      // Filter series that do not have an editor assigned yet
+      const unassigned = (pendingEditorRes.data.series || []).filter((s: any) => !s.editorId);
+      setUnassignedSeries(unassigned)
+      setEditorsList(editorsRes.data.editors || [])
 
       const rankedSeries = (rankingsRes.data.rankings || []).map((s: SeriesItem, idx: number) => ({
         ...s,
@@ -385,7 +399,7 @@ export function EditorialBoardPortalPage() {
   const handleOpenMeetingForm = async () => {
     setShowMeetingForm(true)
     try {
-      const res = await authAPI.search('', { roles: 'editor,editorial_board' })
+      const res = await authAPI.search('', { roles: 'editorial_board' })
       setAvailableReviewers(res.data.users || [])
     } catch (err) {
       console.error('Failed to load reviewers:', err)
@@ -418,7 +432,13 @@ export function EditorialBoardPortalPage() {
       await ebAPI.makeFinalDecision(seriesId, {
         decision,
         publicationSchedule: decision === 'approved' ? decisionSchedule : undefined,
+        comments: decision === 'rejected'
+          ? 'Changes requested by Editorial Board majority. Review the member vote comments for detailed feedback.'
+          : undefined,
       })
+      alert(decision === 'approved'
+        ? 'Series is now Active and its first approved chapter has been published.'
+        : 'The series was returned for revision.')
       setDecisionSeriesId(null)
       fetchData()
     } catch (err) {
@@ -462,6 +482,25 @@ export function EditorialBoardPortalPage() {
       fetchData()
     } catch (err) {
       console.error('Failed to input votes:', err)
+    }
+  }
+
+  const handleAssignEditor = async (seriesId: string) => {
+    const editorId = selectedEditorForSeries[seriesId]
+    if (!editorId) {
+      alert('Please select an editor first.')
+      return
+    }
+    setAssigningSeriesId(seriesId)
+    try {
+      await seriesAPI.assignEditor(seriesId, editorId)
+      alert('Tantou Editor invitation sent successfully!')
+      fetchData()
+    } catch (err: any) {
+      console.error('Failed to assign editor:', err)
+      alert(err.response?.data?.error || 'Failed to assign editor.')
+    } finally {
+      setAssigningSeriesId(null)
     }
   }
 
@@ -1416,6 +1455,101 @@ export function EditorialBoardPortalPage() {
         </div>
       )}
 
+      {/* ────── ASSIGN EDITOR TAB ────── */}
+      {activeTab === 'assign-editor' && (
+        <div className="space-y-4 max-w-4xl mx-auto text-left">
+          <Card className="rounded-2xl border border-neutral-200 bg-white shadow-xs overflow-hidden">
+            <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-5 flex items-center gap-3">
+              <div className="grid size-11 place-items-center rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-700 shadow-3xs">
+                <User className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-neutral-900 tracking-tight leading-snug">
+                  Unassigned Series Queue
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Designate a Tantou Editor to review and collaborate on submitted manga series
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {unassignedSeries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-neutral-50 border border-neutral-100 text-neutral-405 text-neutral-400">
+                    <User className="size-8" />
+                  </div>
+                  <p className="text-sm font-bold text-neutral-800">All caught up!</p>
+                  <p className="text-xs text-neutral-400 mt-1">There are currently no series waiting for editor assignment.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {unassignedSeries.map((series) => (
+                    <div
+                      key={series._id}
+                      className="flex flex-col md:flex-row md:items-center justify-between rounded-2xl border border-neutral-200 bg-white p-5 hover:border-indigo-150 hover:shadow-xs transition-all duration-200 gap-4"
+                    >
+                      <div className="flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-extrabold text-neutral-900 leading-snug">{series.title}</p>
+                          <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold py-0.5">
+                            Awaiting Editor
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-neutral-500 font-semibold">
+                          Submitted by {series.mangakaId?.displayName} · {series.totalChapters || 0} Chapters
+                        </p>
+                        {series.description && (
+                          <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed">{series.description}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2 pt-1.5">
+                          {series.genre?.map((g) => (
+                            <span key={g} className="bg-neutral-50 border border-neutral-200/60 text-neutral-500 font-bold px-2 py-0.5 rounded-lg text-[9px]">
+                              {g}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
+                        <select
+                          className="h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-neutral-50 focus:bg-white focus:outline-none focus:border-indigo-500 font-bold min-w-48 shadow-3xs cursor-pointer"
+                          value={selectedEditorForSeries[series._id] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setSelectedEditorForSeries((prev) => ({ ...prev, [series._id]: val }))
+                          }}
+                        >
+                          <option value="">-- Select Editor --</option>
+                          {editorsList.map((e) => (
+                            <option key={e._id} value={e._id}>
+                              {e.displayName || e.username} ({e.email})
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          size="sm"
+                          className="rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-755 h-10 px-4 shadow-sm shrink-0 flex items-center gap-1.5"
+                          onClick={() => handleAssignEditor(series._id)}
+                          disabled={assigningSeriesId === series._id || !selectedEditorForSeries[series._id]}
+                        >
+                          {assigningSeriesId === series._id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <User className="size-3.5" />
+                          )}
+                          Assign
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* ────── MEETINGS TAB ────── */}
       {activeTab === 'meetings' && (
         <div className="space-y-6">
@@ -1941,6 +2075,7 @@ export function EditorialBoardPortalPage() {
                                   size="sm"
                                   className="flex-1 gap-1 rounded-xl bg-emerald-600 text-xs text-white hover:bg-emerald-700 h-8 font-bold"
                                   onClick={() => handleInputVotes(series._id)}
+                                  disabled={!user?.isEbHead}
                                 >
                                   <Send className="size-3" />
                                   {t('editorialBoard.submitVotes')}
@@ -1952,6 +2087,7 @@ export function EditorialBoardPortalPage() {
                               size="sm"
                               variant="outline"
                               className="w-full gap-1.5 rounded-xl text-xs font-bold h-9 border border-neutral-200 hover:bg-neutral-50 shadow-3xs"
+                              disabled={!user?.isEbHead}
                               onClick={() => {
                                 setInputVotesSeriesId(series._id)
                                 setInputVotesCount(String(series.weeklyVotes || 0))
@@ -1989,7 +2125,7 @@ export function EditorialBoardPortalPage() {
                                   size="sm"
                                   className="flex-1 gap-1 rounded-xl bg-red-600 text-xs text-white hover:bg-red-700 h-8 font-bold"
                                   onClick={() => handleCancelSeries(series._id)}
-                                  disabled={!cancelReason.trim()}
+                                  disabled={!user?.isEbHead || !cancelReason.trim()}
                                 >
                                   <Ban className="size-3" />
                                   {t('editorialBoard.confirmCancel')}
@@ -2001,6 +2137,7 @@ export function EditorialBoardPortalPage() {
                               size="sm"
                               variant="ghost"
                               className="w-full gap-1.5 rounded-xl border border-rose-200 text-xs text-rose-600 hover:bg-rose-105 font-bold h-9 shadow-3xs bg-white"
+                              disabled={!user?.isEbHead}
                               onClick={() => setCancelSeriesId(series._id)}
                             >
                               <Ban className="size-3.5" />

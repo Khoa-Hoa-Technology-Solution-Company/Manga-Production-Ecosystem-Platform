@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, FileSearch, ChevronRight, Activity, Users, Star, Clock } from 'lucide-react-native';
+import { CheckCircle, FileSearch, ChevronRight, Activity, Star, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { dashboardAPI, editorAPI } from '@/lib/api';
+import { dashboardAPI, editorAPI, seriesAPI } from '@/lib/api';
 import { withProtectedEditorRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -17,6 +17,8 @@ function EditorScreen() {
   const insets = useSafeAreaInsets();
   
   const [pendingReviews, setPendingReviews] = useState<any[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [pendingSeries, setPendingSeries] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,7 @@ function EditorScreen() {
     try {
       const [workflowRes, portfolioRes] = await Promise.all([
         dashboardAPI.getWorkflow().catch(() => ({ workflow: { Reviewing: { items: [], count: 0 } } })),
-        editorAPI.getPortfolio().catch(() => ({ portfolio: [] }))
+        editorAPI.getPortfolio().catch(() => ({ portfolio: [], invites: [] }))
       ]);
 
       const reviewingData = workflowRes.workflow?.Reviewing;
@@ -39,6 +41,8 @@ function EditorScreen() {
       const pendingCount = Array.isArray(reviewingData) ? reviewingData.length : (reviewingData?.count || reviewingItems.length || 0);
 
       setPendingReviews(reviewingItems);
+      setInvites(portfolioRes.invites || []);
+      setPendingSeries((portfolioRes.portfolio || []).filter((item: any) => item.series?.status === 'Pending_Editor'));
       setAnalytics({
         activeSeries: portfolioRes.portfolio?.length || 0,
         pendingCount: pendingCount,
@@ -54,6 +58,26 @@ function EditorScreen() {
 
   const handleReview = (chapterId: string) => {
     router.push(`/editor/review/${chapterId}` as any);
+  };
+
+  const handleInvitation = async (seriesId: string, action: 'accept' | 'decline') => {
+    try {
+      await seriesAPI.respondToHandshake(seriesId, action);
+      Alert.alert('Thành công', action === 'accept' ? 'Bạn đã nhận tác phẩm.' : 'Bạn đã từ chối lời mời.');
+      await loadDashboard();
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Không thể cập nhật lời mời.');
+    }
+  };
+
+  const handleForwardToEb = async (seriesId: string) => {
+    try {
+      await seriesAPI.editorDecision(seriesId, 'approve');
+      Alert.alert('Thành công', 'Hồ sơ đã được chuyển lên Hội đồng biên tập.');
+      await loadDashboard();
+    } catch (err: any) {
+      Alert.alert('Chưa thể chuyển', err.message || 'Hãy duyệt ít nhất một chapter trước.');
+    }
   };
 
   return (
@@ -96,6 +120,47 @@ function EditorScreen() {
               <ThemedText style={styles.statLabel}>Đánh giá</ThemedText>
             </View>
           </View>
+
+          {invites.length > 0 && (
+            <View style={styles.invitesSection}>
+              <ThemedText style={styles.sectionTitle}>LỜI MỜI PHỤ TRÁCH TÁC PHẨM</ThemedText>
+              {invites.map(series => (
+                <View key={series._id} style={styles.reviewCard}>
+                  <View style={styles.cardInfo}>
+                    <ThemedText style={styles.chapterTitle}>{series.title}</ThemedText>
+                    <ThemedText style={styles.timeText}>
+                      Mangaka: {series.mangakaId?.displayName || 'Không rõ'}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.inviteActions}>
+                    <Pressable style={[styles.inviteAction, styles.declineAction]} onPress={() => handleInvitation(series._id, 'decline')}>
+                      <ThemedText style={styles.inviteActionText}>Từ chối</ThemedText>
+                    </Pressable>
+                    <Pressable style={[styles.inviteAction, styles.acceptAction]} onPress={() => handleInvitation(series._id, 'accept')}>
+                      <ThemedText style={styles.inviteActionText}>Nhận</ThemedText>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {pendingSeries.length > 0 && (
+            <View style={styles.invitesSection}>
+              <ThemedText style={styles.sectionTitle}>HỒ SƠ CHỜ CHUYỂN LÊN EB</ThemedText>
+              {pendingSeries.map(item => (
+                <View key={item.series._id} style={styles.reviewCard}>
+                  <View style={styles.cardInfo}>
+                    <ThemedText style={styles.chapterTitle}>{item.series.title}</ThemedText>
+                    <ThemedText style={styles.timeText}>Duyệt ít nhất một chapter trước khi chuyển.</ThemedText>
+                  </View>
+                  <Pressable style={[styles.inviteAction, styles.acceptAction]} onPress={() => handleForwardToEb(item.series._id)}>
+                    <ThemedText style={styles.inviteActionText}>Chuyển EB</ThemedText>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
 
           <ThemedText style={styles.sectionTitle}>BẢN THẢO CẦN DUYỆT</ThemedText>
 
@@ -158,7 +223,13 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   seriesTitle: { color: '#cbd5e1', fontSize: 12, fontWeight: '600', marginBottom: 2 },
   chapterTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  timeText: { color: '#94a3b8', fontSize: 11 }
+  timeText: { color: '#94a3b8', fontSize: 11 },
+  invitesSection: { gap: 10, marginBottom: 8 },
+  inviteActions: { flexDirection: 'row', gap: 8 },
+  inviteAction: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
+  declineAction: { backgroundColor: '#475569' },
+  acceptAction: { backgroundColor: '#7c3aed' },
+  inviteActionText: { color: '#fff', fontSize: 12, fontWeight: '700' }
 });
 
 export default withProtectedEditorRoute(EditorScreen);

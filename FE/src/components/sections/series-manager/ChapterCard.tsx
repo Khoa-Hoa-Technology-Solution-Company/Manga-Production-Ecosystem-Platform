@@ -24,7 +24,11 @@ export function ChapterCard({
   const navigate = useNavigate()
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
 
-  const isLocked = ['Pending_Editor', 'Pending_EB'].includes(selectedSeries?.status || '')
+  const isPendingEditorAccepted = selectedSeries?.status === 'Pending_Editor'
+    && selectedSeries.editorStatus === 'accepted'
+  const isLocked = selectedSeries?.status === 'Pending_EB'
+    || (selectedSeries?.status === 'Pending_Editor' && !isPendingEditorAccepted)
+  const canSubmitForReview = selectedSeries?.status === 'Active' || isPendingEditorAccepted
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -130,7 +134,7 @@ export function ChapterCard({
           </div>
         ) : (
           <>
-            {chapter.status === 'Draft' && (
+            {chapter.status === 'Draft' && canSubmitForReview && (
               <Button
                 variant="outline"
                 size="sm"

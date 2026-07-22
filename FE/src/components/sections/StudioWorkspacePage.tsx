@@ -381,9 +381,13 @@ function StudioWorkspacePageContent() {
   const activePageTask = pageTasks.find(t => t.assignmentLevel === 'page' && (t.pageId?._id === currentPage?._id || t.pageId === currentPage?._id) && t.status !== 'done')
 
   // ── Review Lock Logic ──────────────────────────────
-  // Series is locked when submitted for review (Pending_Editor or Pending_EB)
+  // Pending Editor is a production stage once the assigned editor accepts.
+  // Pending EB is a frozen review package.
   const seriesStatus = currentSeries?.status || 'Draft'
-  const isReviewLocked = seriesStatus === 'Pending_Editor' || seriesStatus === 'Pending_EB'
+  const isPendingEditorAccepted = seriesStatus === 'Pending_Editor' && currentSeries?.editorStatus === 'accepted'
+  const isReviewLocked = seriesStatus === 'Pending_EB'
+    || (seriesStatus === 'Pending_Editor' && !isPendingEditorAccepted)
+  const canSubmitChapterReview = seriesStatus === 'Active' || isPendingEditorAccepted
   // Series was recently rejected (has rejection notes)
   const wasRejected = !!currentSeries?.rejectionNotes
 
@@ -403,13 +407,17 @@ function StudioWorkspacePageContent() {
   useEffect(() => {
     const paramSubmitReview = searchParams.get('submitReview')
     if (paramSubmitReview === 'true' && currentChapter && currentChapter.status === 'Draft') {
-      setShowSubmitReviewDialog(true)
+      if (!canSubmitChapterReview) {
+        alert(t('studio.seriesNotActiveSubmitError', 'Chapter review requires an Active series or a Pending Editor series whose editor accepted the assignment.'))
+      } else {
+        setShowSubmitReviewDialog(true)
+      }
       setSearchParams(prev => {
         prev.delete('submitReview')
         return prev
       }, { replace: true })
     }
-  }, [searchParams, currentChapter])
+  }, [searchParams, currentChapter, canSubmitChapterReview])
 
   // Synchronize layer order from database or defaults
   useEffect(() => {
@@ -684,14 +692,6 @@ function StudioWorkspacePageContent() {
       setSubmittingReview(false)
     }
   }
-
-  useEffect(() => {
-    const timer = setTimeout(() => socketService.connect(), 300)
-    return () => {
-      clearTimeout(timer)
-      socketService.disconnect()
-    }
-  }, [])
 
   useEffect(() => {
     if (!chapterRoom) return
@@ -2640,7 +2640,7 @@ function StudioWorkspacePageContent() {
           >
             New Chapter
           </button>
-          {isMangaka && currentChapter && currentChapter.status === 'Draft' && (
+          {isMangaka && currentChapter && currentChapter.status === 'Draft' && seriesStatus === 'Active' && (
             <button
               type="button"
               className="h-7 rounded-lg px-3.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 transition-colors shrink-0"

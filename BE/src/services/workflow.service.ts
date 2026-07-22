@@ -1,6 +1,7 @@
 import { Chapter, ChapterStatus } from '../models/Chapter';
 import { Series } from '../models/Series';
 import { User } from '../models/User';
+import { WorkflowEvent } from '../models/WorkflowEvent';
 import { notifyNewChapterToSubscribers, notifyChapterSubmittedToEditor } from './notification.service';
 
 /**
@@ -11,20 +12,27 @@ const VALID_TRANSITIONS: Record<ChapterStatus, ChapterStatus[]> = {
   Draft: ['Reviewing'],
   Reviewing: ['Draft', 'Approved'],   // can reject back to Draft
   Approved: ['Published', 'Reviewing'], // can revert to Reviewing
-  Published: ['Draft'],                // can unpublish back to Draft
+  Published: ['Approved'],             // withdrawal preserves the approval state
 };
 
 export async function transitionChapterStatus(
   chapterId: string,
   newStatus: ChapterStatus,
   userId: string,
-  userRole: string
+  userRole: string,
+  isEbHead = false
 ): Promise<typeof Chapter.prototype> {
   const chapter = await Chapter.findById(chapterId);
   if (!chapter) throw new Error('Chapter not found.');
 
   const currentStatus = chapter.status;
   const allowed = VALID_TRANSITIONS[currentStatus];
+  const series = await Series.findById(chapter.seriesId);
+  if (!series) throw new Error('Parent series not found.');
+  const isOwner = userRole === 'mangaka' && chapter.mangakaId.toString() === userId;
+  const isAssignedEditor = userRole === 'editor'
+    && series.editorId?.toString() === userId
+    && series.editorStatus === 'accepted';
 
   if (!allowed.includes(newStatus)) {
     throw new Error(
@@ -34,50 +42,52 @@ export async function transitionChapterStatus(
 
   // Role-based transition rules
   if (newStatus === 'Reviewing' && currentStatus === 'Draft') {
-    // Only mangaka can submit for review
-    if (userRole !== 'mangaka') throw new Error('Only mangaka can submit chapters for review.');
-  }
-
-  if (newStatus === 'Approved' || (newStatus === 'Draft' && currentStatus === 'Reviewing')) {
-    // Only editor can approve or reject
-    if (userRole !== 'editor' && userRole !== 'editorial_board') {
-      throw new Error('Only editors can approve or reject chapters.');
+    if (!isOwner) throw new Error('Only the owning mangaka can submit chapters for review.');
+    const canSubmitForReview = series.status === 'Active'
+      || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted');
+    if (!canSubmitForReview) {
+      throw new Error('Chapter review requires an Active series or a Pending Editor series with an accepted editor.');
+    }
+    if (!series.editorId || series.editorStatus !== 'accepted') {
+      throw new Error('An accepted Tantou Editor is required before chapter review can begin.');
     }
   }
 
-  if (newStatus === 'Draft' && currentStatus === 'Published') {
-    // Only editor or editorial board can unpublish
-    if (userRole !== 'editor' && userRole !== 'editorial_board') {
-      throw new Error('Only editors or editorial board can unpublish chapters.');
+  if (
+    newStatus === 'Approved'
+    || (newStatus === 'Draft' && currentStatus === 'Reviewing')
+    || (newStatus === 'Reviewing' && currentStatus === 'Approved')
+  ) {
+    if (!isAssignedEditor) throw new Error('Only the assigned Tantou Editor can review this chapter.');
+  }
+
+  if (newStatus === 'Approved' && currentStatus === 'Published') {
+    if (!isAssignedEditor && !(userRole === 'editorial_board' && isEbHead)) {
+      throw new Error('Only the assigned editor or Editorial Board Head can withdraw a chapter.');
     }
     chapter.publishedAt = undefined;
   }
 
   if (newStatus === 'Published') {
-    // Only editorial board can publish
-    if (userRole !== 'editorial_board') {
-      throw new Error('Only editorial board can publish chapters.');
-    }
+    if (!isAssignedEditor) throw new Error('Only the assigned Tantou Editor can publish an approved chapter.');
+    if (series.status !== 'Active') throw new Error('A chapter can only be published after the series becomes Active.');
     chapter.publishedAt = new Date();
   }
 
-  // Auto-publishing logic if series is already approved (Active/Completed)
-  let targetStatus = newStatus;
-  if (newStatus === 'Approved') {
-    const series = await Series.findById(chapter.seriesId);
-    if (series && (series.status === 'Active' || series.status === 'Completed')) {
-      // Only publish immediately if there is no future publication deadline scheduled
-      if (!chapter.publicationDeadline || chapter.publicationDeadline <= new Date()) {
-        targetStatus = 'Published';
-        chapter.publishedAt = new Date();
-      }
-    }
-  }
-
-  chapter.status = targetStatus;
+  chapter.status = newStatus;
   await chapter.save();
 
-  if (targetStatus === 'Published') {
+  await WorkflowEvent.create({
+    entityType: 'Chapter',
+    entityId: chapter._id,
+    action: `${currentStatus.toLowerCase()}_to_${newStatus.toLowerCase()}`,
+    fromStatus: currentStatus,
+    toStatus: newStatus,
+    actorId: userId,
+    actorRole: userRole,
+  });
+
+  if (newStatus === 'Published') {
     try {
       await notifyNewChapterToSubscribers(
         chapter.seriesId.toString(),
@@ -91,9 +101,8 @@ export async function transitionChapterStatus(
   }
 
   // Notify editor when Mangaka submits a chapter for review
-  if (targetStatus === 'Reviewing') {
+  if (newStatus === 'Reviewing') {
     try {
-      const series = await Series.findById(chapter.seriesId);
       if (series?.editorId && series.editorStatus === 'accepted') {
         const mangaka = await User.findById(chapter.mangakaId).select('displayName');
         await notifyChapterSubmittedToEditor(

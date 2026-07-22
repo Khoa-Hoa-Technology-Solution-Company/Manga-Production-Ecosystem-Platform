@@ -29,6 +29,7 @@ interface Notification {
   type?: string;
   relatedId?: string;
   relatedType?: string;
+  target?: string;
 }
 
 function timeAgo(dateStr: string): string {
@@ -70,12 +71,24 @@ export default function NotificationsScreen() {
   // Listen to realtime notifications via Socket
   useEffect(() => {
     const handleNewNotification = (n: any) => {
-      setNotifications((prev) => [n, ...prev]);
+      setNotifications((prev) => prev.some((item) => item._id === n._id) ? prev : [n, ...prev]);
+    };
+    const handleReadNotification = (data: any) => {
+      setNotifications((prev) => prev.map((item) =>
+        item._id === data.notificationId ? { ...item, read: true } : item
+      ));
+    };
+    const handleReadAllNotifications = () => {
+      setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
     };
 
     socketService.on('notification:new', handleNewNotification);
+    socketService.on('notification:read', handleReadNotification);
+    socketService.on('notification:read-all', handleReadAllNotifications);
     return () => {
       socketService.off('notification:new', handleNewNotification);
+      socketService.off('notification:read', handleReadNotification);
+      socketService.off('notification:read-all', handleReadAllNotifications);
     };
   }, []);
 
@@ -129,6 +142,57 @@ export default function NotificationsScreen() {
     if (!notif.relatedId) return;
 
     try {
+      if (notif.target === 'tasks' || notif.target === 'assistant_series') {
+        router.push('/tasks');
+        return;
+      }
+      if (notif.target === 'editor_chapter_review') {
+        router.push(user?.role === 'editor' ? `/editor/review/${notif.relatedId}` as any : '/editor');
+        return;
+      }
+      if (notif.target === 'mangaka_series') {
+        router.push(user?.role === 'mangaka'
+          ? { pathname: '/manage', params: { seriesId: notif.relatedId } }
+          : '/explore');
+        return;
+      }
+      if (notif.target === 'editor_portfolio' || notif.target === 'editor_approvals') {
+        router.push(user?.role === 'editor' ? '/editor' : '/explore');
+        return;
+      }
+      if (notif.target === 'eb_assign_editor' || notif.target === 'eb_votes' || notif.target === 'eb_meetings') {
+        router.push(user?.role === 'editorial_board' ? '/board' : user?.role === 'editor' ? '/editor' : '/explore');
+        return;
+      }
+      if (notif.target === 'reader_series') {
+        router.push(`/series/${notif.relatedId}` as any);
+        return;
+      }
+      if (notif.target === 'reader_chapter') {
+        const res = await chaptersAPI.getById(notif.relatedId);
+        const chapter = res?.chapter;
+        if (!chapter) {
+          router.push('/explore');
+          return;
+        }
+        const chaptersRes = await chaptersAPI.getBySeries(chapter.seriesId);
+        const chapters = chaptersRes?.chapters || [];
+        const chapterIndex = chapters.findIndex((item: any) => item._id === chapter._id);
+        router.push({
+          pathname: `/read/${chapter.seriesId}` as any,
+          params: { chapterIndex: chapterIndex >= 0 ? String(chapterIndex) : '0' },
+        });
+        return;
+      }
+      if (notif.target === 'chapter_context' && user?.role === 'editor') {
+        router.push(`/editor/review/${notif.relatedId}` as any);
+        return;
+      }
+      if (notif.target === 'chapter_context' && user?.role === 'editorial_board') {
+        router.push('/board');
+        return;
+      }
+
       if (notif.type === 'task_assigned' || notif.type === 'task_revision') {
         router.push('/tasks');
       } else if (notif.type === 'task_submitted' || notif.type === 'task_declined') {
@@ -151,7 +215,11 @@ export default function NotificationsScreen() {
           router.push('/tasks');
         }
       } else if (notif.type === 'chapter_status') {
-        if (user?.role === 'reader') {
+        if (user?.role === 'editor') {
+          router.push(`/editor/review/${notif.relatedId}` as any);
+        } else if (user?.role === 'editorial_board') {
+          router.push('/board');
+        } else if (user?.role === 'reader') {
           try {
             const res = await chaptersAPI.getById(notif.relatedId);
             const chapter = res?.chapter;
@@ -160,7 +228,7 @@ export default function NotificationsScreen() {
               const chapters = chaptersRes?.chapters || [];
               const idx = chapters.findIndex((c: any) => c._id === chapter._id);
               router.push({
-                pathname: `/read/${chapter.seriesId}`,
+                pathname: `/read/${chapter.seriesId}` as any,
                 params: { chapterIndex: idx !== -1 ? String(idx) : '0' },
               });
             } else {
@@ -169,7 +237,7 @@ export default function NotificationsScreen() {
           } catch {
             router.push('/explore');
           }
-        } else {
+        } else if (user?.role === 'mangaka') {
           try {
             const res = await chaptersAPI.getById(notif.relatedId);
             const chapter = res?.chapter;
@@ -184,7 +252,7 @@ export default function NotificationsScreen() {
           } catch {
             router.push('/studio');
           }
-        }
+        } else router.push('/tasks');
       } else if (notif.relatedType === 'Series') {
         if (user?.role === 'editor') {
           router.push('/editor');

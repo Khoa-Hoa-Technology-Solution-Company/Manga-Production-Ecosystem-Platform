@@ -7,13 +7,20 @@ export async function register(req: Request, res: Response): Promise<void> {
   try {
     const { email, password, displayName, role } = req.body;
 
+    const selfServiceRoles = new Set(['mangaka', 'assistant', 'reader']);
+    const requestedRole = role || 'reader';
+    if (!selfServiceRoles.has(requestedRole)) {
+      res.status(403).json({ error: 'Editor and Editorial Board accounts must be provisioned by an administrator.' });
+      return;
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       res.status(409).json({ error: 'Email already registered.' });
       return;
     }
 
-    const user = await User.create({ email, password, displayName, role: role || 'reader' });
+    const user = await User.create({ email, password, displayName, role: requestedRole });
     const token = signToken({ userId: user._id.toString(), role: user.role });
 
     res.status(201).json({
