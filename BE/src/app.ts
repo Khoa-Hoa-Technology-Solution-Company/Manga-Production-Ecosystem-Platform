@@ -27,6 +27,7 @@ import meetingRoutes from './routes/meeting.routes';
 import uploadRoutes from './routes/upload.routes';
 import rubricTemplateRoutes from './routes/rubric-template.routes';
 import reactionsRoutes from './routes/reactions.routes';
+import readerRoutes from './routes/reader.routes';
 
 const app = express();
 
@@ -114,6 +115,7 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/rubric-templates', rubricTemplateRoutes);
 app.use('/api/reactions', reactionsRoutes);
+app.use('/api/reader', readerRoutes);
 
 // ── Health check ────────────────────────────────────
 app.get('/api/health', (_req, res) => {

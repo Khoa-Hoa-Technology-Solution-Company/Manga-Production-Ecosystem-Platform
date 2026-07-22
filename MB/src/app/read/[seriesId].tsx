@@ -49,7 +49,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, votesAPI, getImageUrl } from '@/lib/api';
+import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, votesAPI, readerAPI, getImageUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -107,14 +107,25 @@ const themes = {
 export default function ReaderScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { seriesId, chapterIndex: chapterIndexParam } = useLocalSearchParams<{ seriesId: string; chapterIndex?: string }>();
-  const { width: screenWidth } = Dimensions.get('window');
+  const {
+    seriesId,
+    chapterIndex: chapterIndexParam,
+    pageIndex: pageIndexParam,
+    progress: progressParam,
+  } = useLocalSearchParams<{
+    seriesId: string;
+    chapterIndex?: string;
+    pageIndex?: string;
+    progress?: string;
+  }>();
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
   // Reader refs (declared at top to avoid Temporal Dead Zone / ReferenceError)
   const scrollViewRef = useRef<ScrollView>(null);
   const cinemaScrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
   const autoScrollInterval = useRef<any>(null);
+  const hasAppliedResumePosition = useRef(false);
 
   const { user } = useAuth();
   const [subscribingSeries, setSubscribingSeries] = useState(false);
@@ -149,11 +160,11 @@ export default function ReaderScreen() {
   const [scrollSpeed, setScrollSpeed] = useState(2); // 1 to 5
   const [zoomScale, setZoomScale] = useState(1); // 1x, 1.25x, 1.5x, 2x
   const [showSettings, setShowSettings] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(() => Math.min(100, Math.max(0, Number(progressParam) || 0)));
 
   // Standard reader states
   const [readingMode, setReadingMode] = useState<'scroll' | 'cinema'>('scroll');
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(() => Math.max(0, Number.parseInt(pageIndexParam || '0', 10) || 0));
   const [bookmarked, setBookmarked] = useState(false);
   const [voted, setVoted] = useState(false);
   const [voteCount, setVoteCount] = useState<number>(0);
@@ -215,12 +226,12 @@ export default function ReaderScreen() {
       const requestedIndex = parseInt(chapterIndexParam || '0', 10);
       const safeIndex = isNaN(requestedIndex) ? 0 : Math.min(requestedIndex, chapters.length - 1);
       setActiveChapterIndex(safeIndex);
-      setCurrentPage(0);
-      setScrollProgress(0);
+      setCurrentPage(Math.max(0, Number.parseInt(pageIndexParam || '0', 10) || 0));
+      setScrollProgress(Math.min(100, Math.max(0, Number(progressParam) || 0)));
       scrollYRef.current = 0;
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      hasAppliedResumePosition.current = false;
     }
-  }, [chapterIndexParam, chapters]);
+  }, [chapterIndexParam, pageIndexParam, progressParam, chapters]);
 
   // Increment view count when chapter index or chapters change
   useEffect(() => {
@@ -232,6 +243,30 @@ export default function ReaderScreen() {
       });
     }
   }, [activeChapterIndex, chapters]);
+
+  // Persist the current reader position after the user pauses interaction.
+  useEffect(() => {
+    const currentChapter = chapters[activeChapterIndex];
+    if (!seriesId || !currentChapter?._id || pages.length === 0) return;
+
+    const percentage = readingMode === 'cinema'
+      ? Math.min(100, ((currentPage + 1) / pages.length) * 100)
+      : scrollProgress;
+    const timer = setTimeout(() => {
+      readerAPI.updateProgress({
+        seriesId,
+        chapterId: currentChapter._id,
+        chapterIndex: activeChapterIndex,
+        pageIndex: readingMode === 'cinema'
+          ? currentPage
+          : Math.min(pages.length - 1, Math.floor((percentage / 100) * pages.length)),
+        percentage: Math.round(percentage * 10) / 10,
+        completed: activeChapterIndex === chapters.length - 1 && percentage >= 99,
+      }).catch((err) => console.error('Failed to save reading progress:', err));
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [activeChapterIndex, chapters, currentPage, pages.length, readingMode, scrollProgress, seriesId]);
 
   // Fetch pages and comments cascade when active chapter changes
   useEffect(() => {
@@ -676,6 +711,16 @@ export default function ReaderScreen() {
               ref={scrollViewRef}
               contentContainerStyle={[styles.scrollReaderContent, { backgroundColor: currentTheme.bg }]}
               showsVerticalScrollIndicator={false}
+              onContentSizeChange={(_width, contentHeight) => {
+                if (hasAppliedResumePosition.current) return;
+                hasAppliedResumePosition.current = true;
+                const resumePercentage = Math.min(100, Math.max(0, Number(progressParam) || 0));
+                if (resumePercentage > 0) {
+                  const y = Math.max(0, contentHeight - screenHeight) * (resumePercentage / 100);
+                  scrollYRef.current = y;
+                  scrollViewRef.current?.scrollTo({ y, animated: false });
+                }
+              }}
               onScroll={(event) => {
                 const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
                 if (!autoScroll) {

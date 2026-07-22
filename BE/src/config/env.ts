@@ -18,4 +18,9 @@ export const env = {
   R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
   R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,
   R2_PUBLIC_URL: process.env.R2_PUBLIC_URL,
+
+  // OpenAI-compatible LLM gateway (optional; deterministic fallback is used without a key)
+  LLM_API_KEY: process.env.LLM_API_KEY,
+  LLM_MODEL: process.env.LLM_MODEL || 'ram/gemini-3.5-flash-low',
+  LLM_BASE_URL: process.env.LLM_BASE_URL || 'https://api.vilao.ai/v1',
 };

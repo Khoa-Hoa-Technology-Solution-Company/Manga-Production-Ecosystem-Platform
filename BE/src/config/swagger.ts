@@ -162,6 +162,36 @@ const options: swaggerJsdoc.Options = {
         },
 
         // ── Common ────────────────────────────────
+        ReadingProgressBody: {
+          type: 'object',
+          required: ['seriesId', 'chapterId', 'chapterIndex', 'pageIndex', 'percentage'],
+          properties: {
+            seriesId: { type: 'string' },
+            chapterId: { type: 'string' },
+            chapterIndex: { type: 'integer', minimum: 0 },
+            pageIndex: { type: 'integer', minimum: 0 },
+            percentage: { type: 'number', minimum: 0, maximum: 100 },
+            completed: { type: 'boolean' },
+          },
+        },
+        ReaderChatBody: {
+          type: 'object',
+          required: ['message'],
+          properties: {
+            message: { type: 'string', minLength: 1, maxLength: 1000 },
+            history: {
+              type: 'array',
+              maxItems: 6,
+              items: {
+                type: 'object',
+                properties: {
+                  role: { type: 'string', enum: ['user', 'assistant'] },
+                  content: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
         Error: {
           type: 'object',
           properties: {
@@ -580,6 +610,46 @@ swaggerSpec.paths = {
   },
 
   // ── Notifications ─────────────────────────────────
+  '/reader/home': {
+    get: {
+      tags: ['Reader Assistant'],
+      summary: 'Get personalized greeting, progress, and recommendations',
+      responses: { 200: { description: 'Personalized reader home data' } },
+    },
+  },
+  '/reader/progress': {
+    get: {
+      tags: ['Reader Assistant'],
+      summary: 'List unfinished reading progress',
+      responses: { 200: { description: 'Continue-reading items' } },
+    },
+    put: {
+      tags: ['Reader Assistant'],
+      summary: 'Save the current reading position',
+      requestBody: {
+        required: true,
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/ReadingProgressBody' } } },
+      },
+      responses: {
+        200: { description: 'Reading position saved' },
+        404: { description: 'Published chapter not found' },
+      },
+    },
+  },
+  '/reader/assistant/chat': {
+    post: {
+      tags: ['Reader Assistant'],
+      summary: 'Chat with the spoiler-aware reader assistant',
+      requestBody: {
+        required: true,
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/ReaderChatBody' } } },
+      },
+      responses: {
+        200: { description: 'Assistant reply and series suggestions' },
+        429: { description: 'Assistant rate limit exceeded' },
+      },
+    },
+  },
   '/notifications': {
     get: {
       tags: ['Notifications'],
