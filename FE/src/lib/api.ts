@@ -67,9 +67,10 @@ export const seriesAPI = {
   delete: (id: string) => api.delete(`/series/${id}`),
   subscribe: (id: string) => api.post(`/series/${id}/subscribe`),
   // Approval workflow
-  submitToEditor: (id: string) => api.patch(`/series/${id}/submit-to-editor`),
-  getPendingReview: (params?: Record<string, unknown>) => api.get('/series/pending-review', { params }),
-  getApprovalHistory: (id: string) => api.get(`/series/${id}/approval-history`),
+  submitToEditor: (id: string) => api.post(`/series/${id}/submit`),
+  assignEditor: (id: string, editorId: string) => api.post(`/series/${id}/editor-assignment`, { editorId }),
+  editorDecision: (id: string, decision: 'approve' | 'request_changes', comments?: string) =>
+    api.patch(`/series/${id}/editor-decision`, { decision, comments }),
   getEditors: () => api.get('/series/editors'),
   respondToHandshake: (id: string, action: 'accept' | 'decline') =>
     api.put(`/series/${id}/handshake`, { action }),
@@ -80,12 +81,6 @@ export const seriesAPI = {
     api.post(`/series/${seriesId}/dedicated-assistants`, { userId }),
   removeDedicatedAssistant: (seriesId: string, userId: string) =>
     api.delete(`/series/${seriesId}/dedicated-assistants/${userId}`),
-};
-
-// ── Approval API ────────────────────────────────────
-export const approvalAPI = {
-  editorDecision: (seriesId: string, data: { decision: string; comments?: string; annotations?: unknown[] }) =>
-    api.patch(`/series/${seriesId}/editor-decision`, data),
 };
 
 // ── Editorial Board API ─────────────────────────────

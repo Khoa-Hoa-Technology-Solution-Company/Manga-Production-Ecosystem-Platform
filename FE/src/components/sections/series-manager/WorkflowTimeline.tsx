@@ -10,7 +10,7 @@ export function WorkflowTimeline({ status = 'Draft' }: WorkflowTimelineProps) {
 
   const steps = [
     { key: 'Draft', label: t('seriesManager.statusDraft', 'Draft') },
-    { key: 'Pending_Editor', label: t('seriesManager.statusPendingEditor', 'Editor') },
+    { key: 'Pending_Editor', label: t('seriesManager.statusPendingEditor', 'Editor Production') },
     { key: 'Pending_EB', label: t('seriesManager.statusPendingEB', 'EB Review') },
     { key: 'Active', label: t('seriesManager.statusActive', 'Active') },
   ]

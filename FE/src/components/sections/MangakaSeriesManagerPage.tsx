@@ -9,7 +9,6 @@ import { useAuth } from '../../lib/auth'
 import {
   type SeriesData,
   type ChapterData,
-  type EditorUserData,
   type UserData,
   type DedicatedAssistantData,
 } from './series-manager/utils'
@@ -43,12 +42,9 @@ export function MangakaSeriesManagerPage() {
   const selectedSeriesId = searchParams.get('seriesId') || (seriesList[0]?._id || '')
   const tab = searchParams.get('tab') || 'series'
 
-  const [editorsList, setEditorsList] = useState<EditorUserData[]>([])
-  
   // Submit Editor Modal
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [submitSeriesId, setSubmitSeriesId] = useState('')
-  const [modalMode, setModalMode] = useState<'invite' | 'submit'>('invite')
 
   // Drawers trigger
   const [isSeriesDrawerOpen, setIsSeriesDrawerOpen] = useState(false)
@@ -158,16 +154,7 @@ export function MangakaSeriesManagerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id])
 
-  useEffect(() => {
-    seriesAPI
-      .getEditors()
-      .then((res) => {
-        if (isMountedRef.current) {
-          setEditorsList(res.data.editors || [])
-        }
-      })
-      .catch(console.error)
-  }, [])
+
 
   // Load chapters on series switch
   useEffect(() => {
@@ -238,7 +225,6 @@ export function MangakaSeriesManagerPage() {
     genre: string
     coverFile: File | null
     coverUrl: string
-    editorId: string
     script?: string
     scriptFile?: string
     characterDesigns?: {
@@ -264,12 +250,10 @@ export function MangakaSeriesManagerPage() {
       }
 
       if (editingSeries) {
-        formData.append('editorId', data.editorId || 'none')
         await seriesAPI.update(editingSeries._id, formData)
         setIsSeriesDrawerOpen(false)
         await loadData(editingSeries._id)
       } else {
-        if (data.editorId) formData.append('editorId', data.editorId)
         const res = await seriesAPI.create(formData)
         setIsSeriesDrawerOpen(false)
         await loadData(res.data.series?._id)
@@ -396,37 +380,19 @@ export function MangakaSeriesManagerPage() {
     }
   }
 
-  // Editor invitation & manuscript submission
-  const handleOpenInviteModal = () => {
-    if (!selectedSeries) return
-    setModalMode('invite')
-    setSubmitSeriesId(selectedSeries._id)
-    setShowSubmitModal(true)
-  }
-
+  // Manuscript submission
   const handleOpenSubmitModal = () => {
     if (!selectedSeries) return
-    setModalMode('submit')
     setSubmitSeriesId(selectedSeries._id)
     setShowSubmitModal(true)
   }
 
-  const handleSubmitToEditor = async (editorId: string) => {
+  const handleSubmitToEditor = async () => {
     if (!submitSeriesId) return
     setSaving(true)
     try {
-      if (modalMode === 'invite') {
-        await seriesAPI.update(submitSeriesId, {
-          editorId: editorId,
-        })
-        alert(t('seriesManager.inviteSuccess', 'Tantou Editor invitation sent successfully!'))
-      } else {
-        await seriesAPI.update(submitSeriesId, {
-          status: 'Pending_Editor',
-          editorId: editorId,
-        })
-        alert(t('seriesManager.submitSuccess', 'Draft manuscript submitted to Editor successfully!'))
-      }
+      await seriesAPI.submitToEditor(submitSeriesId)
+      alert(t('seriesManager.submitSuccess', 'Draft manuscript submitted successfully!'))
       setShowSubmitModal(false)
       await loadData(selectedSeriesId)
     } catch (err: unknown) {
@@ -520,7 +486,6 @@ export function MangakaSeriesManagerPage() {
             saving={saving}
             onEditSeries={handleOpenEditSeries}
             onDeleteSeries={handleDeleteSeries}
-            onInviteEditorClick={handleOpenInviteModal}
             onSubmitForApprovalClick={handleOpenSubmitModal}
             onNewChapterClick={handleOpenNewChapter}
             onEditChapter={handleOpenEditChapter}
@@ -549,7 +514,6 @@ export function MangakaSeriesManagerPage() {
         isOpen={isSeriesDrawerOpen}
         onClose={() => setIsSeriesDrawerOpen(false)}
         onSave={handleSaveSeries}
-        editorsList={editorsList}
         initialSeries={editingSeries}
         saving={saving}
       />
@@ -569,9 +533,7 @@ export function MangakaSeriesManagerPage() {
         isOpen={showSubmitModal}
         onClose={() => setShowSubmitModal(false)}
         onSubmit={handleSubmitToEditor}
-        editorsList={editorsList}
         selectedSeries={selectedSeries}
-        modalMode={modalMode}
         saving={saving}
       />
     </div>

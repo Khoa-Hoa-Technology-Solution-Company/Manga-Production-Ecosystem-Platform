@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Meeting } from '../models/Meeting';
 import { createNotification } from '../services/notification.service';
 import { Series } from '../models/Series';
+import { User } from '../models/User';
 
 /**
  * POST /api/meetings
@@ -36,6 +37,28 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       finalSeriesIds = seriesIds;
     } else if (seriesId) {
       finalSeriesIds = [seriesId];
+    }
+
+    if (finalSeriesIds.length === 0) {
+      res.status(400).json({ error: 'At least one series is required for a review meeting.' });
+      return;
+    }
+
+    const [eligibleParticipants, eligibleSeries] = await Promise.all([
+      User.countDocuments({
+        _id: { $in: uniqueParticipants },
+        role: 'editorial_board',
+        isActive: true,
+      }),
+      Series.countDocuments({ _id: { $in: finalSeriesIds }, status: 'Pending_EB' }),
+    ]);
+    if (eligibleParticipants !== uniqueParticipants.length) {
+      res.status(400).json({ error: 'All voting participants must be active Editorial Board members.' });
+      return;
+    }
+    if (eligibleSeries !== finalSeriesIds.length) {
+      res.status(400).json({ error: 'Review meetings can only include series currently pending Editorial Board review.' });
+      return;
     }
 
     const meeting = await Meeting.create({
@@ -75,6 +98,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
         message: `${creatorName} scheduled a review meeting "${title}"${seriesTitleMsg} on ${formattedDate}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
+        target: 'eb_meetings',
       });
 
       // Additional notification for Series Review
@@ -86,6 +110,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
           message: `You are invited to review the series "${seriesObj.title}" in the meeting "${title}" on ${formattedDate}.`,
           relatedId: seriesObj._id.toString(),
           relatedType: 'Series',
+          target: 'eb_meetings',
         });
       }
     }
@@ -99,6 +124,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
         message: `A review meeting "${title}" has been scheduled for your series "${seriesObj.title}" on ${formattedDate}.`,
         relatedId: seriesObj._id.toString(),
         relatedType: 'Series',
+        target: 'mangaka_series',
       });
     }
 
@@ -173,6 +199,7 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
         message: `The review meeting "${meeting.title}" originally scheduled on ${formattedDate} has been cancelled by ${creatorName}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
+        target: 'eb_meetings',
       });
 
       for (const seriesObj of seriesObjects) {
@@ -183,6 +210,7 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
           message: `The review meeting for series "${seriesObj.title}" on ${formattedDate} has been cancelled.`,
           relatedId: seriesObj._id.toString(),
           relatedType: 'Series',
+          target: 'eb_meetings',
         });
       }
     }
@@ -195,6 +223,7 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
         message: `The review meeting scheduled for your series "${seriesObj.title}" on ${formattedDate} has been cancelled.`,
         relatedId: seriesObj._id.toString(),
         relatedType: 'Series',
+        target: 'mangaka_series',
       });
     }
 

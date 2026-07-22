@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, TextInput, Alert, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, BookOpen, Clock, Settings, X, Search, ChevronLeft, Trash2, Edit2, Users, CheckCircle } from 'lucide-react-native';
+import { Plus, BookOpen, Clock, X, Search, ChevronLeft, Trash2, Edit2, Users, Send } from 'lucide-react-native';
 import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
@@ -41,11 +41,6 @@ function ManageScreen() {
   const [chapterNumber, setChapterNumber] = useState('');
   const [chapterTitle, setChapterTitle] = useState('');
 
-  // Tantou Editor State
-  const [showEditorModal, setShowEditorModal] = useState(false);
-  const [editorsList, setEditorsList] = useState<any[]>([]);
-  const [selectedEditorId, setSelectedEditorId] = useState('');
-
   // Assistants State
   const [showAssistantsModal, setShowAssistantsModal] = useState(false);
   const [dedicatedAssistants, setDedicatedAssistants] = useState<any[]>([]);
@@ -57,9 +52,6 @@ function ManageScreen() {
 
   useEffect(() => {
     loadMySeries();
-    seriesAPI.getEditors().then(res => {
-      setEditorsList(res.editors || []);
-    }).catch(console.error);
   }, [user?._id]);
 
   useEffect(() => {
@@ -209,14 +201,26 @@ function ManageScreen() {
     ]);
   };
 
-  const handleInviteEditor = async () => {
-    if (!selectedSeriesId || !selectedEditorId) return;
+  const handleSubmitSeries = async () => {
+    if (!selectedSeriesId) return;
     setSaving(true);
     try {
-      await seriesAPI.update(selectedSeriesId, { editorId: selectedEditorId });
-      Alert.alert('Thành công', 'Đã gửi lời mời đến Tantou Editor!');
-      setShowEditorModal(false);
+      await seriesAPI.submitToEditor(selectedSeriesId);
+      Alert.alert('Thành công', 'Tác phẩm đã được gửi sang hàng chờ phân công biên tập.');
       loadMySeries();
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmitChapterReview = async (chapterId: string) => {
+    setSaving(true);
+    try {
+      await chaptersAPI.submitForReview(chapterId);
+      Alert.alert('Thành công', 'Chapter đã được gửi cho editor duyệt.');
+      if (selectedSeriesId) loadChapters(selectedSeriesId);
     } catch (err: any) {
       Alert.alert('Lỗi', err.message);
     } finally {
@@ -231,7 +235,7 @@ function ManageScreen() {
     try {
       const res = await authAPI.search(text);
       setSearchResults((res.users || []).filter((u: any) => u.role === 'assistant'));
-    } catch (err) {
+    } catch {
       setSearchResults([]);
     } finally {
       setSearching(false);
@@ -269,6 +273,9 @@ function ManageScreen() {
   // --- RENDERS ---
 
   if (selectedSeries) {
+    const isPendingEditorAccepted = selectedSeries.status === 'Pending_Editor' && selectedSeries.editorStatus === 'accepted';
+    const canProduceChapter = ['Draft', 'Active'].includes(selectedSeries.status) || isPendingEditorAccepted;
+    const canSubmitChapterReview = selectedSeries.status === 'Active' || isPendingEditorAccepted;
     return (
       <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
         <LinearGradient colors={['#0e051d', '#130e2c', '#07020e']} style={StyleSheet.absoluteFillObject} />
@@ -281,9 +288,11 @@ function ManageScreen() {
               <ThemedText style={styles.headerSubtitle}>TÁC PHẨM</ThemedText>
               <ThemedText type="title" style={styles.headerTitle} numberOfLines={1}>{selectedSeries.title}</ThemedText>
             </View>
-            <Pressable style={styles.iconBtn} onPress={() => openSeriesForm(selectedSeries)}>
-              <Edit2 size={20} color="#fff" />
-            </Pressable>
+            {(selectedSeries.status === 'Draft' || selectedSeries.status === 'Rejected') && (
+              <Pressable style={styles.iconBtn} onPress={() => openSeriesForm(selectedSeries)}>
+                <Edit2 size={20} color="#fff" />
+              </Pressable>
+            )}
           </View>
 
           <ScrollView contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + Spacing.four }]}>
@@ -306,9 +315,9 @@ function ManageScreen() {
                     </ThemedText>
                   </View>
                 ) : (
-                  <Pressable style={styles.inviteBtn} onPress={() => setShowEditorModal(true)}>
-                    <ThemedText style={styles.inviteBtnText}>Mời Editor</ThemedText>
-                  </Pressable>
+                  <View style={styles.inviteBtn}>
+                    <ThemedText style={styles.inviteBtnText}>Chờ EB phân công</ThemedText>
+                  </View>
                 )}
               </View>
 
@@ -319,12 +328,28 @@ function ManageScreen() {
                   <ThemedText style={styles.inviteBtnText}>{dedicatedAssistants.length} Trợ lý</ThemedText>
                 </Pressable>
               </View>
+
+              {(selectedSeries.status === 'Draft' || selectedSeries.status === 'Rejected') && (
+                <Pressable
+                  style={[styles.primaryBtn, { marginTop: 16 }]}
+                  onPress={handleSubmitSeries}
+                  disabled={saving || chapters.length === 0}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <ThemedText style={styles.primaryBtnText}>
+                      {chapters.length === 0 ? 'Cần ít nhất 1 chương' : 'Gửi EB phân công biên tập'}
+                    </ThemedText>
+                  )}
+                </Pressable>
+              )}
             </View>
 
             {/* Chapters Section */}
             <View style={styles.sectionHeader}>
               <ThemedText type="smallBold" style={styles.sectionTitle}>DANH SÁCH CHƯƠNG ({chapters.length})</ThemedText>
-              <Pressable style={styles.addBtnSmall} onPress={() => openChapterForm()}>
+              <Pressable style={[styles.addBtnSmall, !canProduceChapter && { opacity: 0.4 }]} onPress={() => openChapterForm()} disabled={!canProduceChapter}>
                 <Plus size={16} color="#fff" />
               </Pressable>
             </View>
@@ -345,12 +370,21 @@ function ManageScreen() {
                     </View>
                   </View>
                   <View style={styles.chapterActions}>
-                    <Pressable style={styles.chapActionBtn} onPress={() => openChapterForm(chap)}>
-                      <Edit2 size={16} color="#94a3b8" />
-                    </Pressable>
-                    <Pressable style={styles.chapActionBtn} onPress={() => deleteChapter(chap._id)}>
-                      <Trash2 size={16} color="#ef4444" />
-                    </Pressable>
+                    {chap.status === 'Draft' && canSubmitChapterReview && (
+                      <Pressable style={styles.chapActionBtn} onPress={() => handleSubmitChapterReview(chap._id)} disabled={saving}>
+                        <Send size={16} color="#4ade80" />
+                      </Pressable>
+                    )}
+                    {chap.status === 'Draft' && canProduceChapter && (
+                      <>
+                        <Pressable style={styles.chapActionBtn} onPress={() => openChapterForm(chap)}>
+                          <Edit2 size={16} color="#94a3b8" />
+                        </Pressable>
+                        <Pressable style={styles.chapActionBtn} onPress={() => deleteChapter(chap._id)}>
+                          <Trash2 size={16} color="#ef4444" />
+                        </Pressable>
+                      </>
+                    )}
                   </View>
                 </View>
               ))
@@ -359,37 +393,6 @@ function ManageScreen() {
         </SafeAreaView>
 
         {/* --- MODALS FOR DETAILS --- */}
-
-        {/* Editor Modal */}
-        <Modal visible={showEditorModal} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Mời Tantou Editor</ThemedText>
-                <Pressable onPress={() => setShowEditorModal(false)}><X color="#fff" /></Pressable>
-              </View>
-              <ThemedText style={styles.modalDesc}>Chọn một Biên tập viên để đồng hành cùng tác phẩm của bạn.</ThemedText>
-              
-              <ScrollView style={{ maxHeight: 300, marginTop: 10 }}>
-                {editorsList.map(editor => (
-                  <Pressable 
-                    key={editor._id} 
-                    style={[styles.editorItem, selectedEditorId === editor._id && styles.editorItemSelected]}
-                    onPress={() => setSelectedEditorId(editor._id)}
-                  >
-                    <ThemedText style={styles.editorItemName}>{editor.displayName || editor.username}</ThemedText>
-                    <ThemedText style={styles.editorItemEmail}>{editor.email}</ThemedText>
-                    {selectedEditorId === editor._id && <CheckCircle size={16} color="#fb7185" style={styles.editorItemCheck} />}
-                  </Pressable>
-                ))}
-              </ScrollView>
-
-              <Pressable style={[styles.primaryBtn, { marginTop: 20 }]} onPress={handleInviteEditor} disabled={saving || !selectedEditorId}>
-                {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>Gửi Lời Mời</ThemedText>}
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
 
         {/* Assistants Modal */}
         <Modal visible={showAssistantsModal} animationType="slide" transparent>

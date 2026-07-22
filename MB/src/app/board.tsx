@@ -16,6 +16,7 @@ import { ebAPI } from '@/lib/api';
 import { withProtectedEditorialBoardRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth';
 
 const DEFAULT_RUBRIC_CRITERIA = [
   { key: 'artStyle', label: 'Art Style' },
@@ -26,6 +27,7 @@ const DEFAULT_RUBRIC_CRITERIA = [
 ];
 
 function EditorialBoardScreen() {
+  const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === 'dark';
@@ -94,13 +96,16 @@ function EditorialBoardScreen() {
       [
         { text: 'Hủy', style: 'cancel' },
         { text: 'Từ chối', style: 'destructive', onPress: () => {
-          ebAPI.makeFinalDecision(seriesId, { decision: 'rejected', comments: 'EB Rejected' })
+          ebAPI.makeFinalDecision(seriesId, { decision: 'rejected', comments: 'Changes requested by Editorial Board majority.' })
             .then(() => loadPending())
             .catch(err => Alert.alert('Lỗi', err.message));
         }},
         { text: 'Duyệt Phát Hành', onPress: () => {
-          ebAPI.makeFinalDecision(seriesId, { decision: 'approved', publicationSchedule: 'Weekly' })
-            .then(() => loadPending())
+          ebAPI.makeFinalDecision(seriesId, { decision: 'approved', publicationSchedule: 'weekly' })
+            .then(() => {
+              Alert.alert('Đã xuất bản', 'Series đã Active và chapter được duyệt đầu tiên đã được xuất bản.');
+              loadPending();
+            })
             .catch(err => Alert.alert('Lỗi', err.message));
         }},
       ]
@@ -184,10 +189,12 @@ function EditorialBoardScreen() {
                       <Gavel size={16} color="#fff" />
                       <ThemedText style={styles.actionBtnText}>Bỏ phiếu</ThemedText>
                     </Pressable>
-                    <Pressable style={[styles.finalBtn, { backgroundColor: '#10b981' }]} onPress={() => handleFinalDecision(series._id)}>
-                      <Send size={16} color="#fff" />
-                      <ThemedText style={styles.actionBtnText}>Quyết định cuối</ThemedText>
-                    </Pressable>
+                    {user?.isEbHead && (
+                      <Pressable style={[styles.finalBtn, { backgroundColor: '#10b981' }]} onPress={() => handleFinalDecision(series._id)}>
+                        <Send size={16} color="#fff" />
+                        <ThemedText style={styles.actionBtnText}>Quyết định cuối</ThemedText>
+                      </Pressable>
+                    )}
                   </View>
                 </View>
               );

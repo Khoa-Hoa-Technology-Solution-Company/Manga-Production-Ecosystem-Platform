@@ -13,6 +13,7 @@ import {
   createNotification,
   notifyNewSeriesToSubscribers,
 } from '../services/notification.service';
+import { finalizeSeriesByEditorialBoard } from '../services/series-workflow.service';
 
 const CANCELLATION_RISK_THRESHOLD = 10;
 
@@ -35,7 +36,10 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
         const [votes, chapterCount, meeting] = await Promise.all([
           EBVote.find({ seriesId: s._id }).populate('memberId', 'displayName avatar role'),
           Chapter.countDocuments({ seriesId: s._id }),
-          Meeting.findOne({ seriesIds: s._id })
+          Meeting.findOne({
+            seriesIds: s._id,
+            ...(s.ebReviewStartedAt ? { createdAt: { $gte: s.ebReviewStartedAt } } : {}),
+          }).sort({ createdAt: -1 })
             .populate('participants', 'displayName email avatar role')
             .populate('rubricTemplateId'),
         ]);
@@ -231,11 +235,11 @@ export async function getDashboard(req: Request, res: Response): Promise<void> {
  */
 export async function castVote(req: Request, res: Response): Promise<void> {
   try {
-    const { seriesId } = req.params;
+    const seriesId = String(req.params.seriesId);
     const { decision, comments, rubric } = req.body;
     let finalDecision = decision;
 
-    const meeting = await Meeting.findOne({ seriesIds: seriesId }).populate('rubricTemplateId');
+    const meeting = await Meeting.findOne({ seriesIds: seriesId }).sort({ createdAt: -1 }).populate('rubricTemplateId');
     const meetingTemplate = meeting?.rubricTemplateId as any;
     const activeTemplate = meetingTemplate || await RubricTemplate.findOne({ isActive: true });
     const criteriaList = activeTemplate ? activeTemplate.criteria : DEFAULT_CRITERIA;
@@ -275,7 +279,7 @@ export async function castVote(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (!meeting) {
+    if (!meeting || (series.ebReviewStartedAt && meeting.createdAt < series.ebReviewStartedAt)) {
       res.status(400).json({ error: 'Voting is not allowed until a review meeting is scheduled for this series.' });
       return;
     }
@@ -315,7 +319,11 @@ export async function castVote(req: Request, res: Response): Promise<void> {
  */
 export async function makeFinalDecision(req: Request, res: Response): Promise<void> {
   try {
-    const { seriesId } = req.params;
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can finalize a series decision.' });
+      return;
+    }
+    const seriesId = String(req.params.seriesId);
     const { publicationSchedule, comments } = req.body;
 
     const series = await Series.findById(seriesId);
@@ -329,13 +337,20 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       return;
     }
 
-    const meeting = await Meeting.findOne({ seriesIds: series._id });
+    const meeting = await Meeting.findOne({
+      seriesIds: series._id,
+      ...(series.ebReviewStartedAt ? { createdAt: { $gte: series.ebReviewStartedAt } } : {}),
+    }).sort({ createdAt: -1 });
     if (!meeting) {
       res.status(400).json({ error: 'Voting cannot be finalized because no review meeting has been scheduled for this series.' });
       return;
     }
 
     const participantsCount = meeting.participants.length;
+    if (participantsCount === 0) {
+      res.status(400).json({ error: 'The review meeting has no voting participants.' });
+      return;
+    }
     const votesCount = await EBVote.countDocuments({
       seriesId,
       memberId: { $in: meeting.participants },
@@ -348,27 +363,32 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Determine decision based on highest vote counts (majority vote)
+    // Determine decision based on highest vote counts (majority vote) if not explicitly provided
     const [votesFor, votesAgainst] = await Promise.all([
-      EBVote.countDocuments({ seriesId, decision: 'approved' }),
-      EBVote.countDocuments({ seriesId, decision: 'rejected' }),
+      EBVote.countDocuments({ seriesId, memberId: { $in: meeting.participants }, decision: 'approved' }),
+      EBVote.countDocuments({ seriesId, memberId: { $in: meeting.participants }, decision: 'rejected' }),
     ]);
 
-    const decision = votesFor >= votesAgainst ? 'approved' : 'rejected';
+    const finalDecision = votesFor > votesAgainst ? 'approved' : 'rejected';
 
     const mangakaId = series.mangakaId.toString();
     const editorId = series.editorId?.toString();
 
-    if (decision === 'approved') {
-      if (publicationSchedule && !['weekly', 'monthly'].includes(publicationSchedule)) {
-        res.status(400).json({ error: 'Publication schedule must be "weekly" or "monthly".' });
-        return;
-      }
+    const normalizedSchedule = publicationSchedule ? String(publicationSchedule).toLowerCase() : 'weekly';
+    if (!['weekly', 'monthly'].includes(normalizedSchedule)) {
+      res.status(400).json({ error: 'Publication schedule must be "weekly" or "monthly".' });
+      return;
+    }
 
-      series.status = 'Active';
-      series.publicationSchedule = publicationSchedule || 'weekly';
-      series.rejectionNotes = '';
-      await series.save();
+    const updatedSeries = await finalizeSeriesByEditorialBoard(
+      seriesId,
+      finalDecision,
+      req.user!,
+      comments,
+      normalizedSchedule as 'weekly' | 'monthly'
+    );
+
+    if (finalDecision === 'approved') {
 
       try {
         await notifySeriesPublished(mangakaId, editorId, series.title, series._id.toString());
@@ -377,18 +397,14 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
         console.error('Failed to send publish notification:', err);
       }
     } else {
-      series.status = 'Draft';
-      series.rejectionNotes = comments || 'Rejected by Editorial Board';
-      await series.save();
-
       try {
-        await notifySeriesEBRejected(mangakaId, series.title, series.rejectionNotes!, series._id.toString());
+        await notifySeriesEBRejected(mangakaId, series.title, updatedSeries.rejectionNotes!, series._id.toString());
       } catch (err) {
         console.error('Failed to send EB rejection notification:', err);
       }
     }
 
-    res.json({ series, message: `Series ${decision} based on majority vote (${votesFor} for vs ${votesAgainst} against).` });
+    res.json({ series: updatedSeries, message: `Series ${finalDecision} by participant majority (${votesFor} for vs ${votesAgainst} against).` });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -400,7 +416,11 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
  */
 export async function inputReaderVotes(req: Request, res: Response): Promise<void> {
   try {
-    const { seriesId } = req.params;
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can record reader vote metrics.' });
+      return;
+    }
+    const seriesId = String(req.params.seriesId);
     const { weeklyVotes } = req.body;
 
     if (typeof weeklyVotes !== 'number' || weeklyVotes < 0) {
@@ -431,7 +451,11 @@ export async function inputReaderVotes(req: Request, res: Response): Promise<voi
  */
 export async function cancelSeries(req: Request, res: Response): Promise<void> {
   try {
-    const { seriesId } = req.params;
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can cancel a series.' });
+      return;
+    }
+    const seriesId = String(req.params.seriesId);
     const { reason } = req.body;
 
     if (!reason || !reason.trim()) {
@@ -465,6 +489,7 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
         message: `Your series "${series.title}" has been cancelled by the Editorial Board. Reason: ${reason}`,
         relatedId: series._id.toString(),
         relatedType: 'Series',
+        target: 'mangaka_series',
       });
     } catch (err) {
       console.error('Failed to send cancellation notification:', err);
@@ -479,6 +504,7 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
           message: `Series "${series.title}" has been cancelled by the Editorial Board. Reason: ${reason}`,
           relatedId: series._id.toString(),
           relatedType: 'Series',
+          target: 'editor_portfolio',
         });
       } catch (err) {
         console.error('Failed to send editor cancellation notification:', err);

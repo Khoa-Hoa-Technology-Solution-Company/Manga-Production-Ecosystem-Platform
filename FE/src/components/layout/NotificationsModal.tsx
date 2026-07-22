@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../ui'
 import { notificationsAPI, tasksAPI, chaptersAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
+import { socketService } from '../../lib/socket'
 
 interface NotificationsModalProps {
   isOpen: boolean
   onClose: () => void
-  onMarkReadComplete: () => void
+  onUnreadCountChange: (count: number) => void
 }
 
 interface NotificationData {
@@ -21,9 +22,10 @@ interface NotificationData {
   createdAt: string
   relatedId?: string
   relatedType?: string
+  target?: string
 }
 
-export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: NotificationsModalProps) {
+export function NotificationsModal({ isOpen, onClose, onUnreadCountChange }: NotificationsModalProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -31,70 +33,146 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'tasks' | 'system' | 'social'>('all')
 
-  const handleNotificationClick = async (notif: NotificationData) => {
-    onClose()
-    if (!notif.read) {
-      try {
-        await notificationsAPI.markRead(notif._id)
-        onMarkReadComplete()
-      } catch (err) {
-        console.error(err)
-      }
+  const fallbackPath = () => {
+    if (user?.role === 'editor') return '/editor'
+    if (user?.role === 'editorial_board') return '/editorial-board'
+    if (user?.role === 'assistant') return '/tasks'
+    if (user?.role === 'mangaka') return '/studio/manage'
+    return '/discover'
+  }
+
+  const openChapterContext = async (chapterId: string) => {
+    if (user?.role === 'editor') {
+      navigate(`/editor/review/${chapterId}`)
+      return
+    }
+    if (user?.role === 'editorial_board') {
+      navigate(`/editorial-board?tab=votes&chapterId=${chapterId}`)
+      return
+    }
+    if (user?.role === 'reader') {
+      navigate(`/read/${chapterId}`)
+      return
+    }
+    if (user?.role === 'assistant') {
+      navigate('/tasks')
+      return
+    }
+    const res = await chaptersAPI.getById(chapterId)
+    const chapter = res.data.chapter
+    navigate(chapter
+      ? `/studio?seriesId=${chapter.seriesId}&chapterId=${chapter._id}`
+      : '/studio/manage')
+  }
+
+  const openPublishedSeries = async (seriesId: string) => {
+    const res = await chaptersAPI.getBySeries(seriesId)
+    const chapters = (res.data.chapters || []) as Array<{ _id: string; status: string; chapterNumber?: number }>
+    const published = chapters
+      .filter(chapter => chapter.status === 'Published')
+      .sort((a, b) => (a.chapterNumber || 0) - (b.chapterNumber || 0))[0]
+    navigate(published ? `/read/${published._id}` : '/discover')
+  }
+
+  const navigateToTarget = async (notif: NotificationData) => {
+    const id = notif.relatedId
+    if (!id) {
+      navigate(fallbackPath())
+      return
     }
 
-    if (!notif.relatedId) return
-
-    try {
-      if (notif.type === 'task_assigned' || notif.type === 'task_revision') {
+    switch (notif.target) {
+      case 'tasks':
+      case 'assistant_series':
         navigate('/tasks')
-      } else if (notif.type === 'task_submitted' || notif.type === 'task_declined') {
-        const res = await tasksAPI.getById(notif.relatedId)
+        return
+      case 'mangaka_task_review': {
+        if (user?.role !== 'mangaka') {
+          navigate(fallbackPath())
+          return
+        }
+        const res = await tasksAPI.getById(id)
         const task = res.data.task
-        if (task) {
-          navigate(`/studio?seriesId=${task.seriesId}&chapterId=${task.chapterId}&pageId=${task.pageId || ''}`)
-        } else {
-          navigate('/studio')
-        }
-      } else if (notif.type === 'chapter_status') {
-        if (user?.role === 'reader') {
-          navigate(`/read/${notif.relatedId}`)
-        } else {
-          const res = await chaptersAPI.getById(notif.relatedId)
-          const chapter = res.data.chapter
-          if (chapter) {
-            navigate(`/studio?seriesId=${chapter.seriesId}&chapterId=${chapter._id}`)
-          } else {
-            navigate(`/studio`)
-          }
-        }
-      } else if (notif.relatedType === 'Series') {
-        if (user?.role === 'editor') {
-          navigate('/editor')
-        } else if (user?.role === 'editorial_board') {
-          navigate('/editorial-board')
-        } else if (user?.role === 'reader') {
-          navigate('/discover')
-        } else {
-          navigate('/studio/manage')
-        }
-      } else if (notif.relatedType === 'Meeting') {
-        if (user?.role === 'editor') {
-          navigate('/editor?tab=meetings')
-        } else if (user?.role === 'editorial_board') {
-          navigate('/editorial-board?tab=meetings')
-        }
+        navigate(task
+          ? `/studio?seriesId=${task.seriesId}&chapterId=${task.chapterId}&pageId=${task.pageId || ''}`
+          : '/studio/manage')
+        return
       }
-    } catch (err) {
-      console.error('Navigation failed', err)
+      case 'editor_chapter_review':
+        navigate(user?.role === 'editor' ? `/editor/review/${id}` : fallbackPath())
+        return
+      case 'chapter_context':
+        await openChapterContext(id)
+        return
+      case 'reader_chapter':
+        navigate(`/read/${id}`)
+        return
+      case 'mangaka_series':
+        navigate(user?.role === 'mangaka' ? `/studio/manage?seriesId=${id}` : fallbackPath())
+        return
+      case 'editor_portfolio':
+        navigate(user?.role === 'editor' ? `/editor?tab=portfolio&seriesId=${id}` : fallbackPath())
+        return
+      case 'editor_approvals':
+        navigate(user?.role === 'editor' ? `/editor?tab=approvals&seriesId=${id}` : fallbackPath())
+        return
+      case 'eb_assign_editor':
+        navigate(user?.role === 'editorial_board' ? `/editorial-board?tab=assign-editor&seriesId=${id}` : fallbackPath())
+        return
+      case 'eb_votes':
+        navigate(user?.role === 'editorial_board' ? `/editorial-board?tab=votes&seriesId=${id}` : fallbackPath())
+        return
+      case 'eb_meetings':
+        navigate(user?.role === 'editorial_board'
+          ? '/editorial-board?tab=meetings'
+          : user?.role === 'editor' ? '/editor?tab=meetings' : fallbackPath())
+        return
+      case 'reader_series':
+        await openPublishedSeries(id)
+        return
+    }
+
+    // Compatibility for notifications created before explicit targets existed.
+    if (notif.type === 'task_assigned' || notif.type === 'task_revision' || notif.type === 'task_cancelled') {
+      navigate('/tasks')
+    } else if (notif.type === 'task_submitted' || notif.type === 'task_declined') {
+      if (user?.role !== 'mangaka') navigate(fallbackPath())
+      else {
+        const res = await tasksAPI.getById(id)
+        const task = res.data.task
+        navigate(task ? `/studio?seriesId=${task.seriesId}&chapterId=${task.chapterId}&pageId=${task.pageId || ''}` : '/studio/manage')
+      }
+    } else if (notif.relatedType === 'Chapter' || notif.type === 'chapter_status') {
+      await openChapterContext(id)
+    } else if (notif.relatedType === 'Meeting') {
+      navigate(user?.role === 'editorial_board'
+        ? '/editorial-board?tab=meetings'
+        : user?.role === 'editor' ? '/editor?tab=meetings' : fallbackPath())
+    } else if (notif.relatedType === 'Series') {
       if (user?.role === 'editor') {
-        navigate('/editor')
+        const tab = notif.title.toLowerCase().includes('submitted') ? 'approvals' : 'portfolio'
+        navigate(`/editor?tab=${tab}&seriesId=${id}`)
       } else if (user?.role === 'editorial_board') {
-        navigate('/editorial-board')
-      } else if (user?.role === 'assistant') {
-        navigate('/tasks')
-      } else {
-        navigate('/studio')
-      }
+        const tab = notif.title.toLowerCase().includes('assignment') ? 'assign-editor' : 'votes'
+        navigate(`/editorial-board?tab=${tab}&seriesId=${id}`)
+      } else if (user?.role === 'mangaka') navigate(`/studio/manage?seriesId=${id}`)
+      else if (user?.role === 'reader') await openPublishedSeries(id)
+      else navigate('/tasks')
+    } else navigate(fallbackPath())
+  }
+
+  const handleNotificationClick = async (notif: NotificationData) => {
+    if (!notif.read) {
+      setNotifications(prev => prev.map(item => item._id === notif._id ? { ...item, read: true } : item))
+      onUnreadCountChange(Math.max(0, notifications.filter(item => !item.read).length - 1))
+      notificationsAPI.markRead(notif._id).catch(console.error)
+    }
+    onClose()
+    try {
+      await navigateToTarget(notif)
+    } catch (err) {
+      console.error('Notification navigation failed', err)
+      navigate(fallbackPath())
     }
   }
 
@@ -103,6 +181,7 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
     try {
       const res = await notificationsAPI.getAll()
       setNotifications(res.data.notifications || [])
+      onUnreadCountChange(res.data.unread || 0)
     } catch (err) {
       console.error('Failed to fetch notifications', err)
     } finally {
@@ -112,21 +191,46 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
 
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => {
-        fetchNotifications().catch(console.error)
-      })
-      // Mark all read automatically on open
-      notificationsAPI.markAllRead()
-        .then(() => onMarkReadComplete())
-        .catch(console.error)
+      Promise.resolve().then(() => fetchNotifications().catch(console.error))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
+
+  useEffect(() => {
+    const handleNew = (data: unknown) => {
+      const incoming = data as NotificationData
+      setNotifications(prev => prev.some(item => item._id === incoming._id) ? prev : [incoming, ...prev])
+    }
+    const handleRead = (data: unknown) => {
+      const { notificationId } = data as { notificationId: string }
+      setNotifications(prev => prev.map(item => item._id === notificationId ? { ...item, read: true } : item))
+    }
+    const handleReadAll = () => setNotifications(prev => prev.map(item => ({ ...item, read: true })))
+    socketService.on('notification:new', handleNew)
+    socketService.on('notification:read', handleRead)
+    socketService.on('notification:read-all', handleReadAll)
+    return () => {
+      socketService.off('notification:new', handleNew)
+      socketService.off('notification:read', handleRead)
+      socketService.off('notification:read-all', handleReadAll)
+    }
+  }, [])
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationsAPI.markAllRead()
+      setNotifications(prev => prev.map(item => ({ ...item, read: true })))
+      onUnreadCountChange(0)
+    } catch (err) {
+      console.error('Failed to mark all notifications read', err)
+    }
+  }
 
   const typeStyles: Record<string, { bg: string, border: string, iconColor: string, iconBg: string, icon: React.ComponentType<{ className?: string }> }> = {
     task_assigned: { bg: 'hover:bg-blue-50/25 bg-blue-50/5', border: 'border-l-blue-500 border-l-4', iconColor: 'text-blue-600', iconBg: 'bg-blue-50', icon: Briefcase },
     task_submitted: { bg: 'hover:bg-emerald-50/25 bg-emerald-50/5', border: 'border-l-emerald-500 border-l-4', iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', icon: PenTool },
     task_declined: { bg: 'hover:bg-rose-50/25 bg-rose-50/5', border: 'border-l-rose-500 border-l-4', iconColor: 'text-rose-600', iconBg: 'bg-rose-50', icon: X },
+    task_cancelled: { bg: 'hover:bg-rose-50/25 bg-rose-50/5', border: 'border-l-rose-500 border-l-4', iconColor: 'text-rose-600', iconBg: 'bg-rose-50', icon: X },
     task_revision: { bg: 'hover:bg-amber-50/25 bg-amber-50/5', border: 'border-l-amber-500 border-l-4', iconColor: 'text-amber-600', iconBg: 'bg-amber-50', icon: AlertTriangle },
     chapter_status: { bg: 'hover:bg-purple-50/25 bg-purple-50/5', border: 'border-l-purple-500 border-l-4', iconColor: 'text-purple-600', iconBg: 'bg-purple-50', icon: BookMarked },
     vote: { bg: 'hover:bg-indigo-50/25 bg-indigo-50/5', border: 'border-l-indigo-500 border-l-4', iconColor: 'text-indigo-600', iconBg: 'bg-indigo-50', icon: ThumbsUp },
@@ -141,7 +245,7 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
 
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'tasks') {
-      return ['task_assigned', 'task_submitted', 'task_declined', 'task_revision'].includes(notif.type)
+      return ['task_assigned', 'task_submitted', 'task_declined', 'task_revision', 'task_cancelled'].includes(notif.type)
     }
     if (filter === 'system') {
       return ['system', 'deadline', 'chapter_status'].includes(notif.type)
@@ -176,7 +280,7 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
             const count = tab === 'all' 
               ? notifications.length 
               : tab === 'tasks'
-                ? notifications.filter(n => ['task_assigned', 'task_submitted', 'task_declined', 'task_revision'].includes(n.type)).length
+                ? notifications.filter(n => ['task_assigned', 'task_submitted', 'task_declined', 'task_revision', 'task_cancelled'].includes(n.type)).length
                 : tab === 'system'
                   ? notifications.filter(n => ['system', 'deadline', 'chapter_status'].includes(n.type)).length
                   : notifications.filter(n => ['vote', 'comment'].includes(n.type)).length
@@ -267,7 +371,15 @@ export function NotificationsModal({ isOpen, onClose, onMarkReadComplete }: Noti
           </div>
         )}
 
-        <div className="flex justify-end pt-2 border-t border-neutral-100">
+        <div className="flex justify-between gap-2 pt-2 border-t border-neutral-100">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleMarkAllRead}
+            disabled={!notifications.some(item => !item.read)}
+          >
+            {t('notifications.markAllRead', 'Mark all read')}
+          </Button>
           <Button size="sm" onClick={onClose} className="bg-neutral-900 text-white hover:bg-neutral-800">
             {t('common.close', 'Close')}
           </Button>

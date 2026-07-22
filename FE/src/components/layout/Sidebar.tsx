@@ -99,15 +99,25 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     }).catch(console.error)
 
     // Listen for real-time notifications
-    const handleNewNotification = () => {
-      setUnreadCount((prev) => prev + 1)
+    const handleNewNotification = (data: unknown) => {
+      const { unreadCount: realtimeUnread } = data as { unreadCount?: number }
+      setUnreadCount((prev) => typeof realtimeUnread === 'number' ? realtimeUnread : prev + 1)
       playNotificationSound()
     }
+    const handleReadNotification = (data: unknown) => {
+      const { unread } = data as { unread?: number }
+      setUnreadCount((prev) => typeof unread === 'number' ? unread : Math.max(0, prev - 1))
+    }
+    const handleReadAllNotifications = () => setUnreadCount(0)
 
     socketService.on('notification:new', handleNewNotification)
+    socketService.on('notification:read', handleReadNotification)
+    socketService.on('notification:read-all', handleReadAllNotifications)
 
     return () => {
       socketService.off('notification:new', handleNewNotification)
+      socketService.off('notification:read', handleReadNotification)
+      socketService.off('notification:read-all', handleReadAllNotifications)
     }
   }, [user])
 
@@ -246,7 +256,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
       <NotificationsModal
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
-        onMarkReadComplete={() => setUnreadCount(0)}
+        onUnreadCountChange={setUnreadCount}
       />
     </>
   )

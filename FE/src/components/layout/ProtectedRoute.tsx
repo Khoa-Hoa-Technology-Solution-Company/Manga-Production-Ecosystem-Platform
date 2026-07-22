@@ -63,10 +63,26 @@ export function ProtectedEditorRoute() {
   }
 
   const role = user?.role?.toLowerCase()
-  if (role !== 'editor' && role !== 'editorial_board') {
+  if (role !== 'editor') {
     return <Navigate to="/" replace />
   }
 
+  return <Outlet />
+}
+
+export function ProtectedReviewerRoute() {
+  const { isAuthenticated, loading, user } = useAuth()
+
+  if (loading) {
+    return <div className="p-8 text-sm text-neutral-500">Loading...</div>
+  }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+  const role = user?.role?.toLowerCase()
+  if (role !== 'editor' && role !== 'editorial_board') {
+    return <Navigate to="/" replace />
+  }
   return <Outlet />
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Upload, X, Plus, Trash2, FileText, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '../../ui'
-import { toGenreText, seriesCoverUrl, type SeriesData, type EditorUserData } from './utils'
+import { toGenreText, seriesCoverUrl, type SeriesData } from './utils'
 import { uploadAPI } from '../../../lib/api'
 
 interface SeriesFormDrawerProps {
@@ -14,7 +14,6 @@ interface SeriesFormDrawerProps {
     genre: string
     coverFile: File | null
     coverUrl: string
-    editorId: string
     script?: string
     scriptFile?: string
     characterDesigns?: {
@@ -24,7 +23,6 @@ interface SeriesFormDrawerProps {
       image?: string
     }[]
   }) => Promise<void>
-  editorsList: EditorUserData[]
   initialSeries: SeriesData | null
   saving: boolean
 }
@@ -33,7 +31,6 @@ export function SeriesFormDrawer({
   isOpen,
   onClose,
   onSave,
-  editorsList,
   initialSeries,
   saving,
 }: SeriesFormDrawerProps) {
@@ -44,7 +41,6 @@ export function SeriesFormDrawer({
   const [coverUrlInput, setCoverUrlInput] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState('')
-  const [designatedEditorId, setDesignatedEditorId] = useState('')
   
   // Proposal fields
   const [script, setScript] = useState('')
@@ -69,11 +65,6 @@ export function SeriesFormDrawer({
         setCoverUrlInput(initialSeries.coverImage || '')
         setCoverPreview(seriesCoverUrl(initialSeries.coverImage))
         setCoverFile(null)
-        const eId =
-          initialSeries.editorId && typeof initialSeries.editorId === 'object'
-            ? (initialSeries.editorId as { _id: string })._id
-            : (initialSeries.editorId as string) || ''
-        setDesignatedEditorId(eId)
         setScript(initialSeries.script || '')
         setScriptFileUrl(initialSeries.scriptFile || '')
         setScriptFileName(initialSeries.scriptFile ? 'Uploaded Storyboard Document' : '')
@@ -87,7 +78,6 @@ export function SeriesFormDrawer({
         setCoverUrlInput('')
         setCoverPreview('')
         setCoverFile(null)
-        setDesignatedEditorId('')
         setScript('')
         setScriptFileUrl('')
         setScriptFileName('')
@@ -179,7 +169,6 @@ export function SeriesFormDrawer({
       genre: genre.trim(),
       coverFile,
       coverUrl: coverUrlInput.trim(),
-      editorId: designatedEditorId,
       script: script.trim(),
       scriptFile: scriptFileUrl,
       characterDesigns,
@@ -256,25 +245,7 @@ export function SeriesFormDrawer({
             />
           </div>
 
-          {/* Editor selection */}
-          <div className="space-y-1.5">
-            <label htmlFor="series-editor" className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-              {t('seriesManager.earlyDesignateEditor', 'Designated Tantou Editor (Optional)')}
-            </label>
-            <select
-              id="series-editor"
-              className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-sm bg-white focus:outline-hidden focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400/20 transition-all text-neutral-950 shadow-xs"
-              value={designatedEditorId}
-              onChange={(e) => setDesignatedEditorId(e.target.value)}
-            >
-              <option value="">{t('seriesManager.noEditor', 'None - Designate Later')}</option>
-              {editorsList.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.displayName || e.username} ({e.email})
-                </option>
-              ))}
-            </select>
-          </div>
+
 
           {/* Cover image upload */}
           <div className="space-y-2">

@@ -27,12 +27,6 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('🔌 Mobile Socket connected');
-      // Re-register any pending listeners
-      for (const [event, callbacks] of this.listeners.entries()) {
-        for (const cb of callbacks) {
-          this.socket?.on(event, cb);
-        }
-      }
     });
 
     this.socket.on('disconnect', () => {
@@ -42,6 +36,12 @@ class SocketService {
     this.socket.on('connect_error', (error) => {
       console.error('Mobile Socket connection error:', error.message);
     });
+
+    for (const [event, callbacks] of this.listeners.entries()) {
+      for (const callback of callbacks) {
+        this.socket.on(event, callback);
+      }
+    }
   }
 
   disconnect() {

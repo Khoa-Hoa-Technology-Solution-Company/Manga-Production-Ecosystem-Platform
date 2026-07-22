@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Chapter } from '../models/Chapter';
 import { Page } from '../models/Page';
 import { Task } from '../models/Task';
+import { Series } from '../models/Series';
 
 function hasAccess(chapter: any, userId: string | undefined, userRole: string, mode: 'read' | 'edit' | 'comment' | 'invite' = 'read') {
   if (!chapter || !userId) return false;
@@ -41,6 +42,11 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
         res.status(404).json({ error: 'Chapter not found.' });
         return;
       }
+      const series = await Series.findById(chapter.seriesId).select('status editorId editorStatus');
+      if (!series) {
+        res.status(404).json({ error: 'Parent series not found.' });
+        return;
+      }
 
       const userId = req.user?._id;
       const userRole = req.user?.role || 'reader';
@@ -62,29 +68,32 @@ export function requireChapterAccess(mode: 'read' | 'edit' | 'comment' | 'invite
       
       // Grant automatic access to accepted Tantou Editor or Editorial Board
       if (!can && userId) {
-        const { Series } = await import('../models/Series');
-        const series = await Series.findById(chapter.seriesId);
-        
-        if (series) {
-          const isTantouEditor = userRole === 'editor' && 
-                                 series.editorId?.toString() === String(userId) && 
-                                 series.editorStatus === 'accepted';
+        const isTantouEditor = userRole === 'editor' &&
+                               series.editorId?.toString() === String(userId) &&
+                               series.editorStatus === 'accepted';
                                  
-          const isEditorialBoard = userRole === 'editorial_board';
+        const isEditorialBoard = userRole === 'editorial_board';
           
-          if (isTantouEditor) {
-            // Tantou Editor has full read, comment, and edit rights
-            can = true;
-          } else if (isEditorialBoard) {
-            // Editorial Board has full access for editorial reviews and actions
-            can = true;
-          }
+        if (isTantouEditor) {
+          // Tantou Editor has full read, comment, and edit rights
+          can = true;
+        } else if (isEditorialBoard) {
+          // Editorial Board has full access for editorial reviews and actions
+          can = true;
         }
       }
 
       if (mode === 'edit' && chapter.status !== 'Draft' && (userRole === 'mangaka' || userRole === 'assistant')) {
         res.status(403).json({ error: 'Chapter is locked (under review or published).' });
         return;
+      }
+      if (mode === 'edit' && (userRole === 'mangaka' || userRole === 'assistant')) {
+        const canProduceChapter = ['Draft', 'Active'].includes(series.status)
+          || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted');
+        if (!canProduceChapter) {
+          res.status(403).json({ error: 'Chapter production is locked until editor assignment is accepted, or while Editorial Board review is active.' });
+          return;
+        }
       }
 
       if (!can) {

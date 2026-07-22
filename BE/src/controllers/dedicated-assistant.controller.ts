@@ -94,6 +94,7 @@ export async function addDedicatedAssistant(req: Request, res: Response): Promis
         message: `Mangaka ${mangakaName} has added you as a dedicated assistant for series "${series.title}".`,
         relatedId: series._id.toString(),
         relatedType: 'Series',
+        target: 'assistant_series',
       });
     } catch (err) {
       console.error('Failed to notify dedicated assistant:', err);
@@ -151,6 +152,7 @@ export async function removeDedicatedAssistant(req: Request, res: Response): Pro
         message: `You have been removed as a dedicated assistant from series "${series.title}" by ${mangakaName}.`,
         relatedId: series._id.toString(),
         relatedType: 'Series',
+        target: 'assistant_series',
       });
     } catch (err) {
       console.error('Failed to notify removed assistant:', err);

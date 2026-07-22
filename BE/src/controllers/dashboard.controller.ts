@@ -120,7 +120,7 @@ export async function getWorkflow(req: Request, res: Response): Promise<void> {
         ]
       };
     } else if (role === 'editor') {
-      const seriesIds = await Series.find({ editorId: userId }).distinct('_id');
+      const seriesIds = await Series.find({ editorId: userId, editorStatus: 'accepted' }).distinct('_id');
       filter.seriesId = { $in: seriesIds };
     } else if (role === 'editorial_board') {
       // Keep empty filter to see all

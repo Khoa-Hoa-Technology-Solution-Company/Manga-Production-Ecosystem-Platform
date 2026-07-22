@@ -13,7 +13,6 @@ interface SeriesDetailPanelProps {
   saving: boolean
   onEditSeries: () => void
   onDeleteSeries: () => Promise<void>
-  onInviteEditorClick: () => void
   onSubmitForApprovalClick: () => void
   onNewChapterClick: () => void
   onEditChapter: (chapter: ChapterData) => void
@@ -26,7 +25,6 @@ export function SeriesDetailPanel({
   saving,
   onEditSeries,
   onDeleteSeries,
-  onInviteEditorClick,
   onSubmitForApprovalClick,
   onNewChapterClick,
   onEditChapter,
@@ -49,7 +47,9 @@ export function SeriesDetailPanel({
     )
   }
 
-  const isReviewLocked = ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')
+  const isSeriesMetadataLocked = ['Pending_Editor', 'Pending_EB'].includes(selectedSeries.status || '')
+  const isChapterProductionLocked = selectedSeries.status === 'Pending_EB'
+    || (selectedSeries.status === 'Pending_Editor' && selectedSeries.editorStatus !== 'accepted')
 
   // Calculate statistics
   const totalPages = selectedChapters.reduce((sum, chapter) => sum + (chapter.totalPages || 0), 0)
@@ -124,7 +124,7 @@ export function SeriesDetailPanel({
                       variant="outline"
                       size="sm"
                       className="h-9 px-3 rounded-xl text-xs font-semibold"
-                      disabled={isReviewLocked || saving}
+                      disabled={isSeriesMetadataLocked || saving}
                       onClick={onEditSeries}
                     >
                       <Pencil className="mr-1.5 size-3.5" />
@@ -134,7 +134,7 @@ export function SeriesDetailPanel({
                       variant="outline"
                       size="sm"
                       className="h-9 px-3 rounded-xl text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50"
-                      disabled={isReviewLocked || saving}
+                      disabled={isSeriesMetadataLocked || saving}
                       onClick={() => setShowConfirmDeleteSeries(true)}
                     >
                       <Trash2 className="mr-1.5 size-3.5" />
@@ -175,41 +175,26 @@ export function SeriesDetailPanel({
               </span>
               <div>
                 {selectedSeries.editorId ? (
-                  (() => {
-                    if (selectedSeries.editorStatus === 'accepted') {
-                      return (
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          {t('seriesManager.statusAccepted', 'Accepted')}
-                        </span>
-                      )
-                    } else if (selectedSeries.editorStatus === 'pending') {
-                      return (
-                        <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          {t('seriesManager.statusPendingInvite', 'Pending Invitation')}
-                        </span>
-                      )
-                    } else if (selectedSeries.editorStatus === 'rejected') {
-                      return (
-                        <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                          {t('seriesManager.statusRejectedInvite', 'Declined')}
-                        </span>
-                      )
-                    }
-                    return null
-                  })()
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-md flex items-center gap-1.5 border ${selectedSeries.editorStatus === 'accepted'
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                    : 'text-amber-700 bg-amber-50 border-amber-200'
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${selectedSeries.editorStatus === 'accepted' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+                    {selectedSeries.editorStatus === 'accepted'
+                      ? t('seriesManager.statusAccepted', 'Accepted')
+                      : t('seriesManager.statusPendingInvite', 'Pending Editor Response')}
+                  </span>
                 ) : (
-                  <span className="text-xs text-neutral-400 font-semibold italic">
-                    {t('seriesManager.noDesignatedEditor', 'No editor designated')}
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    {t('seriesManager.awaitingAssignment', 'Awaiting Assignment')}
                   </span>
                 )}
               </div>
             </div>
 
             {/* Editor Detail Row */}
-            {selectedSeries.editorId && (
+            {selectedSeries.editorId ? (
               <div className="flex items-center gap-2.5 bg-neutral-50/50 p-2.5 rounded-xl border border-neutral-100">
                 <Avatar className="size-8 bg-neutral-200 text-neutral-700">
                   <AvatarFallback className="text-[10px] font-bold">
@@ -232,21 +217,18 @@ export function SeriesDetailPanel({
                   )}
                 </div>
               </div>
+            ) : (
+              <p className="text-xs text-neutral-500 italic pl-1 leading-relaxed bg-neutral-50/50 p-3 rounded-xl border border-neutral-100">
+                {t('seriesManager.awaitingEditorAssignmentDesc', 'A Tantou Editor will be designated by the Editorial Board once submitted.')}
+              </p>
             )}
 
-            {/* Invite Button or Submit Draft Button */}
+            {/* Submit Draft Button */}
             <div className="flex flex-col sm:flex-row gap-2 pt-1">
-              {(!selectedSeries.editorId ||
-                selectedSeries.editorStatus === 'none' ||
-                selectedSeries.editorStatus === 'rejected') && (
-                <Button variant="outline" size="sm" className="w-full text-xs font-semibold h-9 rounded-xl" onClick={onInviteEditorClick}>
-                  {t('seriesManager.inviteEditor', 'Invite Tantou Editor')}
-                </Button>
-              )}
               {['Draft', 'Rejected', ''].includes(selectedSeries.status || '') && (
                 <Button className="w-full text-xs font-semibold h-9 rounded-xl flex items-center gap-1.5" onClick={onSubmitForApprovalClick}>
                   <Send className="size-3.5" />
-                  {t('seriesManager.submitForApproval', 'Submit to Editor')}
+                  {t('seriesManager.submitForReviewLabel', 'Submit for Editorial Review')}
                 </Button>
               )}
             </div>
@@ -304,17 +286,28 @@ export function SeriesDetailPanel({
             </p>
           </div>
 
-          <Button disabled={isReviewLocked} onClick={onNewChapterClick} className="h-9 rounded-xl px-3.5 text-xs font-semibold">
+          <Button disabled={isChapterProductionLocked} onClick={onNewChapterClick} className="h-9 rounded-xl px-3.5 text-xs font-semibold">
             {t('seriesManager.newChapter', 'New Chapter')}
           </Button>
         </div>
 
+        {selectedSeries.status === 'Pending_Editor' && selectedSeries.editorStatus === 'accepted' && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-xs text-emerald-800 leading-relaxed font-semibold">
+            {t(
+              'seriesManager.editorProductionHint',
+              'The editor accepted the assignment. Create or open a chapter in Studio, add pages, then submit it for review. After at least one chapter is approved, the editor can forward the series to the Editorial Board.'
+            )}
+          </div>
+        )}
+
         {/* Lock Info message if review queue active */}
-        {isReviewLocked && (
+        {isChapterProductionLocked && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 text-xs text-amber-800 leading-relaxed font-semibold">
             {t(
               'seriesManager.lockedWarning',
-              'This series is currently in the review queue. Structure updates and chapter modifications are locked.'
+              selectedSeries.status === 'Pending_EB'
+                ? 'This series is awaiting Editorial Board review. Chapter production is temporarily locked.'
+                : 'Chapter production opens after the assigned editor accepts the invitation.'
             )}
           </div>
         )}

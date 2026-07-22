@@ -7,7 +7,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.post('/', authorize('editorial_board', 'editor'), ctrl.createMeeting);
+router.post('/', authorize('editorial_board'), ctrl.createMeeting);
 router.get('/', ctrl.getMeetings);
 router.delete('/:id', ctrl.deleteMeeting);
 

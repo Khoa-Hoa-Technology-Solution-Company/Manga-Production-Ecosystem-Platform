@@ -164,6 +164,18 @@ export const seriesAPI = {
   update: (id: string, data: any) =>
     apiFetch<{ series: any }>(`/series/${id}`, { method: 'PUT', body: data }),
 
+  submitToEditor: (id: string) =>
+    apiFetch<{ series: any }>(`/series/${id}/submit`, { method: 'POST' }),
+
+  assignEditor: (id: string, editorId: string) =>
+    apiFetch<{ series: any }>(`/series/${id}/editor-assignment`, { method: 'POST', body: { editorId } }),
+
+  respondToHandshake: (id: string, action: 'accept' | 'decline') =>
+    apiFetch<{ series: any }>(`/series/${id}/handshake`, { method: 'PUT', body: { action } }),
+
+  editorDecision: (id: string, decision: 'approve' | 'request_changes', comments?: string) =>
+    apiFetch<{ series: any }>(`/series/${id}/editor-decision`, { method: 'PATCH', body: { decision, comments } }),
+
   delete: (id: string) =>
     apiFetch(`/series/${id}`, { method: 'DELETE' }),
 
@@ -209,6 +221,12 @@ export const chaptersAPI = {
     apiFetch<{ chapter: any }>(`/chapters/${id}/status`, {
       method: 'PATCH',
       body: { status },
+    }),
+
+  submitForReview: (id: string) =>
+    apiFetch<{ chapter: any; message: string }>(`/chapters/${id}/submit-review`, {
+      method: 'POST',
+      body: { selectedLayers: [] },
     }),
 
   delete: (id: string) =>
@@ -373,7 +391,7 @@ export const votesAPI = {
 export const notificationsAPI = {
   getAll: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return apiFetch<{ notifications: any[] }>(`/notifications${qs}`);
+    return apiFetch<{ notifications: any[]; unread: number }>(`/notifications${qs}`);
   },
 
   markRead: (id: string) =>
@@ -395,14 +413,8 @@ export const annotationsAPI = {
   delete: (id: string) => apiFetch(`/annotations/${id}`, { method: 'DELETE' }),
 };
 
-// ── Editor Analytics & Approval API ─────────────────
-export const approvalAPI = {
-  editorDecision: (seriesId: string, data: { decision: string; comments?: string; annotations?: any[] }) =>
-    apiFetch(`/series/${seriesId}/editor-decision`, { method: 'PATCH', body: data }),
-};
-
 export const editorAPI = {
-  getPortfolio: () => apiFetch<{ portfolio: any[] }>('/editor/portfolio'),
+  getPortfolio: () => apiFetch<{ portfolio: any[]; invites: any[] }>('/editor/portfolio'),
   getMilestones: (seriesId: string) => apiFetch<{ milestones: any[] }>(`/editor/milestones/${seriesId}`),
   getWarnings: () => apiFetch<{ warnings: any[] }>('/editor/warnings'),
   getAnalytics: (mangakaId: string) => apiFetch<{ analytics: any }>(`/editor/analytics/${mangakaId}`),

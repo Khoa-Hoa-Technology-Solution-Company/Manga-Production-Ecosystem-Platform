@@ -5,6 +5,12 @@ import { Chapter } from '../models/Chapter';
 import { User } from '../models/User';
 import { uploadToR2 } from '../services/storage.service';
 import {
+  assignSeriesEditor,
+  respondToSeriesAssignment,
+  reviewSeriesByEditor,
+  submitSeries,
+} from '../services/series-workflow.service';
+import {
   notifySeriesSubmitted,
   notifySeriesApproved,
   notifySeriesRejected,
@@ -63,7 +69,17 @@ export async function getAll(req: Request, res: Response): Promise<void> {
       Series.countDocuments(filter),
     ]);
 
-    res.json({ series, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
+    const chapterCounts = await Chapter.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { seriesId: { $in: series.map((item) => item._id) } } },
+      { $group: { _id: '$seriesId', count: { $sum: 1 } } },
+    ]);
+    const chapterCountBySeries = new Map(chapterCounts.map((item) => [item._id.toString(), item.count]));
+    const seriesWithCounts = series.map((item) => ({
+      ...item.toObject(),
+      totalChapters: chapterCountBySeries.get(item._id.toString()) || 0,
+    }));
+
+    res.json({ series: seriesWithCounts, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -79,9 +95,17 @@ export async function getById(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Strict access control boundary for Editors
-    if (req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
-      res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
+    const requesterId = req.user?._id?.toString();
+    const mangakaId = (series.mangakaId as any)?._id?.toString() || series.mangakaId?.toString();
+    const editorId = (series.editorId as any)?._id?.toString() || series.editorId?.toString();
+    const isPublic = ['Active', 'Completed'].includes(series.status);
+    const mayView = isPublic
+      || req.user?.role === 'editorial_board'
+      || (req.user?.role === 'mangaka' && mangakaId === requesterId)
+      || (req.user?.role === 'editor' && editorId === requesterId && ['pending', 'accepted'].includes(String(series.editorStatus)));
+
+    if (!mayView) {
+      res.status(403).json({ error: 'Access denied for this series.' });
       return;
     }
 
@@ -93,7 +117,7 @@ export async function getById(req: Request, res: Response): Promise<void> {
 
 export async function create(req: Request, res: Response): Promise<void> {
   try {
-    const { title, description, editorId, script, scriptFile, characterDesigns } = req.body;
+    const { title, description, script, scriptFile, characterDesigns } = req.body;
     const genre = Array.isArray(req.body.genre)
       ? req.body.genre
       : String(req.body.genre || '')
@@ -126,28 +150,11 @@ export async function create(req: Request, res: Response): Promise<void> {
       genre,
       coverImage,
       mangakaId: req.user?._id,
-      editorId: editorId || undefined,
-      editorStatus: editorId ? 'pending' : 'none',
+      editorStatus: 'none',
       script,
       scriptFile,
       characterDesigns: parsedCharacterDesigns,
     });
-
-    if (editorId) {
-      try {
-        const mangakaName = req.user?.displayName || 'Mangaka';
-        await createNotification({
-          userId: editorId,
-          type: 'system',
-          title: 'Collaboration Invitation',
-          message: `Mangaka ${mangakaName} has invited you to be the Tantou Editor for their series "${title}".`,
-          relatedId: series._id.toString(),
-          relatedType: 'Series'
-        });
-      } catch (err) {
-        console.error('Failed to trigger handshake invitation notification during series creation:', err);
-      }
-    }
 
     res.status(201).json({ series });
   } catch (error: any) {
@@ -155,7 +162,179 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 }
 
-export async function update(req: Request, res: Response): Promise<void> {
+export async function updateMetadata(req: Request, res: Response): Promise<void> {
+  try {
+    if (req.body.status !== undefined || req.body.editorId !== undefined || req.body.editorStatus !== undefined) {
+      res.status(400).json({ error: 'Workflow state and editor assignment must use the dedicated workflow endpoints.' });
+      return;
+    }
+
+    const series = await Series.findById(req.params.id);
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+
+    const role = req.user?.role;
+    const userId = req.user?._id;
+    const isOwner = role === 'mangaka' && series.mangakaId.toString() === userId;
+    const isAssignedEditor = role === 'editor' && series.editorId?.toString() === userId && series.editorStatus === 'accepted';
+
+    if (isOwner) {
+      if (!['Draft', 'Rejected'].includes(series.status)) {
+        res.status(403).json({ error: 'Series metadata is locked while it is under review or active.' });
+        return;
+      }
+
+      const allowed = ['title', 'description', 'script', 'scriptFile', 'characterDesigns'];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) (series as any)[key] = req.body[key];
+      }
+      if (req.body.genre !== undefined) {
+        series.genre = Array.isArray(req.body.genre)
+          ? req.body.genre
+          : String(req.body.genre).split(',').map((item) => item.trim()).filter(Boolean);
+      }
+      if (typeof req.body.coverImage === 'string') series.coverImage = req.body.coverImage;
+      if (req.file) series.coverImage = await uploadToR2(req.file, 'series');
+      if (typeof req.body.characterDesigns === 'string') {
+        try {
+          series.characterDesigns = JSON.parse(req.body.characterDesigns);
+        } catch {
+          res.status(400).json({ error: 'characterDesigns must be valid JSON.' });
+          return;
+        }
+      }
+    } else if (isAssignedEditor) {
+      const suppliedKeys = Object.keys(req.body).filter((key) => req.body[key] !== undefined);
+      if (suppliedKeys.some((key) => key !== 'deadline')) {
+        res.status(403).json({ error: 'The assigned editor may only update the production deadline.' });
+        return;
+      }
+      series.deadline = req.body.deadline ? new Date(req.body.deadline) : undefined;
+    } else {
+      res.status(403).json({ error: 'You are not authorized to update this series.' });
+      return;
+    }
+
+    await series.save();
+    await series.populate('mangakaId', 'displayName avatar');
+    await series.populate('editorId', 'displayName avatar');
+    res.json({ series });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function submitForReview(req: Request, res: Response): Promise<void> {
+  try {
+    const series = await submitSeries(String(req.params.id), req.user!);
+    if (series.editorId && series.editorStatus === 'accepted') {
+      await notifySeriesSubmitted(
+        series.editorId.toString(),
+        req.user?.displayName || 'Mangaka',
+        series.title,
+        series._id.toString()
+      );
+    } else {
+      const ebHeads = await User.find({ role: 'editorial_board', isEbHead: true, isActive: true });
+      await Promise.all(ebHeads.map((member) => createNotification({
+        userId: member._id.toString(),
+        type: 'system',
+        title: 'Series Awaiting Editor Assignment',
+        message: `"${series.title}" was submitted and needs a Tantou Editor assignment.`,
+        relatedId: series._id.toString(),
+        relatedType: 'Series',
+        target: 'eb_assign_editor',
+      })));
+    }
+    res.json({ series, message: 'Series submitted for Tantou Editor review.' });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+export async function assignEditor(req: Request, res: Response): Promise<void> {
+  try {
+    const { editorId } = req.body;
+    if (!editorId) {
+      res.status(400).json({ error: 'editorId is required.' });
+      return;
+    }
+    const series = await assignSeriesEditor(String(req.params.id), String(editorId), req.user!);
+    const editor = await User.findById(editorId).select('displayName');
+    await Promise.all([
+      createNotification({
+        userId: String(editorId),
+        type: 'system',
+        title: 'Tantou Editor Invitation',
+        message: `You were invited to review "${series.title}". Accept the assignment before reviewing.`,
+        relatedId: series._id.toString(),
+        relatedType: 'Series',
+        target: 'editor_portfolio',
+      }),
+      createNotification({
+        userId: series.mangakaId.toString(),
+        type: 'system',
+        title: 'Editor Invited',
+        message: `${editor?.displayName || 'An editor'} was invited to review "${series.title}".`,
+        relatedId: series._id.toString(),
+        relatedType: 'Series',
+        target: 'mangaka_series',
+      }),
+    ]);
+    res.json({ series, message: 'Tantou Editor invitation sent.' });
+  } catch (error: any) {
+    res.status(error.message.includes('Only the Head') ? 403 : 400).json({ error: error.message });
+  }
+}
+
+export async function editorDecision(req: Request, res: Response): Promise<void> {
+  try {
+    const rawDecision = String(req.body.decision || '');
+    const decision = rawDecision === 'approve' || rawDecision === 'approved' || rawDecision === 'submit_eb'
+      ? 'approve'
+      : rawDecision === 'request_changes' || rawDecision === 'rejected'
+        ? 'request_changes'
+        : null;
+    if (!decision) {
+      res.status(400).json({ error: 'Decision must be approve or request_changes.' });
+      return;
+    }
+
+    const series = await reviewSeriesByEditor(String(req.params.id), decision, req.user!, req.body.comments);
+    if (decision === 'approve') {
+      await notifySeriesApproved(series.mangakaId.toString(), series.title, series._id.toString());
+      const ebMembers = await User.find({ role: 'editorial_board', isActive: true });
+      await Promise.all(ebMembers.map((member) => createNotification({
+        userId: member._id.toString(),
+        type: 'system',
+        title: 'New Series Pending Vote',
+        message: `Tantou Editor endorsed "${series.title}" for Editorial Board review.`,
+        relatedId: series._id.toString(),
+        relatedType: 'Series',
+        target: 'eb_votes',
+      })));
+    } else {
+      await notifySeriesRejected(
+        series.mangakaId.toString(),
+        series.title,
+        series.rejectionNotes || '',
+        series._id.toString()
+      );
+    }
+    res.json({ series, message: decision === 'approve' ? 'Series sent to Editorial Board.' : 'Changes requested.' });
+  } catch (error: any) {
+    res.status(error.message.startsWith('Only the assigned') ? 403 : 400).json({ error: error.message });
+  }
+}
+
+/**
+ * Legacy implementation retained temporarily for migration reference.
+ * It is intentionally not exported or routed; all writes use updateMetadata
+ * and the dedicated workflow endpoints above.
+ */
+async function legacyUpdate(req: Request, res: Response): Promise<void> {
   try {
     const { title, description, status, editorId, deadline, script, scriptFile, characterDesigns } = req.body;
     const genre = Array.isArray(req.body.genre)
@@ -193,23 +372,22 @@ export async function update(req: Request, res: Response): Promise<void> {
       updateData.characterDesigns = parsedCharacterDesigns;
     }
 
-    // Automatically manage editor Status handshake when editorId changes
+    // Automatically manage editor Status assignment when editorId changes
     if (editorId !== undefined) {
-      if (editorId && editorId !== 'none' && editorId !== 'null' && editorId !== 'undefined') {
-        updateData.editorId = editorId;
-        const oldEditorIdStr = oldSeries.editorId?.toString();
-        const newEditorIdStr = editorId.toString();
-        if (
-          oldEditorIdStr !== newEditorIdStr ||
-          !oldSeries.editorStatus ||
-          oldSeries.editorStatus === 'none' ||
-          oldSeries.editorStatus === 'rejected'
-        ) {
-          updateData.editorStatus = 'pending';
+      const oldEditorIdStr = oldSeries.editorId?.toString() || '';
+      const newEditorIdStr = (editorId && editorId !== 'none' && editorId !== 'null' && editorId !== 'undefined') ? editorId.toString() : '';
+      if (oldEditorIdStr !== newEditorIdStr) {
+        if (req.user?.role !== 'editorial_board') {
+          res.status(403).json({ error: 'Only the Editorial Board can assign or change the designated Tantou Editor.' });
+          return;
         }
-      } else {
-        updateData.editorId = null;
-        updateData.editorStatus = 'none';
+        if (newEditorIdStr) {
+          updateData.editorId = editorId;
+          updateData.editorStatus = 'accepted'; // Bypass handshake and set directly to accepted
+        } else {
+          updateData.editorId = null;
+          updateData.editorStatus = 'none';
+        }
       }
     }
 
@@ -221,11 +399,6 @@ export async function update(req: Request, res: Response): Promise<void> {
       if (oldSeries.status === 'Draft' && status === 'Pending_Editor') {
         if (userRole !== 'mangaka' || oldSeries.mangakaId.toString() !== req.user?._id.toString()) {
           res.status(403).json({ error: 'Only the owning mangaka can submit a series to the Tantou Editor.' });
-          return;
-        }
-        const targetEditorId = editorId || oldSeries.editorId;
-        if (!targetEditorId) {
-          res.status(400).json({ error: 'A Tantou Editor must be assigned before submitting for review.' });
           return;
         }
         // Enforce at least 1 draft chapter exists before submitting
@@ -280,7 +453,7 @@ export async function update(req: Request, res: Response): Promise<void> {
     }
 
     const series = await Series.findByIdAndUpdate(
-      req.params.id,
+      String(req.params.id),
       updateData,
       { new: true, runValidators: true }
     )
@@ -314,7 +487,8 @@ export async function update(req: Request, res: Response): Promise<void> {
                 title: 'New Series Pending Vote',
                 message: `Tantou Editor approved and submitted "${series?.title || oldSeries.title}" for Editorial Board vote.`,
                 relatedId: oldSeries._id.toString(),
-                relatedType: 'Series'
+                relatedType: 'Series',
+                target: 'eb_votes',
               });
             }
           } catch (ebErr) {
@@ -344,19 +518,40 @@ export async function update(req: Request, res: Response): Promise<void> {
       }
     }
 
-    if (updateData.editorStatus === 'pending' && updateData.editorId) {
+    const oldEditorIdStr = oldSeries.editorId?.toString();
+    const newEditorIdStr = (editorId !== undefined)
+      ? (editorId && editorId !== 'none' && editorId !== 'null' && editorId !== 'undefined' ? editorId.toString() : '')
+      : oldEditorIdStr;
+
+    if (editorId !== undefined && newEditorIdStr && oldEditorIdStr !== newEditorIdStr) {
       try {
-        const mangakaName = req.user?.displayName || 'Mangaka';
+        const editorUser = await User.findById(newEditorIdStr);
+        const editorName = editorUser?.displayName || 'Editor';
+        const mangakaIdStr = oldSeries.mangakaId.toString();
+
+        // 1. Notify the assigned Editor
         await createNotification({
-          userId: updateData.editorId.toString(),
+          userId: newEditorIdStr,
           type: 'system',
-          title: 'Collaboration Invitation',
-          message: `Mangaka ${mangakaName} has invited you to be the Tantou Editor for their series "${series?.title || oldSeries.title}".`,
+          title: 'Tantou Editor Assignment',
+          message: `You have been assigned as the Tantou Editor for the series "${series?.title || oldSeries.title}" by the Editorial Board.`,
           relatedId: oldSeries._id.toString(),
-          relatedType: 'Series'
+          relatedType: 'Series',
+          target: 'editor_portfolio',
+        });
+
+        // 2. Notify the Mangaka
+        await createNotification({
+          userId: mangakaIdStr,
+          type: 'system',
+          title: 'Editor Assigned to Series',
+          message: `Editor ${editorName} has been assigned as the Tantou Editor for your series "${series?.title || oldSeries.title}".`,
+          relatedId: oldSeries._id.toString(),
+          relatedType: 'Series',
+          target: 'mangaka_series',
         });
       } catch (err) {
-        console.error('Failed to trigger handshake invitation notification during series update:', err);
+        console.error('Failed to trigger assignment notifications during series update:', err);
       }
     }
 
@@ -396,63 +591,20 @@ export async function handleHandshake(req: Request, res: Response): Promise<void
       return;
     }
 
-    const series = await Series.findById(req.params.id);
-    if (!series) {
-      res.status(404).json({ error: 'Series not found.' });
-      return;
-    }
-
-    if (series.editorId?.toString() !== req.user?._id.toString()) {
-      res.status(403).json({ error: 'You are not authorized to respond to this assignment invitation.' });
-      return;
-    }
-
-    if (action === 'accept') {
-      series.editorStatus = 'accepted';
-      await series.save();
-      
-      try {
-        const editorName = req.user?.displayName || 'Editor';
-        const mangakaIdStr = series.mangakaId.toString();
-        await createNotification({
-          userId: mangakaIdStr,
-          type: 'system',
-          title: 'Handshake Accepted',
-          message: `Tantou Editor ${editorName} has accepted the assignment for series "${series.title}".`,
-          relatedId: series._id.toString(),
-          relatedType: 'Series'
-        });
-      } catch (notifErr) {
-        console.error('Failed to trigger handshake acceptance notification:', notifErr);
-      }
-    } else {
-      series.editorId = undefined;
-      series.editorStatus = 'none';
-      if (series.status === 'Pending_Editor') {
-        series.status = 'Draft';
-        series.rejectionNotes = 'Invitation declined by Editor.';
-      }
-      await series.save();
-
-      try {
-        const editorName = req.user?.displayName || 'Editor';
-        const mangakaIdStr = series.mangakaId.toString();
-        await createNotification({
-          userId: mangakaIdStr,
-          type: 'system',
-          title: 'Handshake Declined',
-          message: `Editor ${editorName} has declined the invitation for series "${series.title}".`,
-          relatedId: series._id.toString(),
-          relatedType: 'Series'
-        });
-      } catch (notifErr) {
-        console.error('Failed to trigger handshake decline notification:', notifErr);
-      }
-    }
+    const series = await respondToSeriesAssignment(String(req.params.id), action, req.user!);
+    await createNotification({
+      userId: series.mangakaId.toString(),
+      type: 'system',
+      title: action === 'accept' ? 'Handshake Accepted' : 'Handshake Declined',
+      message: `Editor ${req.user?.displayName || 'Editor'} has ${action === 'accept' ? 'accepted' : 'declined'} the invitation for "${series.title}".`,
+      relatedId: series._id.toString(),
+      relatedType: 'Series',
+      target: 'mangaka_series',
+    });
 
     res.json({ series, message: `Successfully responded with ${action}.` });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error.message.startsWith('Only the invited') ? 403 : 400).json({ error: error.message });
   }
 }
 

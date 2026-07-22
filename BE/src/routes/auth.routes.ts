@@ -12,7 +12,7 @@ router.post(
     body('email').isEmail().normalizeEmail(),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
     body('displayName').trim().notEmpty().withMessage('Display name is required.'),
-    body('role').optional().isIn(['mangaka', 'assistant', 'editor', 'editorial_board', 'reader']),
+    body('role').optional().isIn(['mangaka', 'assistant', 'reader']),
   ],
   validate,
   ctrl.register

@@ -5,7 +5,7 @@ import { User } from '../models/User';
 import { transitionChapterStatus } from '../services/workflow.service';
 
 function canManageCollaborators(userRole?: string) {
-  return userRole === 'mangaka' || userRole === 'editor';
+  return userRole === 'mangaka';
 }
 
 export async function getBySeriesId(req: Request, res: Response): Promise<void> {
@@ -57,6 +57,22 @@ export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { chapterNumber, title, publicationDeadline } = req.body;
 
+    const series = await Series.findById(req.params.seriesId);
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+    if (series.mangakaId.toString() !== req.user?._id) {
+      res.status(403).json({ error: 'Only the owning mangaka can create chapters for this series.' });
+      return;
+    }
+    const canProduceChapter = ['Draft', 'Active'].includes(series.status)
+      || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted');
+    if (!canProduceChapter) {
+      res.status(403).json({ error: 'Chapters can only be created in Draft, Active, or Pending Editor after the editor accepts the assignment.' });
+      return;
+    }
+
     const lastChapter = await Chapter.findOne({ seriesId: req.params.seriesId })
       .sort({ chapterNumber: -1 });
     const expectedNumber = lastChapter ? lastChapter.chapterNumber + 1 : 1;
@@ -85,6 +101,8 @@ export async function create(req: Request, res: Response): Promise<void> {
         },
       ],
     });
+    const totalChapters = await Chapter.countDocuments({ seriesId: series._id });
+    await Series.findByIdAndUpdate(series._id, { $set: { totalChapters } });
     res.status(201).json({ chapter });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -93,16 +111,40 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function update(req: Request, res: Response): Promise<void> {
   try {
-    const { chapterNumber, title, totalPages, progress, editorId, publicationDeadline } = req.body;
-    const updateData: any = { title, totalPages, progress, editorId };
+    const { chapterNumber, title, publicationDeadline } = req.body;
+    const existing = await Chapter.findById(req.params.id);
+    if (!existing) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+    if (req.user?.role !== 'mangaka' || existing.mangakaId.toString() !== req.user._id) {
+      res.status(403).json({ error: 'Only the owning mangaka can edit chapter metadata.' });
+      return;
+    }
+    if (existing.status !== 'Draft') {
+      res.status(403).json({ error: 'Chapter metadata is locked outside Draft status.' });
+      return;
+    }
+
+    const series = await Series.findById(existing.seriesId);
+    const canProduceChapter = series && (
+      ['Draft', 'Active'].includes(series.status)
+      || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted')
+    );
+    if (!canProduceChapter) {
+      res.status(403).json({ error: 'Chapter metadata is locked while the series is awaiting Editorial Board review or inactive.' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
 
     if (publicationDeadline !== undefined) {
       updateData.publicationDeadline = publicationDeadline ? new Date(publicationDeadline) : null;
     }
 
     if (chapterNumber !== undefined) {
-      const existing = await Chapter.findById(req.params.id);
-      if (existing && existing.chapterNumber !== Number(chapterNumber)) {
+      if (existing.chapterNumber !== Number(chapterNumber)) {
         res.status(400).json({ error: 'Chapter number cannot be modified once created.' });
         return;
       }
@@ -126,11 +168,28 @@ export async function update(req: Request, res: Response): Promise<void> {
 
 export async function remove(req: Request, res: Response): Promise<void> {
   try {
-    const chapter = await Chapter.findOneAndDelete({ _id: req.params.id, mangakaId: req.user?._id });
+    const existing = await Chapter.findOne({ _id: req.params.id, mangakaId: req.user?._id });
+    if (!existing) {
+      res.status(404).json({ error: 'Chapter not found or you do not own it.' });
+      return;
+    }
+    const series = await Series.findById(existing.seriesId);
+    const canProduceChapter = existing.status === 'Draft' && series && (
+      ['Draft', 'Active'].includes(series.status)
+      || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted')
+    );
+    if (!canProduceChapter) {
+      res.status(403).json({ error: 'Only Draft chapters can be deleted while chapter production is open.' });
+      return;
+    }
+
+    const chapter = await Chapter.findByIdAndDelete(existing._id);
     if (!chapter) {
       res.status(404).json({ error: 'Chapter not found or you do not own it.' });
       return;
     }
+    const totalChapters = await Chapter.countDocuments({ seriesId: existing.seriesId });
+    await Series.findByIdAndUpdate(existing.seriesId, { $set: { totalChapters } });
     res.json({ message: 'Chapter deleted.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -144,7 +203,8 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
       String(req.params.id),
       status as any,
       req.user!._id,
-      req.user!.role
+      req.user!.role,
+      req.user!.isEbHead
     );
     res.json({ chapter, message: `Chapter status updated to "${status}".` });
   } catch (error: any) {
@@ -252,11 +312,15 @@ export async function getById(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Check boundaries for Editors (only if the chapter is NOT published)
     if (chapter.status !== 'Published') {
       const series = await Series.findById(chapter.seriesId);
-      if (series && req.user?.role === 'editor' && (series.editorId?.toString() !== req.user._id.toString() || series.editorStatus !== 'accepted')) {
-        res.status(403).json({ error: 'Access denied. You are not the accepted Tantou Editor for this series.' });
+      const requesterId = req.user?._id?.toString();
+      const isOwner = series?.mangakaId.toString() === requesterId;
+      const isAssignedEditor = series?.editorId?.toString() === requesterId && series?.editorStatus === 'accepted';
+      const isEbMember = req.user?.role === 'editorial_board';
+      const isCollaborator = chapter.collaborators.some((collaborator) => collaborator.userId.toString() === requesterId);
+      if (!isOwner && !isAssignedEditor && !isEbMember && !isCollaborator) {
+        res.status(403).json({ error: 'Access denied for this unpublished chapter.' });
         return;
       }
     }
@@ -302,8 +366,25 @@ export async function submitReview(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const series = await Series.findById(chapter.seriesId);
+    if (!series) {
+      res.status(404).json({ error: 'Parent series not found.' });
+      return;
+    }
+
+    const canSubmitChapter = series.status === 'Active'
+      || (series.status === 'Pending_Editor' && series.editorStatus === 'accepted');
+    if (!canSubmitChapter) {
+      res.status(400).json({ error: 'Chapter review requires an Active series or a Pending Editor series with an accepted editor.' });
+      return;
+    }
+
     const { Page } = await import('../models/Page');
     const pages = await Page.find({ chapterId }).sort({ pageNumber: 1 });
+    if (pages.length === 0) {
+      res.status(400).json({ error: 'Add at least one page before submitting the chapter for review.' });
+      return;
+    }
 
     const selectedLayersMap = new Map<string, string[]>();
     if (Array.isArray(selectedLayers)) {
@@ -327,7 +408,8 @@ export async function submitReview(req: Request, res: Response): Promise<void> {
       String(chapterId),
       'Reviewing',
       String(req.user?._id),
-      String(req.user?.role)
+      String(req.user?.role),
+      req.user?.isEbHead
     );
 
     res.json({

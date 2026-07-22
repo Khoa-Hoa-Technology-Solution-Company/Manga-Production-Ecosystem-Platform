@@ -18,7 +18,7 @@ router.put('/:id', requireChapterAccess('edit'), ctrl.update);
 router.delete('/:id', requireChapterAccess('edit'), ctrl.remove);
 router.patch('/:id/status', requireChapterAccess('edit'), ctrl.updateStatus);
 router.post('/:id/submit-review', requireChapterAccess('edit'), ctrl.submitReview);
-router.post('/:id/access', authorize('mangaka', 'editor'), ctrl.shareAccess);
-router.delete('/:id/access/:userId', authorize('mangaka', 'editor'), ctrl.removeAccess);
+router.post('/:id/access', authorize('mangaka'), ctrl.shareAccess);
+router.delete('/:id/access/:userId', authorize('mangaka'), ctrl.removeAccess);
 
 export default router;

@@ -193,14 +193,29 @@ export function ManuscriptReviewPage() {
     }
   }
 
+  const handlePublishChapter = async () => {
+    if (!chapter?._id) return
+    setSubmittingAction(true)
+    try {
+      await chaptersAPI.updateStatus(chapter._id, 'Published')
+      alert(t('studio.publishSuccess', 'Chapter published successfully!'))
+      navigate('/editor')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } }
+      alert(error.response?.data?.error || 'Failed to publish chapter')
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
+
   const handleUnpublishChapter = async () => {
     if (!chapter?._id) return
-    if (!window.confirm(t('studio.unpublishConfirm', 'Are you sure you want to unpublish this chapter? This will set it back to Draft status.'))) return
+    if (!window.confirm(t('studio.unpublishConfirm', 'Withdraw this chapter from readers while preserving its approved state?'))) return
 
     setSubmittingAction(true)
     try {
-      await chaptersAPI.updateStatus(chapter._id, 'Draft')
-      alert(t('studio.unpublishSuccess', 'Chapter unpublished successfully! It is now in Draft mode.'))
+      await chaptersAPI.updateStatus(chapter._id, 'Approved')
+      alert(t('studio.unpublishSuccess', 'Chapter withdrawn successfully. It remains approved and can be republished.'))
       if (user?.role?.toLowerCase() === 'editorial_board') {
         navigate('/editorial-board')
       } else {
@@ -484,7 +499,7 @@ export function ManuscriptReviewPage() {
               <span>{showSeriesDetails ? 'Hide Details' : 'Series Details'}</span>
             </button>
           )}
-          {chapter && chapter.status === 'Reviewing' && (
+          {user?.role?.toLowerCase() === 'editor' && chapter && chapter.status === 'Reviewing' && (
             <>
               <button
                 onClick={handleApproveChapter}
@@ -504,7 +519,17 @@ export function ManuscriptReviewPage() {
               </button>
             </>
           )}
-          {chapter && (chapter.status === 'Published' || chapter.status === 'Approved') && (
+          {user?.role?.toLowerCase() === 'editor' && chapter?.status === 'Approved' && (
+            <button
+              onClick={handlePublishChapter}
+              disabled={submittingAction}
+              className="h-8 px-3.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+            >
+              <CheckCircle className="size-3.5" />
+              <span>{t('studio.publish', 'Publish')}</span>
+            </button>
+          )}
+          {chapter?.status === 'Published' && (user?.role?.toLowerCase() === 'editor' || user?.isEbHead) && (
             <button
               onClick={handleUnpublishChapter}
               disabled={submittingAction}

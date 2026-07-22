@@ -1,16 +1,42 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { Image } from 'expo-image';
 
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
+import { notificationsAPI } from '@/lib/api';
+import { socketService } from '@/lib/socket';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const { user } = useAuth();
   const role = user?.role || 'reader';
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    notificationsAPI.getAll({ unreadOnly: 'true' })
+      .then((data) => setUnreadCount(data.unread || 0))
+      .catch(console.error);
+
+    const handleNew = (data: any) => {
+      setUnreadCount((previous) => typeof data?.unreadCount === 'number' ? data.unreadCount : previous + 1);
+    };
+    const handleRead = (data: any) => {
+      setUnreadCount((previous) => typeof data?.unread === 'number' ? data.unread : Math.max(0, previous - 1));
+    };
+    const handleReadAll = () => setUnreadCount(0);
+    socketService.on('notification:new', handleNew);
+    socketService.on('notification:read', handleRead);
+    socketService.on('notification:read-all', handleReadAll);
+    return () => {
+      socketService.off('notification:new', handleNew);
+      socketService.off('notification:read', handleRead);
+      socketService.off('notification:read-all', handleReadAll);
+    };
+  }, [user]);
 
   return (
     <Tabs
@@ -141,6 +167,7 @@ export default function AppTabs() {
       <Tabs.Screen
         name="notifications"
         options={{
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           title: 'Thông Báo',
           tabBarIcon: ({ color }) => (
             <Image

@@ -30,7 +30,6 @@ import { useTheme } from '@/hooks/use-theme';
 const roleOptions = [
   { value: 'mangaka', label: 'Mangaka', desc: 'Tác giả truyện' },
   { value: 'assistant', label: 'Assistant', desc: 'Trợ lý vẽ' },
-  { value: 'editor', label: 'Editor', desc: 'Biên tập viên' },
   { value: 'reader', label: 'Reader', desc: 'Độc giả' },
 ];
 

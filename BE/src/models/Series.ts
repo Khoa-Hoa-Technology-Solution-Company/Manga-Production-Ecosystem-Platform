@@ -31,6 +31,10 @@ export interface ISeries extends Document {
   cancellationRisk: boolean;
   deadline?: Date;
   editorStatus?: 'pending' | 'accepted' | 'rejected' | 'none';
+  editorInvitedBy?: mongoose.Types.ObjectId;
+  editorInvitedAt?: Date;
+  editorRespondedAt?: Date;
+  ebReviewStartedAt?: Date;
   dedicatedAssistants: IDedicatedAssistant[];
   subscribers?: mongoose.Types.ObjectId[];
   script?: string;
@@ -60,6 +64,10 @@ const seriesSchema = new Schema<ISeries>(
     cancellationRisk: { type: Boolean, default: false },
     deadline: { type: Date },
     editorStatus: { type: String, enum: ['pending', 'accepted', 'rejected', 'none'], default: 'none' },
+    editorInvitedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    editorInvitedAt: { type: Date },
+    editorRespondedAt: { type: Date },
+    ebReviewStartedAt: { type: Date },
     dedicatedAssistants: [
       {
         userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },

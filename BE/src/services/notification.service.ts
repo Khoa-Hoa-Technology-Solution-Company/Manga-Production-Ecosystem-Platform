@@ -1,4 +1,4 @@
-import { Notification, NotificationType } from '../models/Notification';
+import { Notification, NotificationTarget, NotificationType } from '../models/Notification';
 import { emitToUser } from '../socket';
 import { User } from '../models/User';
 import { Series } from '../models/Series';
@@ -10,6 +10,7 @@ interface CreateNotificationInput {
   message: string;
   relatedId?: string;
   relatedType?: string;
+  target?: NotificationTarget;
 }
 
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
@@ -18,7 +19,11 @@ export async function createNotification(input: CreateNotificationInput): Promis
 
     // Emit real-time notification via Socket.io
     try {
-      emitToUser(input.userId, 'notification:new', notification);
+      const unreadCount = await Notification.countDocuments({ userId: input.userId, read: false });
+      emitToUser(input.userId, 'notification:new', {
+        ...notification.toObject(),
+        unreadCount,
+      });
     } catch {
       // Socket may not be initialized in seed/test
     }
@@ -40,6 +45,7 @@ export async function notifyTaskAssigned(
     message: `You have been assigned "${taskTitle}" for ${seriesTitle}.`,
     relatedId: taskId,
     relatedType: 'Task',
+    target: 'tasks',
   });
 }
 
@@ -56,6 +62,7 @@ export async function notifyTaskCancelled(
     message: `The task "${taskTitle}" for series "${seriesTitle}" has been cancelled by the Mangaka.`,
     relatedId: taskId,
     relatedType: 'Task',
+    target: 'tasks',
   });
 }
 
@@ -72,6 +79,7 @@ export async function notifyTaskSubmitted(
     message: `${assistantName} submitted work for "${taskTitle}". Please review.`,
     relatedId: taskId,
     relatedType: 'Task',
+    target: 'mangaka_task_review',
   });
 }
 
@@ -88,6 +96,7 @@ export async function notifyChapterStatusChange(
     message: `"${chapterTitle}" has been moved to ${newStatus}.`,
     relatedId: chapterId,
     relatedType: 'Chapter',
+    target: 'chapter_context',
   });
 }
 
@@ -104,6 +113,7 @@ export async function notifyTaskDeclined(
     message: `${assistantName} declined your designated task "${taskTitle}".`,
     relatedId: taskId,
     relatedType: 'Task',
+    target: 'mangaka_task_review',
   });
 }
 
@@ -120,6 +130,7 @@ export async function notifyTaskRevision(
     message: `Mangaka requested revision on task "${taskTitle}". Feedback: ${reviewNotes || 'No additional feedback.'}`,
     relatedId: taskId,
     relatedType: 'Task',
+    target: 'tasks',
   });
 }
 
@@ -136,6 +147,7 @@ export async function notifySeriesSubmitted(
     message: `Mangaka ${mangakaName} submitted the series "${seriesTitle}" for your Tantou review.`,
     relatedId: seriesId,
     relatedType: 'Series',
+    target: 'editor_approvals',
   });
 }
 
@@ -151,6 +163,7 @@ export async function notifySeriesApproved(
     message: `Tantou Editor approved and submitted your series "${seriesTitle}" to the Editorial Board.`,
     relatedId: seriesId,
     relatedType: 'Series',
+    target: 'mangaka_series',
   });
 }
 
@@ -167,6 +180,7 @@ export async function notifySeriesRejected(
     message: `Tantou Editor sent back your series "${seriesTitle}" for revision. Feedback: ${rejectionNotes || 'No comments.'}`,
     relatedId: seriesId,
     relatedType: 'Series',
+    target: 'mangaka_series',
   });
 }
 
@@ -183,6 +197,7 @@ export async function notifySeriesPublished(
     message: `Editorial Board approved and published your series "${seriesTitle}".`,
     relatedId: seriesId,
     relatedType: 'Series',
+    target: 'mangaka_series',
   });
 
   if (editorId) {
@@ -193,6 +208,7 @@ export async function notifySeriesPublished(
       message: `Editorial Board approved and published your assigned series "${seriesTitle}".`,
       relatedId: seriesId,
       relatedType: 'Series',
+      target: 'editor_portfolio',
     });
   }
 }
@@ -210,6 +226,7 @@ export async function notifySeriesEBRejected(
     message: `Editorial Board sent back your series "${seriesTitle}" for revision. Feedback: ${rejectionNotes || 'No comments.'}`,
     relatedId: seriesId,
     relatedType: 'Series',
+    target: 'mangaka_series',
   });
 }
 
@@ -227,6 +244,7 @@ export async function notifyNewSeriesToSubscribers(
         message: `A brand new series "${seriesTitle}" has just been published! Check it out now.`,
         relatedId: seriesId,
         relatedType: 'Series',
+        target: 'reader_series',
       });
     }
   } catch (err) {
@@ -255,6 +273,7 @@ export async function notifyNewChapterToSubscribers(
         message: `Chapter ${chapterNumber} - "${chapterTitle}" of series "${series.title}" has just been published!`,
         relatedId: chapterId,
         relatedType: 'Chapter',
+        target: 'reader_chapter',
       });
     }
   } catch (err) {
@@ -277,5 +296,6 @@ export async function notifyChapterSubmittedToEditor(
     message: `Mangaka ${mangakaName} submitted Chapter ${chapterNumber} – "${chapterTitle}" of "${seriesTitle}" for your review.`,
     relatedId: chapterId,
     relatedType: 'Chapter',
+    target: 'editor_chapter_review',
   });
 }
