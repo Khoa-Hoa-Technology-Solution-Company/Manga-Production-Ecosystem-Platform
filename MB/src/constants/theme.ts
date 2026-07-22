@@ -9,26 +9,26 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#0f172a',
-    background: '#fafafa',
-    backgroundElement: '#ffffff',
-    backgroundSelected: '#f1f5f9',
-    textSecondary: '#475569',
-    primaryNeon: '#f43f5e',
-    accentGlow: '#6366f1',
-    purpleGlow: '#8b5cf6',
-    borderGlow: '#e2e8f0',
+    text: '#211936',
+    background: '#fff7fc',
+    backgroundElement: '#fffaff',
+    backgroundSelected: '#fce7f3',
+    textSecondary: '#756b92',
+    primaryNeon: '#ec4899',
+    accentGlow: '#8b5cf6',
+    purpleGlow: '#a855f7',
+    borderGlow: '#f2cbe7',
   },
   dark: {
     text: '#ffffff',
-    background: '#0a0516',
-    backgroundElement: '#161129',
-    backgroundSelected: '#271d4a',
-    textSecondary: '#a5b4fc',
-    primaryNeon: '#f43f5e',
-    accentGlow: '#4f46e5',
-    purpleGlow: '#7c3aed',
-    borderGlow: '#312e81',
+    background: '#0d061a',
+    backgroundElement: '#17102b',
+    backgroundSelected: '#2d1b50',
+    textSecondary: '#c4b5fd',
+    primaryNeon: '#fb7185',
+    accentGlow: '#8b5cf6',
+    purpleGlow: '#a855f7',
+    borderGlow: '#533185',
   },
 } as const;
 
@@ -69,5 +69,5 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+export const BottomTabInset = Platform.select({ ios: 68, android: 104 }) ?? 0;
 export const MaxContentWidth = 800;

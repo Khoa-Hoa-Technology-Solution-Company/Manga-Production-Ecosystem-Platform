@@ -19,6 +19,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { notificationsAPI, tasksAPI, chaptersAPI } from '@/lib/api';
 import { socketService } from '@/lib/socket';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from 'react-i18next';
 
 interface Notification {
   _id: string;
@@ -32,19 +33,20 @@ interface Notification {
   target?: string;
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, translate: (key: string, options?: any) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Vừa xong';
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return translate('activity.justNow');
+  if (mins < 60) return translate('activity.mAgo', { count: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} giờ trước`;
+  if (hrs < 24) return translate('activity.hAgo', { count: hrs });
   const days = Math.floor(hrs / 24);
-  return `${days} ngày trước`;
+  return translate('activity.dAgo', { count: days });
 }
 
 export default function NotificationsScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
@@ -153,15 +155,15 @@ export default function NotificationsScreen() {
       if (notif.target === 'mangaka_series') {
         router.push(user?.role === 'mangaka'
           ? { pathname: '/manage', params: { seriesId: notif.relatedId } }
-          : '/explore');
+          : '/');
         return;
       }
       if (notif.target === 'editor_portfolio' || notif.target === 'editor_approvals') {
-        router.push(user?.role === 'editor' ? '/editor' : '/explore');
+        router.push(user?.role === 'editor' ? '/editor' : '/');
         return;
       }
       if (notif.target === 'eb_assign_editor' || notif.target === 'eb_votes' || notif.target === 'eb_meetings') {
-        router.push(user?.role === 'editorial_board' ? '/board' : user?.role === 'editor' ? '/editor' : '/explore');
+        router.push(user?.role === 'editorial_board' ? '/board' : user?.role === 'editor' ? '/editor' : '/');
         return;
       }
       if (notif.target === 'reader_series') {
@@ -172,7 +174,7 @@ export default function NotificationsScreen() {
         const res = await chaptersAPI.getById(notif.relatedId);
         const chapter = res?.chapter;
         if (!chapter) {
-          router.push('/explore');
+          router.push('/');
           return;
         }
         const chaptersRes = await chaptersAPI.getBySeries(chapter.seriesId);
@@ -232,10 +234,10 @@ export default function NotificationsScreen() {
                 params: { chapterIndex: idx !== -1 ? String(idx) : '0' },
               });
             } else {
-              router.push('/explore');
+              router.push('/');
             }
           } catch {
-            router.push('/explore');
+            router.push('/');
           }
         } else if (user?.role === 'mangaka') {
           try {
@@ -259,7 +261,7 @@ export default function NotificationsScreen() {
         } else if (user?.role === 'editorial_board') {
           router.push('/board');
         } else if (user?.role === 'reader') {
-          router.push('/explore');
+          router.push('/');
         } else {
           router.push('/manage');
         }
@@ -280,7 +282,7 @@ export default function NotificationsScreen() {
         } else if (user?.role === 'mangaka') {
           router.push('/manage');
         } else {
-          router.push('/explore');
+          router.push('/');
         }
       }
     } catch (err) {
@@ -300,39 +302,57 @@ export default function NotificationsScreen() {
           borderColor: item.read
             ? (isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(15, 23, 42, 0.06)')
             : (isDark ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.2)'),
-          shadowColor: '#000',
-          shadowOpacity: isDark ? 0 : (item.read ? 0.02 : 0.04),
+          shadowColor: item.read ? '#000' : '#fb7185',
+          shadowOpacity: isDark ? 0 : (item.read ? 0.02 : 0.12),
           shadowOffset: { width: 0, height: 4 },
-          shadowRadius: 8,
-          elevation: isDark ? 0 : 2,
+          shadowRadius: item.read ? 8 : 12,
+          elevation: isDark ? 0 : (item.read ? 2 : 4),
         },
       ]}
     >
-      {/* Unread dot */}
-      {!item.read && <View style={styles.unreadDot} />}
+      {!item.read && (
+        <>
+          <LinearGradient
+            colors={isDark ? ['rgba(251,113,133,0.16)', 'rgba(168,85,247,0.08)'] : ['rgba(255,255,255,0.98)', 'rgba(255,245,248,0.94)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.unreadCardGlow}
+            pointerEvents="none"
+          />
+          <View style={styles.unreadDot} />
+        </>
+      )}
 
-      <View style={[styles.cardIconWrap, { backgroundColor: item.read ? (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.04)') : 'rgba(244, 63, 94, 0.1)' }]}>
+      <View style={[styles.cardIconWrap, { backgroundColor: item.read ? (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.04)') : 'rgba(244, 63, 94, 0.12)' }]}>
         <Bell size={18} color={item.read ? theme.textSecondary : '#fb7185'} />
       </View>
 
       <View style={styles.cardContent}>
+        <View style={styles.titleRow}>
+          <ThemedText
+            style={[
+              styles.cardTitle,
+              { color: theme.text, fontWeight: item.read ? '500' : '800' },
+            ]}
+            numberOfLines={1}
+          >
+            {item.title || t('mobile.notifications.new')}
+          </ThemedText>
+          {!item.read && (
+            <View style={styles.newBadge}>
+              <View style={styles.newBadgeDot} />
+              <ThemedText style={styles.newBadgeText}>{t('mobile.notifications.newBadge')}</ThemedText>
+            </View>
+          )}
+        </View>
         <ThemedText
-          style={[
-            styles.cardTitle,
-            { color: theme.text, fontWeight: item.read ? '400' : '700' },
-          ]}
-          numberOfLines={1}
-        >
-          {item.title || 'Thông báo mới'}
-        </ThemedText>
-        <ThemedText
-          style={[styles.cardMessage, { color: theme.textSecondary }]}
+          style={[styles.cardMessage, { color: item.read ? theme.textSecondary : (isDark ? '#ddd6fe' : '#6d5b82') }]}
           numberOfLines={2}
         >
           {item.message}
         </ThemedText>
         <ThemedText style={[styles.cardTime, { color: theme.textSecondary }]}>
-          {timeAgo(item.createdAt)}
+          {timeAgo(item.createdAt, t)}
         </ThemedText>
       </View>
 
@@ -366,11 +386,11 @@ export default function NotificationsScreen() {
         >
           <View>
             <ThemedText style={[styles.headerTitle, { color: theme.text }]}>
-              Thông Báo
+              {t('notifications.title')}
             </ThemedText>
             {unreadCount > 0 && (
               <ThemedText style={[styles.headerSub, { color: theme.textSecondary }]}>
-                {unreadCount} chưa đọc
+                {t('mobile.notifications.unread', { count: unreadCount })}
               </ThemedText>
             )}
           </View>
@@ -389,7 +409,7 @@ export default function NotificationsScreen() {
               ) : (
                 <>
                   <CheckCheck size={14} color="#fb7185" />
-                  <ThemedText style={styles.markAllText}>Đọc tất cả</ThemedText>
+                  <ThemedText style={styles.markAllText}>{t('mobile.notifications.markAll')}</ThemedText>
                 </>
               )}
             </Pressable>
@@ -410,7 +430,7 @@ export default function NotificationsScreen() {
               <View style={styles.empty}>
                 <BellOff size={52} color={theme.textSecondary} style={{ opacity: 0.4 }} />
                 <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
-                  Chưa có thông báo nào
+                  {t('mobile.notifications.empty')}
                 </ThemedText>
                 <ThemedText style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
                   Các cập nhật về series bạn theo dõi sẽ hiện ở đây.
@@ -419,7 +439,7 @@ export default function NotificationsScreen() {
             )}
             contentContainerStyle={[
               styles.list,
-              { paddingBottom: (BottomTabInset ?? 80) + insets.bottom + 24 },
+              { paddingBottom: (BottomTabInset ?? 104) + insets.bottom + 32 },
               notifications.length === 0 && { flex: 1, justifyContent: 'center' }
             ]}
             showsVerticalScrollIndicator={false}
@@ -475,33 +495,50 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 12,
-    borderRadius: 14,
+    padding: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    gap: 10,
+    gap: 12,
     position: 'relative',
+    overflow: 'hidden',
   },
+  unreadCardGlow: { ...StyleSheet.absoluteFillObject },
   unreadDot: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    top: 13,
+    bottom: 13,
+    left: 0,
+    width: 4,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
     backgroundColor: '#fb7185',
   },
   cardIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  cardContent: { flex: 1, gap: 3 },
-  cardTitle: { fontSize: 14 },
+  cardContent: { flex: 1, gap: 4, minWidth: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  cardTitle: { flex: 1, fontSize: 14.5, lineHeight: 19 },
   cardMessage: { fontSize: 13, lineHeight: 19 },
-  cardTime: { fontSize: 11, marginTop: 2 },
+  cardTime: { fontSize: 11, marginTop: 1, opacity: 0.82 },
+  newBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(244, 63, 94, 0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.2)',
+  },
+  newBadgeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#fb7185' },
+  newBadgeText: { color: '#e11d48', fontSize: 9, lineHeight: 11, fontWeight: '900', letterSpacing: 0.5 },
   cardAction: {
     alignItems: 'center',
     justifyContent: 'center',

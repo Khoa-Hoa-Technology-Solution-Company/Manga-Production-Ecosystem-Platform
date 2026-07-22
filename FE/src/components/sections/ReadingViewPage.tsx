@@ -10,7 +10,6 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
-  Heart,
   Maximize,
   Minimize,
   MessageCircle,
@@ -20,7 +19,7 @@ import {
   ThumbsUp,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, Button, Card, Textarea } from '../ui'
-import { commentsAPI, seriesAPI, chaptersAPI, votesAPI, pagesAPI, reactionsAPI } from '../../lib/api'
+import { commentsAPI, seriesAPI, chaptersAPI, ratingsAPI, pagesAPI, reactionsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
 import { useAuth } from '../../lib/auth'
 
@@ -32,7 +31,6 @@ const MOCK_CHAPTER_INFO = {
   author: 'Yuki Mori',
   publishedDate: 'March 18, 2026',
   totalPages: 24,
-  voteCount: '184.2K',
   rating: 4.9,
   ratingCount: 2847,
 }
@@ -137,7 +135,6 @@ export function ReadingViewPage() {
   const [hoverRating, setHoverRating] = useState(0)
   const [commentText, setCommentText] = useState('')
   const [bookmarked, setBookmarked] = useState(false)
-  const [voted, setVoted] = useState(false)
   const [activeReactions, setActiveReactions] = useState<Set<string>>(new Set())
   const [readingMode, setReadingMode] = useState<'scroll' | 'paged'>('scroll')
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
@@ -168,7 +165,6 @@ export function ReadingViewPage() {
   // Dynamic state for real-time updates
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
   const [commentsList, setCommentsList] = useState<any[]>([]) // Initial empty, will load static + API
-  const [voteCount, setVoteCount] = useState(MOCK_CHAPTER_INFO.voteCount)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [avgRating, setAvgRating] = useState<number>(0)
   const [ratingCount, setRatingCount] = useState<number>(0)
@@ -190,7 +186,6 @@ export function ReadingViewPage() {
     author: series?.mangakaId?.displayName || MOCK_CHAPTER_INFO.author,
     publishedDate: chapter?.createdAt ? new Date(chapter.createdAt).toLocaleDateString() : MOCK_CHAPTER_INFO.publishedDate,
     totalPages: pagesList.length,
-    voteCount: voteCount,
     rating: avgRating,
     ratingCount: ratingCount,
   }
@@ -209,7 +204,7 @@ export function ReadingViewPage() {
     }
   }, [chapterId])
 
-  // Resolve real chapter details, series details, pages, and votes
+  // Resolve real chapter details, series details, pages, and rating data
   useEffect(() => {
     if (!chapterId) return
     setActiveChapterId(chapterId)
@@ -217,7 +212,6 @@ export function ReadingViewPage() {
 
     // Reset viewer states for new chapter
     setCurrentPage(0)
-    setVoted(false)
     setActiveReactions(new Set())
 
     // Load chapter details
@@ -271,12 +265,9 @@ export function ReadingViewPage() {
         setLoading(false)
       })
 
-    // Load votes
-    votesAPI.getByChapter(chapterId)
+    // Load rating summary
+    ratingsAPI.getByChapter(chapterId)
       .then((res) => {
-        if (res.data.totalVotes !== undefined) {
-          setVoteCount(res.data.totalVotes.toLocaleString())
-        }
         if (res.data.avgRating !== undefined) {
           setAvgRating(Math.round(res.data.avgRating * 10) / 10)
         }
@@ -284,10 +275,8 @@ export function ReadingViewPage() {
           setRatingCount(res.data.ratingCount)
         }
         if (res.data.userVote) {
-          setVoted(Boolean(res.data.userVote.voted))
           setUserRating(res.data.userVote.rating || 0)
         } else {
-          setVoted(false)
           setUserRating(0)
         }
       })
@@ -365,10 +354,7 @@ export function ReadingViewPage() {
       })
     }
 
-    const handleNewVote = (data: any) => {
-      if (data.totalVotes !== undefined) {
-        setVoteCount(data.totalVotes.toLocaleString())
-      }
+    const handleNewRating = (data: any) => {
       if (data.avgRating !== undefined) {
         setAvgRating(Math.round(data.avgRating * 10) / 10)
       }
@@ -378,12 +364,12 @@ export function ReadingViewPage() {
     }
 
     socketService.on('comment:new', handleNewComment)
-    socketService.on('vote:new', handleNewVote)
+    socketService.on('vote:new', handleNewRating)
 
     return () => {
       socketService.leaveChapterRoom(activeChapterId)
       socketService.off('comment:new', handleNewComment)
-      socketService.off('vote:new', handleNewVote)
+      socketService.off('vote:new', handleNewRating)
     }
   }, [activeChapterId])
 
@@ -467,44 +453,17 @@ export function ReadingViewPage() {
     }
   }
 
-  const handleVote = async () => {
-    if (voted) return
-    try {
-      if (activeChapterId && activeChapterId !== 'fallback') {
-        await votesAPI.vote(activeChapterId, { rating: userRating || 5, seriesId: chapter?.seriesId })
-        setVoted(true)
-        const votesRes = await votesAPI.getByChapter(activeChapterId)
-        if (votesRes.data.totalVotes !== undefined) {
-          setVoteCount(votesRes.data.totalVotes.toLocaleString())
-        }
-        if (votesRes.data.avgRating !== undefined) {
-          setAvgRating(Math.round(votesRes.data.avgRating * 10) / 10)
-        }
-        if (votesRes.data.ratingCount !== undefined) {
-          setRatingCount(votesRes.data.ratingCount)
-        }
-      } else {
-        setVoted(true)
-      }
-    } catch (err) {
-      console.error('Failed to vote:', err)
-    }
-  }
-
   const handleRate = async (ratingVal: number) => {
     setUserRating(ratingVal)
     try {
       if (activeChapterId && activeChapterId !== 'fallback') {
-        await votesAPI.vote(activeChapterId, { rating: ratingVal, seriesId: chapter?.seriesId })
-        const votesRes = await votesAPI.getByChapter(activeChapterId)
-        if (votesRes.data.totalVotes !== undefined) {
-          setVoteCount(votesRes.data.totalVotes.toLocaleString())
+        await ratingsAPI.rate(activeChapterId, { rating: ratingVal, seriesId: chapter?.seriesId })
+        const ratingsRes = await ratingsAPI.getByChapter(activeChapterId)
+        if (ratingsRes.data.avgRating !== undefined) {
+          setAvgRating(Math.round(ratingsRes.data.avgRating * 10) / 10)
         }
-        if (votesRes.data.avgRating !== undefined) {
-          setAvgRating(Math.round(votesRes.data.avgRating * 10) / 10)
-        }
-        if (votesRes.data.ratingCount !== undefined) {
-          setRatingCount(votesRes.data.ratingCount)
+        if (ratingsRes.data.ratingCount !== undefined) {
+          setRatingCount(ratingsRes.data.ratingCount)
         }
       }
     } catch (err) {
@@ -845,25 +804,6 @@ export function ReadingViewPage() {
                 {userRating > 0 && (
                   <span className="ml-2 text-xs font-medium text-amber-600">{userRating}/5</span>
                 )}
-              </div>
-            </Card>
-
-            {/* Voting */}
-            <Card className="rounded-xl p-4 border border-neutral-100 bg-neutral-50/50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-neutral-800">Reader Votes</span>
-                  <p className="text-lg font-bold mt-0.5 text-neutral-900">{voteCount}</p>
-                </div>
-                <Button
-                  variant={voted ? 'secondary' : 'default'}
-                  className="gap-1.5 font-semibold"
-                  onClick={handleVote}
-                  disabled={voted}
-                >
-                  <Heart className={`size-4 ${voted ? 'fill-rose-500 text-rose-500' : ''}`} />
-                  {voted ? 'Voted!' : 'Vote'}
-                </Button>
               </div>
             </Card>
 

@@ -9,8 +9,6 @@ type RankingItem = {
   _id: string
   title: string
   genre: string[]
-  weeklyVotes: number
-  totalVotes: number
   averageRating?: number
   ratingCount?: number
   status: string
@@ -19,17 +17,10 @@ type RankingItem = {
 export function SeriesRankingSection() {
   const { user } = useAuth()
   const { t } = useTranslation()
-  const [sortBy, setSortBy] = useState<'votes' | 'rating'>('votes')
+  const sortBy = 'rating' as const
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-
-  const handleSortChange = (newSortBy: 'votes' | 'rating') => {
-    if (newSortBy !== sortBy) {
-      setSortBy(newSortBy)
-      setLoading(true)
-    }
-  }
 
   useEffect(() => {
     dashboardAPI.getRankings(sortBy)
@@ -70,26 +61,9 @@ export function SeriesRankingSection() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Sort selection tabs */}
-          <div className="flex rounded-lg bg-neutral-100 p-0.5 border border-neutral-200">
-            <button
-              onClick={() => handleSortChange('votes')}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                sortBy === 'votes' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              {t('rankings.weeklyVotes')}
-            </button>
-            <button
-              onClick={() => handleSortChange('rating')}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                sortBy === 'rating' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              {t('rankings.averageRating')}
-            </button>
-          </div>
-
+          <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+            {t('rankings.averageRating')}
+          </span>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-neutral-500" />
             <Input
@@ -115,25 +89,19 @@ export function SeriesRankingSection() {
                     {t('rankings.rating')} {sortBy === 'rating' && <ArrowDown className="size-3" />}
                   </div>
                 </TableHead>
-                <TableHead>
-                  <div className="flex items-center gap-1">
-                    {t('rankings.weeklyVotes')} {sortBy === 'votes' && <ArrowDown className="size-3" />}
-                  </div>
-                </TableHead>
-                <TableHead>{t('rankings.totalVotes')}</TableHead>
                 <TableHead>{t('rankings.status')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-neutral-500">
+                  <TableCell colSpan={5} className="text-center py-6 text-neutral-500">
                     {t('rankings.loadingRankings')}
                   </TableCell>
                 </TableRow>
               ) : filteredRankings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-neutral-500">
+                  <TableCell colSpan={5} className="text-center py-6 text-neutral-500">
                     {t('rankings.noSeriesFound')}
                   </TableCell>
                 </TableRow>
@@ -155,8 +123,6 @@ export function SeriesRankingSection() {
                         ({row.ratingCount || 0})
                       </span>
                     </TableCell>
-                    <TableCell className={`font-semibold ${sortBy === 'votes' ? 'text-neutral-900' : 'text-neutral-500'}`}>{row.weeklyVotes.toLocaleString()}</TableCell>
-                    <TableCell className="text-neutral-500">{row.totalVotes.toLocaleString()}</TableCell>
                     <TableCell>
                       <span 
                         className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${

@@ -2,12 +2,13 @@ import React from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BookOpen, CheckSquare, DollarSign, Heart, ArrowUp } from 'lucide-react-native';
+import { BookOpen, CheckSquare, DollarSign, Star, ArrowUp } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from 'react-i18next';
 import { withProtectedReaderRoute } from '@/components/protected-route';
 
 const metrics = [
@@ -34,10 +35,10 @@ const metrics = [
     sparkline: true,
   },
   {
-    label: 'Reader Votes',
+    label: 'Reader Ratings',
     value: '184.2K',
     note: 'This week',
-    icon: Heart,
+    icon: Star,
     badge: '+12.4%',
     badgeVariant: 'secondary' as const,
   },
@@ -45,6 +46,7 @@ const metrics = [
 
 function DashboardScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -54,8 +56,8 @@ function DashboardScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={styles.headerSubtitle}>TỔNG QUAN</ThemedText>
-            <ThemedText type="title" style={styles.headerTitle}>Dashboard</ThemedText>
+            <ThemedText style={styles.headerSubtitle}>{t('mobile.dashboard.eyebrow')}</ThemedText>
+            <ThemedText type="title" style={styles.headerTitle}>{t('mobile.dashboard.title')}</ThemedText>
           </View>
         </View>
 
@@ -106,14 +108,14 @@ function DashboardScreen() {
 
           {/* Workflow Board Placeholder */}
           <View style={styles.sectionCard}>
-            <ThemedText style={styles.sectionTitle}>Workflow Board</ThemedText>
-            <ThemedText style={styles.placeholderText}>No workflows available.</ThemedText>
+            <ThemedText style={styles.sectionTitle}>{t('mobile.dashboard.workflow')}</ThemedText>
+            <ThemedText style={styles.placeholderText}>{t('mobile.dashboard.noWorkflow')}</ThemedText>
           </View>
 
           {/* Series Ranking Placeholder */}
           <View style={styles.sectionCard}>
-            <ThemedText style={styles.sectionTitle}>Series Ranking</ThemedText>
-            <ThemedText style={styles.placeholderText}>No rankings available.</ThemedText>
+            <ThemedText style={styles.sectionTitle}>{t('mobile.dashboard.ranking')}</ThemedText>
+            <ThemedText style={styles.placeholderText}>{t('mobile.dashboard.noRanking')}</ThemedText>
           </View>
         </ScrollView>
       </SafeAreaView>

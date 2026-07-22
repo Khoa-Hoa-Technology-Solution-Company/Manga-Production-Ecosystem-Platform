@@ -9,10 +9,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { dashboardAPI, editorAPI, seriesAPI } from '@/lib/api';
 import { withProtectedEditorRoute } from '@/components/protected-route';
+import { useTranslation } from 'react-i18next';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 function EditorScreen() {
+  const { t } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   
@@ -50,7 +52,7 @@ function EditorScreen() {
         rating: 4.8
       });
     } catch (err: any) {
-      setError(err.message || 'Không thể tải dữ liệu.');
+      setError(err.message || t('mobile.editor.loadError'));
     } finally {
       setLoading(false);
     }
@@ -63,20 +65,20 @@ function EditorScreen() {
   const handleInvitation = async (seriesId: string, action: 'accept' | 'decline') => {
     try {
       await seriesAPI.respondToHandshake(seriesId, action);
-      Alert.alert('Thành công', action === 'accept' ? 'Bạn đã nhận tác phẩm.' : 'Bạn đã từ chối lời mời.');
+      Alert.alert(t('common.success'), action === 'accept' ? t('mobile.editor.accepted') : t('mobile.editor.rejected'));
       await loadDashboard();
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể cập nhật lời mời.');
+      Alert.alert(t('common.error'), err.message || t('mobile.editor.updateError'));
     }
   };
 
   const handleForwardToEb = async (seriesId: string) => {
     try {
       await seriesAPI.editorDecision(seriesId, 'approve');
-      Alert.alert('Thành công', 'Hồ sơ đã được chuyển lên Hội đồng biên tập.');
+      Alert.alert(t('common.success'), t('mobile.editor.transferred'));
       await loadDashboard();
     } catch (err: any) {
-      Alert.alert('Chưa thể chuyển', err.message || 'Hãy duyệt ít nhất một chapter trước.');
+      Alert.alert(t('mobile.editor.cannotTransfer'), err.message || t('mobile.editor.transferHint'));
     }
   };
 
@@ -87,8 +89,8 @@ function EditorScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={styles.headerSubtitle}>TRUNG TÂM BIÊN TẬP</ThemedText>
-            <ThemedText type="title" style={styles.headerTitle}>Dashboard</ThemedText>
+            <ThemedText style={styles.headerSubtitle}>{t('mobile.editor.eyebrow')}</ThemedText>
+            <ThemedText type="title" style={styles.headerTitle}>{t('mobile.editor.title')}</ThemedText>
           </View>
         </View>
 
@@ -107,37 +109,37 @@ function EditorScreen() {
             <View style={styles.statCard}>
               <Activity size={20} color="#a855f7" />
               <ThemedText style={styles.statValue}>{analytics?.activeSeries || 0}</ThemedText>
-              <ThemedText style={styles.statLabel}>Tác phẩm</ThemedText>
+              <ThemedText style={styles.statLabel}>{t('mobile.editor.works')}</ThemedText>
             </View>
             <View style={styles.statCard}>
               <Clock size={20} color="#f59e0b" />
               <ThemedText style={styles.statValue}>{analytics?.pendingCount || 0}</ThemedText>
-              <ThemedText style={styles.statLabel}>Chờ duyệt</ThemedText>
+              <ThemedText style={styles.statLabel}>{t('mobile.editor.pending')}</ThemedText>
             </View>
             <View style={styles.statCard}>
               <Star size={20} color="#eab308" />
               <ThemedText style={styles.statValue}>{analytics?.rating || 0}</ThemedText>
-              <ThemedText style={styles.statLabel}>Đánh giá</ThemedText>
+              <ThemedText style={styles.statLabel}>{t('mobile.editor.rating')}</ThemedText>
             </View>
           </View>
 
           {invites.length > 0 && (
             <View style={styles.invitesSection}>
-              <ThemedText style={styles.sectionTitle}>LỜI MỜI PHỤ TRÁCH TÁC PHẨM</ThemedText>
+              <ThemedText style={styles.sectionTitle}>{t('mobile.editor.invitations')}</ThemedText>
               {invites.map(series => (
                 <View key={series._id} style={styles.reviewCard}>
                   <View style={styles.cardInfo}>
                     <ThemedText style={styles.chapterTitle}>{series.title}</ThemedText>
                     <ThemedText style={styles.timeText}>
-                      Mangaka: {series.mangakaId?.displayName || 'Không rõ'}
+                      Mangaka: {series.mangakaId?.displayName || t('mobile.editor.unknownAuthor')}
                     </ThemedText>
                   </View>
                   <View style={styles.inviteActions}>
                     <Pressable style={[styles.inviteAction, styles.declineAction]} onPress={() => handleInvitation(series._id, 'decline')}>
-                      <ThemedText style={styles.inviteActionText}>Từ chối</ThemedText>
+                      <ThemedText style={styles.inviteActionText}>{t('mobile.editor.reject')}</ThemedText>
                     </Pressable>
                     <Pressable style={[styles.inviteAction, styles.acceptAction]} onPress={() => handleInvitation(series._id, 'accept')}>
-                      <ThemedText style={styles.inviteActionText}>Nhận</ThemedText>
+                      <ThemedText style={styles.inviteActionText}>{t('mobile.editor.accept')}</ThemedText>
                     </Pressable>
                   </View>
                 </View>
@@ -147,29 +149,29 @@ function EditorScreen() {
 
           {pendingSeries.length > 0 && (
             <View style={styles.invitesSection}>
-              <ThemedText style={styles.sectionTitle}>HỒ SƠ CHỜ CHUYỂN LÊN EB</ThemedText>
+              <ThemedText style={styles.sectionTitle}>{t('mobile.editor.pendingTransfer')}</ThemedText>
               {pendingSeries.map(item => (
                 <View key={item.series._id} style={styles.reviewCard}>
                   <View style={styles.cardInfo}>
                     <ThemedText style={styles.chapterTitle}>{item.series.title}</ThemedText>
-                    <ThemedText style={styles.timeText}>Duyệt ít nhất một chapter trước khi chuyển.</ThemedText>
+                    <ThemedText style={styles.timeText}>{t('mobile.editor.transferHint')}</ThemedText>
                   </View>
                   <Pressable style={[styles.inviteAction, styles.acceptAction]} onPress={() => handleForwardToEb(item.series._id)}>
-                    <ThemedText style={styles.inviteActionText}>Chuyển EB</ThemedText>
+                    <ThemedText style={styles.inviteActionText}>{t('mobile.editor.transfer')}</ThemedText>
                   </Pressable>
                 </View>
               ))}
             </View>
           )}
 
-          <ThemedText style={styles.sectionTitle}>BẢN THẢO CẦN DUYỆT</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t('mobile.editor.drafts')}</ThemedText>
 
           {loading ? (
             <ActivityIndicator size="large" color="#a855f7" style={{ marginTop: 50 }} />
           ) : pendingReviews.length === 0 ? (
             <View style={styles.emptyState}>
               <CheckCircle size={48} color="#64748b" />
-              <ThemedText style={styles.emptyText}>Tuyệt vời! Không có bản thảo nào đang tồn đọng.</ThemedText>
+              <ThemedText style={styles.emptyText}>{t('mobile.editor.emptyDrafts')}</ThemedText>
             </View>
           ) : (
             pendingReviews.map(chapter => (
@@ -179,7 +181,7 @@ function EditorScreen() {
                 </View>
                 <View style={styles.cardInfo}>
                   <ThemedText style={styles.seriesTitle} numberOfLines={1}>
-                    {chapter.seriesId?.title || 'Unknown Series'}
+                    {chapter.seriesId?.title || t('mobile.editor.unknownSeries')}
                   </ThemedText>
                   <ThemedText style={styles.chapterTitle} numberOfLines={1}>
                     {chapter.title || `Chapter ${chapter.chapterNumber}`}

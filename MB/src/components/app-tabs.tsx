@@ -2,6 +2,8 @@ import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { Image } from 'expo-image';
+import { Bell } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
@@ -12,6 +14,7 @@ export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const { user } = useAuth();
+  const { t } = useTranslation();
   const role = user?.role || 'reader';
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -43,40 +46,34 @@ export default function AppTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.backgroundElement,
-          height: 60,
-          paddingBottom: 8,
+          backgroundColor: scheme === 'dark' ? '#10081f' : '#fff8fd',
+          borderTopColor: scheme === 'dark' ? '#2d1b50' : '#f3d5ef',
+          borderTopWidth: 1,
+          height: 66,
+          paddingBottom: 9,
           paddingTop: 8,
+          shadowColor: '#a855f7',
+          shadowOpacity: 0.14,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: -4 },
+          elevation: 10,
         },
-        tabBarActiveTintColor: colors.text,
+        tabBarActiveTintColor: colors.primaryNeon,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
+          fontWeight: '800',
+          letterSpacing: 0.2,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Reader',
+          title: t('readerHome.title'),
           tabBarIcon: ({ color }) => (
             <Image
               source={require('@/assets/images/tabIcons/home.png')}
-              style={{ width: 22, height: 22, tintColor: color }}
-              contentFit="contain"
-            />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Discover',
-          tabBarIcon: ({ color }) => (
-            <Image
-              source={require('@/assets/images/tabIcons/explore.png')}
               style={{ width: 22, height: 22, tintColor: color }}
               contentFit="contain"
             />
@@ -88,7 +85,7 @@ export default function AppTabs() {
       <Tabs.Screen
         name="studio"
         options={{
-          title: 'Studio',
+          title: t('sidebar.studio'),
           href: role === 'mangaka' ? undefined : null,
           tabBarIcon: ({ color }) => (
             <Image
@@ -103,7 +100,7 @@ export default function AppTabs() {
       <Tabs.Screen
         name="manage"
         options={{
-          title: 'Manage',
+          title: t('sidebar.manage'),
           href: role === 'mangaka' ? undefined : null,
           tabBarIcon: ({ color }) => (
             <Image
@@ -119,7 +116,7 @@ export default function AppTabs() {
       <Tabs.Screen
         name="tasks"
         options={{
-          title: 'Tasks',
+          title: t('sidebar.assistant'),
           href: role === 'assistant' ? undefined : null,
           tabBarIcon: ({ color }) => (
             <Image
@@ -135,7 +132,7 @@ export default function AppTabs() {
       <Tabs.Screen
         name="editor"
         options={{
-          title: 'Editor',
+          title: t('sidebar.editorPortal'),
           href: role === 'editor' ? undefined : null,
           tabBarIcon: ({ color }) => (
             <Image
@@ -151,7 +148,7 @@ export default function AppTabs() {
       <Tabs.Screen
         name="board"
         options={{
-          title: 'Board',
+          title: t('sidebar.editorialBoard'),
           href: role === 'editorial_board' ? undefined : null,
           tabBarIcon: ({ color }) => (
             <Image
@@ -168,13 +165,24 @@ export default function AppTabs() {
         name="notifications"
         options={{
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
-          title: 'Thông Báo',
+          tabBarBadgeStyle: {
+            backgroundColor: '#fb7185',
+            color: '#fff',
+            fontSize: 9,
+            fontWeight: '900',
+            minWidth: 18,
+            height: 18,
+            lineHeight: 18,
+            borderRadius: 9,
+            paddingHorizontal: 4,
+            top: -2,
+            right: -8,
+            borderWidth: 1.5,
+            borderColor: scheme === 'dark' ? '#10081f' : '#fff8fd',
+          },
+          title: t('notifications.title'),
           tabBarIcon: ({ color }) => (
-            <Image
-              source={require('@/assets/images/tabIcons/explore.png')}
-              style={{ width: 22, height: 22, tintColor: color }}
-              contentFit="contain"
-            />
+            <Bell size={22} color={color} strokeWidth={2.4} />
           ),
         }}
       />

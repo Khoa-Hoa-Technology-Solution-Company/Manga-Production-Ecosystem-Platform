@@ -11,9 +11,11 @@ import { useAuth } from '@/lib/auth';
 import { withProtectedReaderRoute } from '@/components/protected-route';
 import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from 'react-i18next';
 
 function TasksScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   
@@ -46,7 +48,7 @@ function TasksScreen() {
         setTasks(myTasks);
       })
       .catch(err => {
-        setError(err.message || 'Không thể tải danh sách công việc.');
+        setError(err.message || t('mobile.tasks.loadError'));
       })
       .finally(() => setLoading(false));
   };
@@ -54,16 +56,16 @@ function TasksScreen() {
   const handleAcceptTask = (id: string) => {
     tasksAPI.accept(id)
       .then(() => {
-        Alert.alert('Thành công', 'Đã nhận công việc!');
+        Alert.alert(t('common.success'), t('mobile.tasks.accepted'));
         loadTasks();
       })
-      .catch(err => Alert.alert('Lỗi', err.message));
+      .catch(err => Alert.alert(t('common.error'), err.message));
   };
 
   const handleUpdateStatus = (id: string, newStatus: string) => {
     tasksAPI.updateStatus(id, newStatus)
       .then(() => loadTasks())
-      .catch(err => Alert.alert('Lỗi', err.message));
+      .catch(err => Alert.alert(t('common.error'), err.message));
   };
 
   const openSubmitModal = (task: any) => {
@@ -92,11 +94,11 @@ function TasksScreen() {
 
         tasksAPI.submit(selectedTask._id, formData)
           .then(() => {
-            Alert.alert('Thành công', 'Đã nộp kết quả công việc thành công!');
+            Alert.alert(t('common.success'), t('mobile.tasks.submitted'));
             setShowSubmitModal(false);
             loadTasks();
           })
-          .catch(err => Alert.alert('Lỗi', err.message))
+          .catch(err => Alert.alert(t('common.error'), err.message))
           .finally(() => setUploading(false));
       }
     }, 200);
@@ -118,23 +120,23 @@ function TasksScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={styles.headerSubtitle}>TRỢ LÝ SÁNG TÁC</ThemedText>
-            <ThemedText type="title" style={styles.headerTitle}>Trung tâm Việc làm</ThemedText>
+            <ThemedText style={styles.headerSubtitle}>{t('mobile.tasks.eyebrow')}</ThemedText>
+            <ThemedText type="title" style={styles.headerTitle}>{t('mobile.tasks.title')}</ThemedText>
           </View>
         </View>
 
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + Spacing.four }]}
+          contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + Spacing.five }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
             {[
-              { id: 'all', label: 'Tất cả' },
-              { id: 'open', label: 'Việc mới' },
-              { id: 'progress', label: 'Đang làm' },
-              { id: 'review', label: 'Đang duyệt' },
-              { id: 'completed', label: 'Hoàn thành' },
+              { id: 'all', label: t('mobile.tasks.all') },
+              { id: 'open', label: t('mobile.tasks.open') },
+              { id: 'progress', label: t('mobile.tasks.progress') },
+              { id: 'review', label: t('mobile.tasks.review') },
+              { id: 'completed', label: t('mobile.tasks.completed') },
             ].map(tab => (
               <Pressable 
                 key={tab.id}
@@ -157,59 +159,59 @@ function TasksScreen() {
           ) : filteredTasks.length === 0 ? (
             <View style={styles.emptyState}>
               <CheckCircle size={48} color="#64748b" />
-              <ThemedText style={styles.emptyText}>Không có công việc nào trong mục này.</ThemedText>
+              <ThemedText style={styles.emptyText}>{t('mobile.tasks.empty')}</ThemedText>
             </View>
           ) : (
             filteredTasks.map(task => (
               <View key={task._id} style={styles.taskCard}>
                 <View style={styles.taskHeader}>
-                  <ThemedText style={styles.taskTitle}>{task.title || 'Untitled Task'}</ThemedText>
+                  <ThemedText style={styles.taskTitle}>{task.title || t('mobile.tasks.untitled')}</ThemedText>
                 </View>
                 
-                <ThemedText style={styles.taskDesc} numberOfLines={3}>{task.description || 'Không có mô tả'}</ThemedText>
+                <ThemedText style={styles.taskDesc} numberOfLines={3}>{task.description || t('mobile.tasks.noDescription')}</ThemedText>
                 
                 <View style={styles.metaRow}>
                   <View style={styles.metaItem}>
                     <Clock size={12} color="#94a3b8" />
                     <ThemedText style={styles.metaText}>
-                      Hạn chót: {task.dueDate ? new Date(task.dueDate).toLocaleDateString('vi-VN') : '1 ngày'}
+                      {t('mobile.tasks.deadline', { date: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : t('mobile.tasks.oneDay') })}
                     </ThemedText>
                   </View>
                   <View style={styles.metaItem}>
                     <FileText size={12} color="#94a3b8" />
-                    <ThemedText style={styles.metaText}>{task.type || 'Chung'}</ThemedText>
+                    <ThemedText style={styles.metaText}>{task.type || t('mobile.tasks.general')}</ThemedText>
                   </View>
                 </View>
 
                 {/* Status Specific Actions */}
                 {task.status === 'open' && (
                   <Pressable style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]} onPress={() => handleAcceptTask(task._id)}>
-                    <ThemedText style={styles.actionBtnText}>Nhận Việc Này</ThemedText>
+                    <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.accept')}</ThemedText>
                   </Pressable>
                 )}
 
                 {(task.status === 'assigned' || task.status === 'in_progress') && (
                   <View style={styles.actionRow}>
                     <Pressable style={[styles.actionBtnSecondary, { flex: 1 }]} onPress={() => handleUpdateStatus(task._id, 'in_progress')}>
-                      <ThemedText style={styles.actionBtnTextSecondary}>Đang làm</ThemedText>
+                      <ThemedText style={styles.actionBtnTextSecondary}>{t('mobile.tasks.working')}</ThemedText>
                     </Pressable>
                     <Pressable style={[styles.actionBtn, { backgroundColor: '#10b981', flex: 2 }]} onPress={() => openSubmitModal(task)}>
                       <UploadCloud size={16} color="#fff" style={{ marginRight: 6 }} />
-                      <ThemedText style={styles.actionBtnText}>Nộp Kết Quả</ThemedText>
+                      <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.submitResult')}</ThemedText>
                     </Pressable>
                   </View>
                 )}
 
                 {task.status === 'review' && (
                   <View style={[styles.actionBtn, { backgroundColor: '#f59e0b', opacity: 0.8 }]}>
-                    <ThemedText style={styles.actionBtnText}>Đang chờ duyệt</ThemedText>
+                    <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.waitingReview')}</ThemedText>
                   </View>
                 )}
                 
                 {(task.status === 'completed' || task.status === 'approved') && (
                   <View style={[styles.actionBtn, { backgroundColor: '#22c55e', opacity: 0.8 }]}>
                     <CheckCircle size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <ThemedText style={styles.actionBtnText}>Đã hoàn thành</ThemedText>
+                    <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.completedLabel')}</ThemedText>
                   </View>
                 )}
               </View>
@@ -223,14 +225,14 @@ function TasksScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Nộp Kết Quả</ThemedText>
+              <ThemedText style={styles.modalTitle}>{t('mobile.tasks.modalTitle')}</ThemedText>
               <Pressable onPress={() => !uploading && setShowSubmitModal(false)}><X color="#fff" /></Pressable>
             </View>
-            <ThemedText style={styles.modalDesc}>Nộp file hình ảnh kết quả công việc để Mangaka/Editor duyệt.</ThemedText>
+            <ThemedText style={styles.modalDesc}>{t('mobile.tasks.modalDescription')}</ThemedText>
             
             <View style={styles.uploadArea}>
               <UploadCloud size={40} color="#94a3b8" />
-              <ThemedText style={styles.uploadText}>Nhấn để chọn file ảnh từ máy</ThemedText>
+              <ThemedText style={styles.uploadText}>{t('mobile.tasks.chooseFile')}</ThemedText>
             </View>
 
             {uploading && (
@@ -238,12 +240,12 @@ function TasksScreen() {
                 <View style={styles.progressBarBg}>
                   <View style={[styles.progressBarFill, { width: `${simulatedProgress}%` }]} />
                 </View>
-                <ThemedText style={styles.progressText}>Đang tải lên... {simulatedProgress}%</ThemedText>
+                <ThemedText style={styles.progressText}>{t('mobile.tasks.uploading', { progress: simulatedProgress })}</ThemedText>
               </View>
             )}
 
             <Pressable style={[styles.primaryBtn, { marginTop: 20 }]} onPress={handleSubmitTask} disabled={uploading}>
-              {uploading ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>Xác nhận nộp</ThemedText>}
+              {uploading ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>{t('mobile.tasks.confirmSubmit')}</ThemedText>}
             </Pressable>
           </View>
         </View>
