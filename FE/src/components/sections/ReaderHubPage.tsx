@@ -6,10 +6,10 @@ import {
   Bell,
   Eye,
   Flame,
-  Heart,
   Medal,
   Play,
   Search,
+  Star,
   TrendingUp,
   Trophy,
   Sword,
@@ -29,7 +29,8 @@ interface SeriesData {
   genre: string[]
   coverImage?: string
   totalChapters: number
-  totalVotes: number
+  averageRating?: number
+  ratingCount?: number
   readerCount: number
   status?: string
   subscribers?: string[]
@@ -58,7 +59,6 @@ interface ChapterData {
 interface LeaderboardItem {
   rank: number
   username: string
-  votes: string
   seriesRead: number
   badge: string
   level: string
@@ -66,18 +66,17 @@ interface LeaderboardItem {
 
 interface RawLeaderboardItem {
   username: string
-  votes: number
   seriesRead: number
 }
 
 /* ── Leaderboard (Mock data preserved) ──────────────── */
 const leaderboard = [
-  { rank: 1, username: 'MangaHunter_99', votes: '12,847', seriesRead: 89, badge: 'Champion', level: 'Diamond' },
-  { rank: 2, username: 'OtakuSenpai', votes: '11,204', seriesRead: 76, badge: 'Warrior', level: 'Platinum' },
-  { rank: 3, username: 'InkDrinker', votes: '9,856', seriesRead: 64, badge: 'Fire', level: 'Gold' },
-  { rank: 4, username: 'PageTurner_X', votes: '8,392', seriesRead: 58, badge: 'Scholar', level: 'Gold' },
-  { rank: 5, username: 'MoonlitReader', votes: '7,105', seriesRead: 51, badge: 'Mystic', level: 'Silver' },
-  { rank: 6, username: 'DragonScroll', votes: '6,230', seriesRead: 45, badge: 'Dragon', level: 'Silver' },
+  { rank: 1, username: 'MangaHunter_99', seriesRead: 89, badge: 'Champion', level: 'Diamond' },
+  { rank: 2, username: 'OtakuSenpai', seriesRead: 76, badge: 'Warrior', level: 'Platinum' },
+  { rank: 3, username: 'InkDrinker', seriesRead: 64, badge: 'Fire', level: 'Gold' },
+  { rank: 4, username: 'PageTurner_X', seriesRead: 58, badge: 'Scholar', level: 'Gold' },
+  { rank: 5, username: 'MoonlitReader', seriesRead: 51, badge: 'Mystic', level: 'Silver' },
+  { rank: 6, username: 'DragonScroll', seriesRead: 45, badge: 'Dragon', level: 'Silver' },
 ]
 
 const getBadgeIcon = (badge: string) => {
@@ -211,7 +210,6 @@ export function ReaderHubPage() {
             return {
               rank: idx + 1,
               username: item.username,
-              votes: item.votes.toLocaleString(),
               seriesRead: item.seriesRead,
               badge,
               level,
@@ -263,7 +261,7 @@ export function ReaderHubPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-lg font-semibold">Discover</h1>
-            <p className="text-xs text-neutral-500">Explore manga, vote for favorites, and join the community</p>
+            <p className="text-xs text-neutral-500">Explore manga, rate your favorites, and join the community</p>
           </div>
           <div className="flex items-center gap-2">
             {user && (
@@ -341,7 +339,7 @@ export function ReaderHubPage() {
                   <Eye className="size-3.5" /> {(featuredSeries.readerCount || 0).toLocaleString()} readers
                 </span>
                 <span className="flex items-center gap-1">
-                  <Heart className="size-3.5" /> {(featuredSeries.totalVotes || 0).toLocaleString()} votes
+                  <Star className="size-3.5 text-amber-400 fill-amber-400" /> {(featuredSeries.averageRating || 0).toFixed(1)} rating
                 </span>
               </div>
 
@@ -393,7 +391,7 @@ export function ReaderHubPage() {
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
-                    {series.totalVotes > 100 && (
+                    {(series.averageRating || 0) >= 4.5 && (
                       <Badge variant="destructive" className="absolute top-2 left-2 text-[9px] px-1.5 py-0 h-4 gap-0.5">
                         <Flame className="size-2.5" /> Hot
                       </Badge>
@@ -426,7 +424,7 @@ export function ReaderHubPage() {
                     <div className="flex items-center justify-between text-[10px] text-neutral-500">
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
-                          <Heart className="size-3 text-rose-400" /> {(series.totalVotes || 0).toLocaleString()}
+                          <Star className="size-3 text-amber-400 fill-amber-400" /> {(series.averageRating || 0).toFixed(1)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Eye className="size-3" /> {(series.readerCount || 0).toLocaleString()}
@@ -512,9 +510,6 @@ export function ReaderHubPage() {
                     <div className="flex items-center gap-1">Rank <ArrowUpDown className="size-3" /></div>
                   </TableHead>
                   <TableHead>Reader</TableHead>
-                  <TableHead>
-                    <div className="flex items-center gap-1">Votes <ArrowUpDown className="size-3" /></div>
-                  </TableHead>
                   <TableHead>Series Read</TableHead>
                   <TableHead>Badge</TableHead>
                   <TableHead>Level</TableHead>
@@ -542,7 +537,6 @@ export function ReaderHubPage() {
                         <span className="text-sm font-medium">{row.username}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold">{row.votes}</TableCell>
                     <TableCell className="text-neutral-500">{row.seriesRead}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">

@@ -30,7 +30,7 @@ function ManuscriptReviewScreen() {
       setLoading(true);
       pagesAPI.getByChapter(chapterId as string)
         .then(data => setPages(data?.pages || []))
-        .catch(err => setError(err.message || t('editor.loadError', 'Không thể tải bản thảo.')))
+        .catch(err => setError(err.message || t('editor.loadError')))
         .finally(() => setLoading(false));
     }
   }, [chapterId, t]);
@@ -40,14 +40,14 @@ function ManuscriptReviewScreen() {
     try {
       await chaptersAPI.updateStatus(chapterId, decision);
       Alert.alert(
-        t('common.success', 'Thành công'), 
-        decision === 'Approved' 
-          ? t('editor.approveSuccess', 'Đã duyệt bản thảo!') 
-          : t('editor.rejectSuccess', 'Đã từ chối bản thảo!'), 
-        [{ text: 'OK', onPress: () => router.back() }]
+        t('common.success'),
+        decision === 'Approved'
+          ? t('editor.approveSuccess')
+          : t('editor.rejectSuccess'),
+        [{ text: t('common.ok'), onPress: () => router.back() }]
       );
     } catch (err: any) {
-      Alert.alert(t('common.error', 'Lỗi'), err.message || t('editor.statusUpdateError', 'Không thể cập nhật trạng thái.'));
+      Alert.alert(t('common.error'), err.message || t('editor.statusUpdateError'));
     } finally {
       setSubmitting(false);
     }
@@ -69,7 +69,7 @@ function ManuscriptReviewScreen() {
             <ChevronLeft size={24} color="#fff" />
           </Pressable>
           <ThemedText type="subtitle" style={styles.headerTitle}>
-            {t('editor.viewDraft', 'Duyệt Bản Thảo')}
+            {t('editor.viewDraft')}
           </ThemedText>
           <View style={{ width: 24 }} />
         </View>
@@ -92,14 +92,14 @@ function ManuscriptReviewScreen() {
           ) : pages.length === 0 ? (
             <View style={styles.emptyState}>
               <ThemedText style={styles.emptyText}>
-                {t('editor.noPages', 'Chương này chưa có trang nào.')}
+                {t('editor.noPages')}
               </ThemedText>
             </View>
           ) : (
             pages.map((page, index) => (
               <View key={page._id} style={styles.pageContainer}>
                 <ThemedText style={styles.pageNumber}>
-                  {t('editor.pageNumber', 'Trang {{number}}', { number: index + 1 })}
+                  {t('editor.pageNumber', { number: index + 1 })}
                 </ThemedText>
                 <Image 
                   source={{ uri: getImageUrl(page.imageUrl) }} 
@@ -121,7 +121,7 @@ function ManuscriptReviewScreen() {
             >
               <X size={20} color="#fff" />
               <ThemedText style={styles.actionBtnText}>
-                {t('editor.reject', 'Từ chối')}
+                {t('editor.reject')}
               </ThemedText>
             </Pressable>
             <Pressable 
@@ -131,7 +131,7 @@ function ManuscriptReviewScreen() {
             >
               <Check size={20} color="#fff" />
               <ThemedText style={styles.actionBtnText}>
-                {t('editor.approve', 'Duyệt ngay')}
+                {t('editor.approve')}
               </ThemedText>
             </Pressable>
           </View>

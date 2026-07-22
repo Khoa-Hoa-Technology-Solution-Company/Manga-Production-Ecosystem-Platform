@@ -26,23 +26,25 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from 'react-i18next';
 
 const roleOptions = [
-  { value: 'mangaka', label: 'Mangaka', desc: 'Tác giả truyện' },
-  { value: 'assistant', label: 'Assistant', desc: 'Trợ lý vẽ' },
-  { value: 'reader', label: 'Reader', desc: 'Độc giả' },
+  { value: 'mangaka', labelKey: 'roles.mangaka', descKey: 'mobile.login.roleMangaka' },
+  { value: 'assistant', labelKey: 'roles.assistant', descKey: 'mobile.login.roleAssistant' },
+  { value: 'reader', labelKey: 'roles.reader', descKey: 'mobile.login.roleReader' },
 ];
 
 const demoAccounts = [
-  { email: 'mangaka@mangaflow.com', label: 'Mangaka' },
-  { email: 'assistant@mangaflow.com', label: 'Assistant' },
-  { email: 'editor@mangaflow.com', label: 'Editor' },
-  { email: 'reader@mangaflow.com', label: 'Reader' },
+  { email: 'mangaka@mangaflow.com', labelKey: 'roles.mangaka' },
+  { email: 'assistant@mangaflow.com', labelKey: 'roles.assistant' },
+  { email: 'editor@mangaflow.com', labelKey: 'roles.editor' },
+  { email: 'reader@mangaflow.com', labelKey: 'roles.reader' },
 ];
 
 export default function LoginScreen() {
   const { login, register } = useAuth();
   const theme = useTheme();
+  const { t } = useTranslation();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
 
@@ -62,7 +64,7 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     if (!email || !password) {
-      setError('Vui lòng nhập đầy đủ email và mật khẩu.');
+      setError(t('mobile.login.requiredCredentials'));
       return;
     }
     setError('');
@@ -73,14 +75,14 @@ export default function LoginScreen() {
         await login(email, password);
       } else {
         if (!displayName) {
-          setError('Vui lòng nhập tên hiển thị.');
+          setError(t('mobile.login.requiredDisplayName'));
           setLoading(false);
           return;
         }
         await register({ email, password, displayName, role });
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Đã xảy ra lỗi.');
+      setError(err.response?.data?.error || err.message || t('mobile.login.genericError'));
     } finally {
       setLoading(false);
     }
@@ -120,9 +122,9 @@ export default function LoginScreen() {
               >
                 <BookOpen size={30} color="#fff" />
               </LinearGradient>
-              <ThemedText style={styles.brandTitle}>MangaFlow</ThemedText>
+              <ThemedText style={styles.brandTitle}>{t('common.appName')}</ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.brandSubtitle}>
-                Nền tảng sản xuất Manga chuyên nghiệp
+                {t('mobile.login.brandSubtitle')}
               </ThemedText>
             </View>
 
@@ -139,12 +141,12 @@ export default function LoginScreen() {
               {/* Header */}
               <View style={styles.cardHeader}>
                 <ThemedText style={styles.cardTitle}>
-                  {isLogin ? 'Đăng Nhập' : 'Tạo Tài Khoản'}
+                  {isLogin ? t('mobile.login.loginTitle') : t('mobile.login.registerTitle')}
                 </ThemedText>
                 <ThemedText themeColor="textSecondary" style={styles.cardSubtitle}>
                   {isLogin
-                    ? 'Đăng nhập để truy cập workspace'
-                    : 'Tạo tài khoản mới để bắt đầu'}
+                    ? t('mobile.login.loginSubtitle')
+                    : t('mobile.login.registerSubtitle')}
                 </ThemedText>
               </View>
 
@@ -158,7 +160,7 @@ export default function LoginScreen() {
               {/* Register: Display Name */}
               {!isLogin && (
                 <View style={styles.inputGroup}>
-                  <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Tên hiển thị</ThemedText>
+                  <ThemedText themeColor="textSecondary" style={styles.inputLabel}>{t('mobile.login.displayName')}</ThemedText>
                   <View
                     style={[
                       styles.inputRow,
@@ -174,7 +176,7 @@ export default function LoginScreen() {
                       style={[styles.textInput, { color: theme.text }]}
                       value={displayName}
                       onChangeText={setDisplayName}
-                      placeholder="Yuki Mori"
+                      placeholder={t('mobile.login.displayNamePlaceholder')}
                       placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
                       autoCapitalize="words"
                       onFocus={() => setNameFocused(true)}
@@ -186,7 +188,7 @@ export default function LoginScreen() {
 
               {/* Email */}
               <View style={styles.inputGroup}>
-                <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Email</ThemedText>
+                <ThemedText themeColor="textSecondary" style={styles.inputLabel}>{t('mobile.login.email')}</ThemedText>
                 <View
                   style={[
                     styles.inputRow,
@@ -215,7 +217,7 @@ export default function LoginScreen() {
 
               {/* Password */}
               <View style={styles.inputGroup}>
-                <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Mật khẩu</ThemedText>
+                <ThemedText themeColor="textSecondary" style={styles.inputLabel}>{t('mobile.login.password')}</ThemedText>
                 <View
                   style={[
                     styles.inputRow,
@@ -251,7 +253,7 @@ export default function LoginScreen() {
               {/* Register: Role Picker */}
               {!isLogin && (
                 <View style={styles.inputGroup}>
-                  <ThemedText themeColor="textSecondary" style={styles.inputLabel}>Vai trò</ThemedText>
+                  <ThemedText themeColor="textSecondary" style={styles.inputLabel}>{t('mobile.login.role')}</ThemedText>
                   <View style={styles.rolesGrid}>
                     {roleOptions.map((opt) => {
                       const active = role === opt.value;
@@ -274,7 +276,7 @@ export default function LoginScreen() {
                               active && styles.roleChipLabelActive,
                             ]}
                           >
-                            {opt.label}
+                            {t(opt.labelKey)}
                           </ThemedText>
                           <ThemedText
                             style={[
@@ -282,7 +284,7 @@ export default function LoginScreen() {
                               active && { color: 'rgba(255,255,255,0.6)' },
                             ]}
                           >
-                            {opt.desc}
+                            {t(opt.descKey)}
                           </ThemedText>
                         </Pressable>
                       );
@@ -311,7 +313,7 @@ export default function LoginScreen() {
                   ) : (
                     <>
                       <ThemedText style={styles.submitText}>
-                        {isLogin ? 'Đăng nhập' : 'Đăng ký'}
+                        {isLogin ? t('mobile.login.submitLogin') : t('mobile.login.submitRegister')}
                       </ThemedText>
                       <ChevronRight size={16} color="#fff" />
                     </>
@@ -322,7 +324,7 @@ export default function LoginScreen() {
               {/* Toggle */}
               <View style={styles.toggleRow}>
                 <ThemedText themeColor="textSecondary" style={styles.toggleText}>
-                  {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
+                  {isLogin ? t('mobile.login.noAccount') : t('mobile.login.hasAccount')}
                 </ThemedText>
                 <Pressable
                   onPress={() => {
@@ -331,7 +333,7 @@ export default function LoginScreen() {
                   }}
                 >
                   <ThemedText style={styles.toggleLink}>
-                    {isLogin ? 'Đăng ký' : 'Đăng nhập'}
+                    {isLogin ? t('mobile.login.submitRegister') : t('mobile.login.submitLogin')}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -349,7 +351,7 @@ export default function LoginScreen() {
             >
               <View style={styles.demoHeader}>
                 <Sparkles size={12} color="#f43f5e" />
-                <ThemedText themeColor="textSecondary" style={styles.demoTitle}>TÀI KHOẢN DEMO</ThemedText>
+                <ThemedText themeColor="textSecondary" style={styles.demoTitle}>{t('mobile.login.demoTitle')}</ThemedText>
               </View>
               <View style={styles.demoGrid}>
                 {demoAccounts.map((d) => (
@@ -365,7 +367,7 @@ export default function LoginScreen() {
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    <ThemedText style={[styles.demoChipLabel, { color: theme.text }]}>{d.label}</ThemedText>
+                    <ThemedText style={[styles.demoChipLabel, { color: theme.text }]}>{t(d.labelKey)}</ThemedText>
                     <ThemedText style={[styles.demoChipEmail, { color: theme.textSecondary }]} numberOfLines={1}>
                       {d.email}
                     </ThemedText>
@@ -373,7 +375,7 @@ export default function LoginScreen() {
                 ))}
               </View>
               <ThemedText style={[styles.demoHint, { color: theme.textSecondary }]}>
-                Mật khẩu: password123
+                {t('mobile.login.demoPassword')}
               </ThemedText>
             </View>
           </ScrollView>

@@ -131,17 +131,17 @@ export async function getHome(req: Request, res: Response): Promise<void> {
     const current = context.continueReading[0];
     const firstSuggestion = context.recommendations[0];
 
-    let greeting = `Chào ${req.user!.displayName}! Mình là Miko, trợ lý đọc truyện của bạn.`;
+    let greeting = `Chào ${req.user!.displayName}! Mình là Emi Fujiwara, trợ lý đọc truyện của bạn.`;
     if (current) {
       greeting += ` Bạn đang đọc dở “${current.title}” ở chương ${current.chapterNumber}. Mình đưa bạn quay lại ngay nhé?`;
     } else if (firstSuggestion) {
       greeting += ` Mình đã chọn một vài bộ truyện mới để bạn bắt đầu, nổi bật là “${firstSuggestion.title}”.`;
     } else {
-      greeting += ' Hãy khám phá thư viện và mình sẽ học sở thích của bạn từ những bộ truyện bạn đọc.';
+      greeting += 'Hãy khám phá thư viện và mình sẽ học sở thích của bạn từ những bộ truyện bạn đọc.';
     }
 
     res.json({
-      assistant: { name: 'Miko', greeting },
+      assistant: { name: 'Emi Fujiwara', greeting },
       continueReading: context.continueReading,
       recommendations: context.recommendations,
     });
@@ -160,8 +160,8 @@ export async function chat(req: Request, res: Response): Promise<void> {
 
     const history = Array.isArray(req.body.history)
       ? req.body.history
-          .filter((item: any) => ['user', 'assistant'].includes(item?.role) && typeof item?.content === 'string')
-          .slice(-6)
+        .filter((item: any) => ['user', 'assistant'].includes(item?.role) && typeof item?.content === 'string')
+        .slice(-6)
       : [];
     const context = await getReaderContext(req.user!._id);
     const assistantResult = await createReaderAssistantReply(message, {
