@@ -15,10 +15,24 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { title, description, dateTime, location, seriesId, seriesIds, participants, rubricTemplateId } = req.body;
+    const {
+      title,
+      description,
+      dateTime,
+      location,
+      seriesId,
+      seriesIds,
+      participants,
+      rubricTemplateId,
+      purpose = 'proposal_review',
+    } = req.body;
 
     if (!title || !dateTime || !participants || !Array.isArray(participants) || participants.length === 0) {
       res.status(400).json({ error: 'Title, date/time, and at least one participant are required.' });
+      return;
+    }
+    if (!['proposal_review', 'cancellation_review'].includes(purpose)) {
+      res.status(400).json({ error: 'Meeting purpose must be proposal_review or cancellation_review.' });
       return;
     }
 
@@ -44,20 +58,36 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const [eligibleParticipants, eligibleSeries] = await Promise.all([
+    const requiredSeriesStatus = purpose === 'cancellation_review' ? 'Active' : 'Pending_EB';
+    const [eligibleParticipants, eligibleSeries, existingCancellationMeeting] = await Promise.all([
       User.countDocuments({
         _id: { $in: uniqueParticipants },
         role: 'editorial_board',
         isActive: true,
       }),
-      Series.countDocuments({ _id: { $in: finalSeriesIds }, status: 'Pending_EB' }),
+      Series.countDocuments({ _id: { $in: finalSeriesIds }, status: requiredSeriesStatus }),
+      purpose === 'cancellation_review'
+        ? Meeting.findOne({
+            purpose: 'cancellation_review',
+            decisionStatus: 'open',
+            seriesIds: { $in: finalSeriesIds },
+          }).select('_id')
+        : Promise.resolve(null),
     ]);
     if (eligibleParticipants !== uniqueParticipants.length) {
       res.status(400).json({ error: 'All voting participants must be active Editorial Board members.' });
       return;
     }
     if (eligibleSeries !== finalSeriesIds.length) {
-      res.status(400).json({ error: 'Review meetings can only include series currently pending Editorial Board review.' });
+      res.status(400).json({
+        error: purpose === 'cancellation_review'
+          ? 'Cancellation review meetings can only include active series.'
+          : 'Proposal review meetings can only include series currently pending Editorial Board review.',
+      });
+      return;
+    }
+    if (existingCancellationMeeting) {
+      res.status(409).json({ error: 'An open cancellation review meeting already exists for one of the selected series.' });
       return;
     }
 
@@ -69,7 +99,8 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       seriesIds: finalSeriesIds,
       participants: uniqueParticipants,
       createdBy: req.user!._id,
-      rubricTemplateId: rubricTemplateId ? rubricTemplateId : undefined,
+      purpose,
+      rubricTemplateId: purpose === 'proposal_review' && rubricTemplateId ? rubricTemplateId : undefined,
     });
 
     const populatedMeeting = await Meeting.findById(meeting._id)
@@ -85,6 +116,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     const seriesObjects = await Series.find({ _id: { $in: finalSeriesIds } });
     const seriesTitles = seriesObjects.map(s => `"${s.title}"`).join(', ');
     const seriesTitleMsg = seriesTitles ? ` for series ${seriesTitles}` : '';
+    const meetingKind = purpose === 'cancellation_review' ? 'cancellation review meeting' : 'review meeting';
 
     // Notify all participants (excluding the creator themselves)
     for (const participantId of uniqueParticipants) {
@@ -94,8 +126,8 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       await createNotification({
         userId: participantId,
         type: 'system',
-        title: 'New Review Meeting Scheduled',
-        message: `${creatorName} scheduled a review meeting "${title}"${seriesTitleMsg} on ${formattedDate}.`,
+        title: purpose === 'cancellation_review' ? 'Cancellation Vote Meeting Scheduled' : 'New Review Meeting Scheduled',
+        message: `${creatorName} scheduled a ${meetingKind} "${title}"${seriesTitleMsg} on ${formattedDate}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
         target: 'eb_meetings',
@@ -106,8 +138,10 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
         await createNotification({
           userId: participantId,
           type: 'system',
-          title: 'Series Review Invitation',
-          message: `You are invited to review the series "${seriesObj.title}" in the meeting "${title}" on ${formattedDate}.`,
+          title: purpose === 'cancellation_review' ? 'Series Cancellation Vote Invitation' : 'Series Review Invitation',
+          message: purpose === 'cancellation_review'
+            ? `You are invited to vote on whether series "${seriesObj.title}" should be cancelled in meeting "${title}" on ${formattedDate}.`
+            : `You are invited to review the series "${seriesObj.title}" in the meeting "${title}" on ${formattedDate}.`,
           relatedId: seriesObj._id.toString(),
           relatedType: 'Series',
           target: 'eb_meetings',
@@ -120,8 +154,10 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       await createNotification({
         userId: seriesObj.mangakaId.toString(),
         type: 'system',
-        title: 'Review Meeting Scheduled',
-        message: `A review meeting "${title}" has been scheduled for your series "${seriesObj.title}" on ${formattedDate}.`,
+        title: purpose === 'cancellation_review' ? 'Cancellation Review Meeting Scheduled' : 'Review Meeting Scheduled',
+        message: purpose === 'cancellation_review'
+          ? `The Editorial Board scheduled a meeting "${title}" to vote on whether your series "${seriesObj.title}" should continue on ${formattedDate}.`
+          : `A review meeting "${title}" has been scheduled for your series "${seriesObj.title}" on ${formattedDate}.`,
         relatedId: seriesObj._id.toString(),
         relatedType: 'Series',
         target: 'mangaka_series',

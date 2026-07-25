@@ -164,6 +164,7 @@ export async function computeSeriesPerformance(
       uniqueReactors: reaction.users.size,
       reactionBreakdown: reaction.breakdown,
       publishedChapterCount,
+      activeDays: Math.max(0, Math.floor(activeDays)),
       score,
       previousScore: previous?.score,
       trendPercent,

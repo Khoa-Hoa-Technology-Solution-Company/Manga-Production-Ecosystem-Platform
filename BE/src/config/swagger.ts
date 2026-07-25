@@ -408,6 +408,86 @@ swaggerSpec.paths = {
       responses: { 200: { description: 'Series performance rankings' }, 403: { description: 'Editorial Board only' } },
     },
   },
+  '/eb/demo/performance': {
+    post: {
+      tags: ['Editorial Board'],
+      summary: 'Prepare a manual Risk demo scenario',
+      description: 'Creates missing demo evidence and prepares either a healthy or closure-review performance scenario for selected Active series.',
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['scenario'],
+              properties: {
+                scenario: { type: 'string', enum: ['healthy', 'closure_review'] },
+                seriesIds: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Optional Active series IDs. When omitted, all Active series are prepared.',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Demo scenario prepared' },
+        400: { description: 'Invalid scenario' },
+        403: { description: 'Editorial Board Head only' },
+      },
+    },
+  },
+  '/eb/cancellation-vote/{seriesId}': {
+    post: {
+      tags: ['Editorial Board'],
+      summary: 'Cast a vote in an open active-series cancellation review',
+      parameters: [{ in: 'path', name: 'seriesId', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['decision'],
+              properties: {
+                decision: { type: 'string', enum: ['cancel', 'continue'] },
+                comments: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Cancellation review vote recorded' },
+        400: { description: 'No open cancellation review meeting or invalid decision' },
+        403: { description: 'Editorial Board meeting participants only' },
+      },
+    },
+  },
+  '/eb/cancel/{seriesId}': {
+    patch: {
+      tags: ['Editorial Board'],
+      summary: 'Finalize the majority result of an active-series cancellation review',
+      parameters: [{ in: 'path', name: 'seriesId', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: { reason: { type: 'string' } },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Majority outcome finalized; series cancelled or continued' },
+        400: { description: 'Meeting missing, votes incomplete, or cancellation reason missing' },
+        403: { description: 'Editorial Board Head only' },
+      },
+    },
+  },
   '/dashboard/stats': {
     get: {
       tags: ['Dashboard'],
