@@ -5,6 +5,7 @@ import { User } from '../models/User';
 import { Chapter } from '../models/Chapter';
 import { Vote } from '../models/Vote';
 import { Meeting } from '../models/Meeting';
+import { CancellationVote } from '../models/CancellationVote';
 import { RubricTemplate } from '../models/RubricTemplate';
 import { DEFAULT_CRITERIA } from './rubric-template.controller';
 import {
@@ -16,6 +17,55 @@ import {
 } from '../services/notification.service';
 import { finalizeSeriesByEditorialBoard } from '../services/series-workflow.service';
 import { computeSeriesPerformance } from '../services/series-performance.service';
+import { seedDemoPerformanceScenario, DemoRiskScenario } from '../services/demo-performance-data.service';
+
+export async function seedDemoPerformance(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user?.isEbHead) {
+      res.status(403).json({ error: 'Only the Head of the Editorial Board can prepare demo Risk scenarios.' });
+      return;
+    }
+
+    const scenario = String(req.body?.scenario || '');
+    if (!['healthy', 'closure_review'].includes(scenario)) {
+      res.status(400).json({
+        error: 'scenario must be either "healthy" or "closure_review".',
+      });
+      return;
+    }
+
+    const seriesIds = Array.isArray(req.body?.seriesIds)
+      ? req.body.seriesIds.map((id: unknown) => String(id))
+      : undefined;
+    const result = await seedDemoPerformanceScenario(scenario as DemoRiskScenario, seriesIds);
+
+    res.json({
+      message: `Demo Risk scenario "${scenario}" prepared successfully.`,
+      scenario: result.scenario,
+      seriesIds: result.seriesIds,
+      weekly: result.weekly.map((item: any) => ({
+        seriesId: item.seriesId,
+        title: item.series?.title,
+        riskLevel: item.riskLevel,
+        eligibleForRisk: item.eligibleForRisk,
+        ratingCount: item.ratingCount,
+        publishedChapterCount: item.publishedChapterCount,
+        activeDays: item.activeDays,
+      })),
+      monthly: result.monthly.map((item: any) => ({
+        seriesId: item.seriesId,
+        title: item.series?.title,
+        riskLevel: item.riskLevel,
+        eligibleForRisk: item.eligibleForRisk,
+        ratingCount: item.ratingCount,
+        publishedChapterCount: item.publishedChapterCount,
+        activeDays: item.activeDays,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
 
 export async function getPerformanceRankings(req: Request, res: Response): Promise<void> {
   try {
@@ -27,6 +77,68 @@ export async function getPerformanceRankings(req: Request, res: Response): Promi
     }
 
     const rankings = await computeSeriesPerformance(periodType, referenceDate);
+    const seriesIds = rankings.map((item) => item.seriesId);
+    const cancellationMeetings = seriesIds.length
+      ? await Meeting.find({
+          purpose: 'cancellation_review',
+          decisionStatus: 'open',
+          seriesIds: { $in: seriesIds },
+        })
+          .populate('participants', 'displayName avatar role')
+          .sort({ createdAt: -1 })
+          .lean()
+      : [];
+    const cancellationVotes = cancellationMeetings.length
+      ? await CancellationVote.find({
+          meetingId: { $in: cancellationMeetings.map((meeting) => meeting._id) },
+          seriesId: { $in: seriesIds },
+        })
+          .populate('memberId', 'displayName avatar role')
+          .lean()
+      : [];
+    const objectIdOf = (value: any) => value?._id?.toString() || value?.toString();
+    const cancellationReviewBySeries = new Map<string, any>();
+    for (const meeting of cancellationMeetings) {
+      for (const meetingSeriesId of meeting.seriesIds) {
+        const key = meetingSeriesId.toString();
+        if (cancellationReviewBySeries.has(key)) continue;
+        const meetingVotes = cancellationVotes.filter(
+          (vote) => vote.meetingId.toString() === meeting._id.toString()
+            && vote.seriesId.toString() === key
+        );
+        const userVote = meetingVotes.find(
+          (vote) => objectIdOf(vote.memberId) === req.user!._id.toString()
+        );
+        cancellationReviewBySeries.set(key, {
+          meetingId: meeting._id,
+          title: meeting.title,
+          dateTime: meeting.dateTime,
+          location: meeting.location,
+          participantsCount: meeting.participants.length,
+          votesCount: meetingVotes.length,
+          cancelVotes: meetingVotes.filter((vote) => vote.decision === 'cancel').length,
+          continueVotes: meetingVotes.filter((vote) => vote.decision === 'continue').length,
+          isParticipant: meeting.participants.some(
+            (participant) => objectIdOf(participant) === req.user!._id.toString()
+          ),
+          userVote: userVote?.decision || null,
+          participants: meeting.participants.map((participant: any) => {
+            const participantVote = meetingVotes.find(
+              (vote) => objectIdOf(vote.memberId) === objectIdOf(participant)
+            );
+            return {
+              _id: objectIdOf(participant),
+              displayName: participant.displayName,
+              avatar: participant.avatar,
+              role: participant.role,
+              decision: participantVote?.decision || null,
+              comments: participantVote?.comments,
+              votedAt: participantVote?.updatedAt || participantVote?.createdAt,
+            };
+          }),
+        });
+      }
+    }
     const order = req.query.order === 'asc' ? 1 : -1;
     if (order === 1) {
       const riskOrder: Record<string, number> = { closure_review: 0, at_risk: 1, watch: 2, healthy: 3, insufficient_data: 4 };
@@ -44,6 +156,7 @@ export async function getPerformanceRankings(req: Request, res: Response): Promi
         _id: item.series._id,
         performanceId: item._id,
         rank: index + 1,
+        cancellationReview: cancellationReviewBySeries.get(item.seriesId.toString()) || null,
       })),
       thresholds: {
         minimumRatings: 20,
@@ -78,6 +191,7 @@ export async function getPendingReview(req: Request, res: Response): Promise<voi
           Chapter.countDocuments({ seriesId: s._id }),
           Meeting.findOne({
             seriesIds: s._id,
+            purpose: { $ne: 'cancellation_review' },
             ...(s.ebReviewStartedAt ? { createdAt: { $gte: s.ebReviewStartedAt } } : {}),
           }).sort({ createdAt: -1 })
             .populate('participants', 'displayName email avatar role')
@@ -279,7 +393,10 @@ export async function castVote(req: Request, res: Response): Promise<void> {
     const { decision, comments, rubric } = req.body;
     let finalDecision = decision;
 
-    const meeting = await Meeting.findOne({ seriesIds: seriesId }).sort({ createdAt: -1 }).populate('rubricTemplateId');
+    const meeting = await Meeting.findOne({
+      seriesIds: seriesId,
+      purpose: { $ne: 'cancellation_review' },
+    }).sort({ createdAt: -1 }).populate('rubricTemplateId');
     const meetingTemplate = meeting?.rubricTemplateId as any;
     const activeTemplate = meetingTemplate || await RubricTemplate.findOne({ isActive: true });
     const criteriaList = activeTemplate ? activeTemplate.criteria : DEFAULT_CRITERIA;
@@ -379,6 +496,7 @@ export async function makeFinalDecision(req: Request, res: Response): Promise<vo
 
     const meeting = await Meeting.findOne({
       seriesIds: series._id,
+      purpose: { $ne: 'cancellation_review' },
       ...(series.ebReviewStartedAt ? { createdAt: { $gte: series.ebReviewStartedAt } } : {}),
     }).sort({ createdAt: -1 });
     if (!meeting) {
@@ -590,8 +708,67 @@ export async function inputReaderVotes(req: Request, res: Response): Promise<voi
 }
 
 /**
+ * POST /api/eb/cancellation-vote/:seriesId
+ * Vote in the current open cancellation review meeting for an active series.
+ */
+export async function castCancellationVote(req: Request, res: Response): Promise<void> {
+  try {
+    const seriesId = String(req.params.seriesId);
+    const { decision, comments } = req.body;
+    if (!['cancel', 'continue'].includes(decision)) {
+      res.status(400).json({ error: 'Decision must be "cancel" or "continue".' });
+      return;
+    }
+
+    const series = await Series.findById(seriesId).select('_id status');
+    if (!series) {
+      res.status(404).json({ error: 'Series not found.' });
+      return;
+    }
+    if (series.status !== 'Active') {
+      res.status(400).json({ error: 'Cancellation votes can only be cast for an active series.' });
+      return;
+    }
+
+    const meeting = await Meeting.findOne({
+      seriesIds: series._id,
+      purpose: 'cancellation_review',
+      decisionStatus: 'open',
+    }).sort({ createdAt: -1 });
+    if (!meeting) {
+      res.status(400).json({ error: 'Schedule a cancellation review meeting before voting.' });
+      return;
+    }
+    if (!meeting.participants.some((participantId) => participantId.toString() === req.user!._id.toString())) {
+      res.status(403).json({ error: 'Only participants in this cancellation review meeting may vote.' });
+      return;
+    }
+
+    await CancellationVote.findOneAndUpdate(
+      { meetingId: meeting._id, seriesId: series._id, memberId: req.user!._id },
+      { meetingId: meeting._id, seriesId: series._id, memberId: req.user!._id, decision, comments },
+      { upsert: true, new: true, runValidators: true }
+    );
+
+    const [cancelVotes, continueVotes] = await Promise.all([
+      CancellationVote.countDocuments({ meetingId: meeting._id, seriesId: series._id, decision: 'cancel' }),
+      CancellationVote.countDocuments({ meetingId: meeting._id, seriesId: series._id, decision: 'continue' }),
+    ]);
+    res.json({
+      message: 'Cancellation review vote recorded.',
+      cancelVotes,
+      continueVotes,
+      votesCount: cancelVotes + continueVotes,
+      participantsCount: meeting.participants.length,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
  * PATCH /api/eb/cancel/:seriesId
- * Cancel an active series (low performance, EB decision to discontinue).
+ * Finalize an active series cancellation review using the meeting majority.
  */
 export async function cancelSeries(req: Request, res: Response): Promise<void> {
   try {
@@ -601,11 +778,6 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
     }
     const seriesId = String(req.params.seriesId);
     const { reason } = req.body;
-
-    if (!reason || !reason.trim()) {
-      res.status(400).json({ error: 'A cancellation reason is required.' });
-      return;
-    }
 
     const series = await Series.findById(seriesId);
     if (!series) {
@@ -618,8 +790,75 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const meeting = await Meeting.findOne({
+      seriesIds: series._id,
+      purpose: 'cancellation_review',
+      decisionStatus: 'open',
+    }).sort({ createdAt: -1 });
+    if (!meeting) {
+      res.status(400).json({ error: 'A cancellation review meeting must be scheduled before this decision can be finalized.' });
+      return;
+    }
+    const [cancelVotes, continueVotes] = await Promise.all([
+      CancellationVote.countDocuments({
+        meetingId: meeting._id,
+        seriesId: series._id,
+        memberId: { $in: meeting.participants },
+        decision: 'cancel',
+      }),
+      CancellationVote.countDocuments({
+        meetingId: meeting._id,
+        seriesId: series._id,
+        memberId: { $in: meeting.participants },
+        decision: 'continue',
+      }),
+    ]);
+    const votesCount = cancelVotes + continueVotes;
+    if (votesCount < meeting.participants.length) {
+      res.status(400).json({
+        error: `Cannot finalize cancellation review. Only ${votesCount}/${meeting.participants.length} participants have voted.`,
+      });
+      return;
+    }
+
+    const shouldCancel = cancelVotes > continueVotes;
+    if (shouldCancel && (!reason || !reason.trim())) {
+      res.status(400).json({ error: 'A cancellation reason is required when the majority votes to cancel.' });
+      return;
+    }
+
+    meeting.decisionStatus = shouldCancel ? 'cancelled' : 'continued';
+    meeting.decisionReason = reason?.trim() || 'The Editorial Board majority voted to continue the series.';
+    meeting.finalizedAt = new Date();
+    meeting.finalizedBy = req.user!._id as any;
+    await meeting.save();
+
+    if (!shouldCancel) {
+      series.cancellationRisk = false;
+      await series.save();
+      try {
+        await createNotification({
+          userId: series.mangakaId.toString(),
+          type: 'system',
+          title: 'Series Will Continue',
+          message: `The Editorial Board voted ${continueVotes}-${cancelVotes} for "${series.title}" to continue publication.`,
+          relatedId: series._id.toString(),
+          relatedType: 'Series',
+          target: 'mangaka_series',
+        });
+      } catch (err) {
+        console.error('Failed to send continuation notification:', err);
+      }
+      res.json({
+        series,
+        outcome: 'continued',
+        message: `Series will continue by participant majority (${continueVotes} continue vs ${cancelVotes} cancel).`,
+      });
+      return;
+    }
+
     series.status = 'Cancelled';
-    series.rejectionNotes = reason;
+    series.rejectionNotes = reason.trim();
     series.cancellationRisk = false;
     await series.save();
 
@@ -630,7 +869,7 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
         userId: mangakaId,
         type: 'system',
         title: 'Series Cancelled',
-        message: `Your series "${series.title}" has been cancelled by the Editorial Board. Reason: ${reason}`,
+        message: `Your series "${series.title}" was cancelled by Editorial Board majority vote (${cancelVotes}-${continueVotes}). Reason: ${reason}`,
         relatedId: series._id.toString(),
         relatedType: 'Series',
         target: 'mangaka_series',
@@ -645,7 +884,7 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
           userId: series.editorId.toString(),
           type: 'system',
           title: 'Series Cancelled',
-          message: `Series "${series.title}" has been cancelled by the Editorial Board. Reason: ${reason}`,
+          message: `Series "${series.title}" was cancelled by Editorial Board majority vote (${cancelVotes}-${continueVotes}). Reason: ${reason}`,
           relatedId: series._id.toString(),
           relatedType: 'Series',
           target: 'editor_portfolio',
@@ -655,7 +894,11 @@ export async function cancelSeries(req: Request, res: Response): Promise<void> {
       }
     }
 
-    res.json({ series, message: 'Series cancelled.' });
+    res.json({
+      series,
+      outcome: 'cancelled',
+      message: `Series cancelled by participant majority (${cancelVotes} cancel vs ${continueVotes} continue).`,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

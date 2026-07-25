@@ -11,10 +11,12 @@ router.use(authorize('editorial_board'));
 router.get('/pending', ctrl.getPendingReview);
 router.get('/dashboard', ctrl.getDashboard);
 router.get('/performance/rankings', ctrl.getPerformanceRankings);
+router.post('/demo/performance', ctrl.seedDemoPerformance);
 router.post('/vote/:seriesId', ctrl.castVote);
 router.patch('/decision/:seriesId', ctrl.makeFinalDecision);
 router.patch('/schedule/:seriesId', ctrl.updatePublicationSchedule);
 router.post('/reader-votes/:seriesId', ctrl.inputReaderVotes);
+router.post('/cancellation-vote/:seriesId', ctrl.castCancellationVote);
 router.patch('/cancel/:seriesId', ctrl.cancelSeries);
 
 export default router;

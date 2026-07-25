@@ -7,9 +7,10 @@ import {
   BookOpen, ChevronDown, ChevronUp, AlertTriangle, Send,
   Calendar, Ban, Loader2, TrendingUp, TrendingDown,
   LayoutDashboard, Activity, ChevronRight, User, Tag,
-  Palette, Medal, Star, CheckCircle2, X
+  Palette, Medal, Star, CheckCircle2, ShieldAlert, X
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
+import { CancellationVotePanel } from './editorial-board/CancellationVotePanel'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
 import { ebAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI, seriesAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
@@ -52,9 +53,11 @@ type SeriesItem = {
   consecutivePoorPeriods?: number
   eligibleForRisk?: boolean
   publishedChapterCount?: number
+  activeDays?: number
   readerCount: number
   publicationSchedule?: string
   publicationMode?: 'immediate' | 'scheduled'
+  publicationStartedAt?: string
   nextPublicationAt?: string
   cancellationRisk?: boolean
   rank?: number
@@ -111,6 +114,27 @@ type SeriesItem = {
     votesCount: number
     isParticipant: boolean
   } | null
+  cancellationReview?: {
+    meetingId: string
+    title: string
+    dateTime: string
+    location?: string
+    participantsCount: number
+    votesCount: number
+    cancelVotes: number
+    continueVotes: number
+    isParticipant: boolean
+    userVote: 'cancel' | 'continue' | null
+    participants: Array<{
+      _id: string
+      displayName: string
+      avatar?: string
+      role: string
+      decision: 'cancel' | 'continue' | null
+      comments?: string
+      votedAt?: string
+    }>
+  } | null
 }
 
 type ChapterItem = {
@@ -154,6 +178,8 @@ interface MeetingItem {
   description?: string
   dateTime: string
   location: string
+  purpose?: 'proposal_review' | 'cancellation_review'
+  decisionStatus?: 'open' | 'cancelled' | 'continued'
   seriesId?: MeetingSeries
   seriesIds?: MeetingSeries[]
   participants: MeetingParticipant[]
@@ -190,6 +216,13 @@ export function EditorialBoardPortalPage() {
   const [pendingSeries, setPendingSeries] = useState<SeriesItem[]>([])
   const [rankings, setRankings] = useState<RankingItem[]>([])
   const [rankingPeriod, setRankingPeriod] = useState<'weekly' | 'monthly'>('weekly')
+  const [selectedCancellationSeriesId, setSelectedCancellationSeriesId] = useState<string | null>(null)
+  const [rankingThresholds, setRankingThresholds] = useState({
+    minimumRatings: 20,
+    minimumPublishedChapters: 3,
+    minimumActiveDays: 30,
+    lowRating: 3,
+  })
   const [loading, setLoading] = useState(true)
 
   // Assign Editor Tab states
@@ -257,10 +290,6 @@ export function EditorialBoardPortalPage() {
   const [scheduleSeriesId, setScheduleSeriesId] = useState<string | null>(null)
   const [selectedSchedule, setSelectedSchedule] = useState<'weekly' | 'monthly'>('weekly')
 
-  // Cancel state
-  const [cancelSeriesId, setCancelSeriesId] = useState<string | null>(null)
-  const [cancelReason, setCancelReason] = useState('')
-
   // Input reader votes state
   const [inputVotesSeriesId, setInputVotesSeriesId] = useState<string | null>(null)
   const [inputVotesCount, setInputVotesCount] = useState('')
@@ -278,6 +307,7 @@ export function EditorialBoardPortalPage() {
   const [meetingSeriesIds, setMeetingSeriesIds] = useState<string[]>([])
   const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
   const [meetingRubricTemplateId, setMeetingRubricTemplateId] = useState('')
+  const [meetingPurpose, setMeetingPurpose] = useState<'proposal_review' | 'cancellation_review'>('proposal_review')
   const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
   const [submittingMeeting, setSubmittingMeeting] = useState(false)
 
@@ -297,6 +327,7 @@ export function EditorialBoardPortalPage() {
     { key: 'votes', label: t('editorialBoard.pendingVotes'), icon: <Gavel className="size-3.5" />, count: pendingSeries.length },
     { key: 'meetings', label: t('editorialBoard.meetingsTab', 'Meetings'), icon: <Calendar className="size-3.5" /> },
     { key: 'rankings', label: t('editorialBoard.seriesRankings'), icon: <Trophy className="size-3.5" /> },
+    { key: 'cancellation-votes', label: 'Cancellation Votes', icon: <Ban className="size-3.5" />, count: rankings.filter(series => series.cancellationReview).length },
     ...(user?.isEbHead ? [{ key: 'rubrics', label: 'Rubric Criteria', icon: <Palette className="size-3.5" /> }] : []),
   ]
 
@@ -327,6 +358,12 @@ export function EditorialBoardPortalPage() {
         rank: idx + 1,
       }))
       setRankings(rankedSeries)
+      setRankingThresholds(rankingsRes.data.thresholds || {
+        minimumRatings: 20,
+        minimumPublishedChapters: 3,
+        minimumActiveDays: 30,
+        lowRating: 3,
+      })
 
       setDashboardStats(dashboardRes.data.stats || { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 })
       setAtRiskSeries(dashboardRes.data.atRiskSeries || [])
@@ -344,7 +381,7 @@ export function EditorialBoardPortalPage() {
     } finally {
       setLoading(false)
     }
-  }, [user, rankingPeriod])
+  }, [rankingPeriod])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData])
@@ -371,7 +408,9 @@ export function EditorialBoardPortalPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0) return
+    if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0 || meetingSeriesIds.length === 0) return
+    const createdPurpose = meetingPurpose
+    const primarySeriesId = meetingSeriesIds[0]
 
     const uniqueCount = new Set([...meetingParticipants, user?._id]).size
     if (uniqueCount % 2 === 0) {
@@ -388,7 +427,8 @@ export function EditorialBoardPortalPage() {
         location: meetingLoc,
         seriesIds: meetingSeriesIds,
         participants: meetingParticipants,
-        rubricTemplateId: meetingRubricTemplateId || undefined,
+        rubricTemplateId: meetingPurpose === 'proposal_review' ? meetingRubricTemplateId || undefined : undefined,
+        purpose: meetingPurpose,
       })
       setShowMeetingForm(false)
       // Reset form
@@ -399,7 +439,12 @@ export function EditorialBoardPortalPage() {
       setMeetingSeriesIds([])
       setMeetingParticipants([])
       setMeetingRubricTemplateId('')
-      fetchData()
+      setMeetingPurpose('proposal_review')
+      await fetchData()
+      if (createdPurpose === 'cancellation_review') {
+        setSelectedCancellationSeriesId(primarySeriesId)
+        setActiveTab('cancellation-votes')
+      }
     } catch (err: any) {
       console.error('Failed to create meeting:', err)
       alert(err.response?.data?.error || 'Failed to create meeting.')
@@ -419,7 +464,33 @@ export function EditorialBoardPortalPage() {
   }
 
   const handleOpenMeetingForm = async () => {
+    setMeetingPurpose('proposal_review')
+    setMeetingSeriesIds([])
+    setMeetingTitle('')
+    setMeetingDesc('')
     setShowMeetingForm(true)
+    try {
+      const res = await authAPI.search('', { roles: 'editorial_board' })
+      setAvailableReviewers(res.data.users || [])
+    } catch (err) {
+      console.error('Failed to load reviewers:', err)
+    }
+  }
+
+  const handleOpenCancellationWorkspace = (series: { _id: string }) => {
+    setSelectedCancellationSeriesId(series._id)
+    setActiveTab('cancellation-votes')
+  }
+
+  const handleOpenCancellationMeeting = async (series: { _id: string; title: string }) => {
+    if (!user?.isEbHead) return
+    setMeetingPurpose('cancellation_review')
+    setMeetingSeriesIds([series._id])
+    setMeetingTitle(`Cancellation review: ${series.title}`)
+    setMeetingDesc(`Review the performance evidence and vote on whether "${series.title}" should continue publication.`)
+    setMeetingRubricTemplateId('')
+    setShowMeetingForm(true)
+    setActiveTab('meetings')
     try {
       const res = await authAPI.search('', { roles: 'editorial_board' })
       setAvailableReviewers(res.data.users || [])
@@ -495,14 +566,24 @@ export function EditorialBoardPortalPage() {
     }
   }
 
-  const handleCancelSeries = async (seriesId: string) => {
+  const handleCancellationVote = async (seriesId: string, decision: 'cancel' | 'continue', comments?: string) => {
     try {
-      await ebAPI.cancelSeries(seriesId, { reason: cancelReason })
-      setCancelSeriesId(null)
-      setCancelReason('')
-      fetchData()
+      await ebAPI.castCancellationVote(seriesId, { decision, comments })
+      await fetchData()
     } catch (err) {
-      console.error('Failed to cancel series:', err)
+      console.error('Failed to cast cancellation vote:', err)
+      alert((err as any)?.response?.data?.error || 'Failed to record cancellation vote.')
+    }
+  }
+
+  const handleFinalizeCancellation = async (seriesId: string, reason: string) => {
+    try {
+      const res = await ebAPI.cancelSeries(seriesId, { reason })
+      alert(res.data.message)
+      await fetchData()
+    } catch (err) {
+      console.error('Failed to finalize cancellation review:', err)
+      alert((err as any)?.response?.data?.error || 'Failed to finalize cancellation review.')
     }
   }
 
@@ -607,6 +688,15 @@ export function EditorialBoardPortalPage() {
       Pending_EB: 'bg-amber-50 text-amber-700 border-amber-200',
     }
     return map[status] || 'bg-neutral-100 text-neutral-600 border-neutral-200'
+  }
+
+  const getRiskEligibilityHint = (series: SeriesItem) => {
+    const checks = [
+      `${series.ratingCount || 0}/${rankingThresholds.minimumRatings} ratings`,
+      `${series.publishedChapterCount || 0}/${rankingThresholds.minimumPublishedChapters} published chapters`,
+      `${series.activeDays || 0}/${rankingThresholds.minimumActiveDays} active days`,
+    ]
+    return checks.join(' · ')
   }
 
   /* ── render ── */
@@ -739,40 +829,15 @@ export function EditorialBoardPortalPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {cancelSeriesId === series._id ? (
-                                <div className="flex items-center gap-2">
-                                  <Textarea
-                                    value={cancelReason}
-                                    onChange={(e) => setCancelReason(e.target.value)}
-                                    placeholder={t('editorialBoard.cancelReason')}
-                                    className="min-h-[40px] w-48 rounded-lg text-xs"
-                                  />
-                                  <Button size="sm" variant="ghost" className="rounded-lg text-xs" onClick={() => setCancelSeriesId(null)}>
-                                    {t('common.cancel')}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="gap-1 rounded-lg bg-red-600 text-xs text-white hover:bg-red-700"
-                                    onClick={() => handleCancelSeries(series._id)}
-                                    disabled={!cancelReason.trim()}
-                                  >
-                                    <Ban className="size-3" />
-                                    {t('editorialBoard.confirmCancel')}
-                                  </Button>
-                                </div>
-                              ) : (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="gap-1.5 rounded-lg border border-red-200 !bg-red-50 text-xs !text-red-600 hover:!bg-red-100"
-                                    onClick={() => setCancelSeriesId(series._id)}
-                                  >
-                                    <Ban className="size-3" />
-                                    {t('editorialBoard.cancelSeries')}
-                                  </Button>
-                                </>
-                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 rounded-lg border border-red-200 !bg-red-50 text-xs !text-red-600 hover:!bg-red-100"
+                                onClick={() => handleOpenCancellationWorkspace(series)}
+                              >
+                                <Gavel className="size-3" />
+                                Open vote case
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -1656,6 +1721,27 @@ export function EditorialBoardPortalPage() {
                   </Button>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-neutral-700">Meeting purpose</label>
+                  <select
+                    className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:border-indigo-500 font-medium"
+                    value={meetingPurpose}
+                    onChange={(e) => {
+                      setMeetingPurpose(e.target.value as 'proposal_review' | 'cancellation_review')
+                      setMeetingSeriesIds([])
+                      setMeetingRubricTemplateId('')
+                    }}
+                  >
+                    <option value="proposal_review">Proposal review and publication vote</option>
+                    <option value="cancellation_review">Active series cancellation vote</option>
+                  </select>
+                  {meetingPurpose === 'cancellation_review' && (
+                    <p className="text-[10px] text-rose-600">
+                      Every participant must vote Continue or Cancel. The EB Head can only finalize the majority outcome.
+                    </p>
+                  )}
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-neutral-700">{t('editorialBoard.meetingTitle')}</label>
@@ -1693,21 +1779,23 @@ export function EditorialBoardPortalPage() {
                     />
                   </div>
 
-                  <div className="space-y-1 text-left">
-                    <label className="text-xs font-bold text-neutral-700">Evaluation Rubric Template</label>
-                    <select
-                      className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:border-indigo-500 font-medium cursor-pointer shadow-3xs"
-                      value={meetingRubricTemplateId}
-                      onChange={(e) => setMeetingRubricTemplateId(e.target.value)}
-                    >
-                      <option value="">Default Active Rubric</option>
-                      {rubricTemplates.map((tpl: any) => (
-                        <option key={tpl._id} value={tpl._id}>
-                          {tpl.name} ({tpl.criteria?.length} categories)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {meetingPurpose === 'proposal_review' && (
+                    <div className="space-y-1 text-left">
+                      <label className="text-xs font-bold text-neutral-700">Evaluation Rubric Template</label>
+                      <select
+                        className="w-full h-10 rounded-xl border border-neutral-200 px-3 text-xs bg-white focus:border-indigo-500 font-medium cursor-pointer shadow-3xs"
+                        value={meetingRubricTemplateId}
+                        onChange={(e) => setMeetingRubricTemplateId(e.target.value)}
+                      >
+                        <option value="">Default Active Rubric</option>
+                        {rubricTemplates.map((tpl: any) => (
+                          <option key={tpl._id} value={tpl._id}>
+                            {tpl.name} ({tpl.criteria?.length} categories)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1716,10 +1804,10 @@ export function EditorialBoardPortalPage() {
                       {t('editorialBoard.selectRelatedSeries')} <span className="text-indigo-600">({meetingSeriesIds.length} selected)</span>
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-white border border-neutral-200 rounded-xl">
-                      {[
-                        ...pendingSeries.map((s) => ({ _id: s._id, title: `[Draft] ${s.title}` })),
-                        ...rankings.map((s) => ({ _id: s._id, title: `[Active] ${s.title}` })),
-                      ].map((s) => {
+                      {(meetingPurpose === 'cancellation_review'
+                        ? rankings.map((s) => ({ _id: s._id, title: `[Active] ${s.title}` }))
+                        : pendingSeries.map((s) => ({ _id: s._id, title: `[Draft] ${s.title}` }))
+                      ).map((s) => {
                         const isSelected = meetingSeriesIds.includes(s._id)
                         return (
                           <div
@@ -1810,7 +1898,7 @@ export function EditorialBoardPortalPage() {
                   <Button
                     type="submit"
                     className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-750 text-xs font-bold px-4 py-2"
-                    disabled={submittingMeeting || !meetingTitle || !meetingDateTime || meetingParticipants.length === 0}
+                    disabled={submittingMeeting || !meetingTitle || !meetingDateTime || meetingParticipants.length === 0 || meetingSeriesIds.length === 0}
                   >
                     {submittingMeeting ? <Loader2 className="size-4.5 animate-spin" /> : t('common.create')}
                   </Button>
@@ -1849,11 +1937,18 @@ export function EditorialBoardPortalPage() {
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-extrabold text-sm text-neutral-900 tracking-tight leading-snug truncate">{m.title}</h3>
-                            <Badge className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              isUpcoming ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'
-                            }`}>
-                              {isUpcoming ? 'Upcoming' : 'Past'}
-                            </Badge>
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              <Badge className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isUpcoming ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'
+                              }`}>
+                                {isUpcoming ? 'Upcoming' : 'Past'}
+                              </Badge>
+                              {m.purpose === 'cancellation_review' && (
+                                <Badge className="rounded-full border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-bold text-rose-700">
+                                  Cancellation vote
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           {m.description && <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">{m.description}</p>}
                         </div>
@@ -1944,6 +2039,19 @@ export function EditorialBoardPortalPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ────── CANCELLATION VOTE WORKSPACE ────── */}
+      {activeTab === 'cancellation-votes' && (
+        <CancellationVotePanel
+          series={rankings}
+          selectedSeriesId={selectedCancellationSeriesId}
+          isEbHead={!!user?.isEbHead}
+          onSelectSeries={setSelectedCancellationSeriesId}
+          onScheduleMeeting={handleOpenCancellationMeeting}
+          onVote={handleCancellationVote}
+          onFinalize={handleFinalizeCancellation}
+        />
       )}
 
       {/* ────── RANKINGS TAB ────── */}
@@ -2037,9 +2145,19 @@ export function EditorialBoardPortalPage() {
                               <span className="block text-[10px] text-neutral-400">{series.uniqueReactors || 0} readers</span>
                             </td>
                             <td className="px-6 py-4 text-center">
-                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${series.riskLevel === 'closure_review' ? 'border-rose-200 bg-rose-50 text-rose-700' : series.riskLevel === 'at_risk' ? 'border-orange-200 bg-orange-50 text-orange-700' : series.riskLevel === 'watch' ? 'border-amber-200 bg-amber-50 text-amber-700' : series.riskLevel === 'insufficient_data' ? 'border-neutral-200 bg-neutral-50 text-neutral-500' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-                                {series.riskLevel === 'closure_review' ? 'Closure review' : series.riskLevel === 'at_risk' ? 'At risk' : series.riskLevel === 'watch' ? 'Watch' : series.riskLevel === 'insufficient_data' ? 'Need data' : 'Healthy'}
-                              </span>
+                              <div className="flex flex-col items-center gap-1">
+                                <span
+                                  title={series.riskLevel === 'insufficient_data' ? getRiskEligibilityHint(series) : undefined}
+                                  className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${series.riskLevel === 'closure_review' ? 'border-rose-200 bg-rose-50 text-rose-700' : series.riskLevel === 'at_risk' ? 'border-orange-200 bg-orange-50 text-orange-700' : series.riskLevel === 'watch' ? 'border-amber-200 bg-amber-50 text-amber-700' : series.riskLevel === 'insufficient_data' ? 'border-neutral-200 bg-neutral-50 text-neutral-500' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}
+                                >
+                                  {series.riskLevel === 'closure_review' ? 'Closure review' : series.riskLevel === 'at_risk' ? 'At risk' : series.riskLevel === 'watch' ? 'Watch' : series.riskLevel === 'insufficient_data' ? 'Need data' : 'Healthy'}
+                                </span>
+                                {series.riskLevel === 'insufficient_data' && (
+                                  <span className="max-w-44 text-[9px] leading-tight text-neutral-400">
+                                    {getRiskEligibilityHint(series)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-center">
                               <Badge className={getStatusBadge(series.status)}>
@@ -2085,7 +2203,7 @@ export function EditorialBoardPortalPage() {
                         </h4>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {/* Change Schedule */}
                         <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-3xs flex flex-col justify-between text-left">
                           <div>
@@ -2137,51 +2255,26 @@ export function EditorialBoardPortalPage() {
                           )}
                         </div>
 
-                        {/* Cancel Series */}
-                        <div className="rounded-2xl border border-rose-100 bg-rose-50/20 p-5 shadow-3xs flex flex-col justify-between text-left">
+                        {/* Cancellation governance lives in its own workspace. */}
+                        <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/70 to-white p-5 shadow-3xs flex flex-col justify-between text-left">
                           <div>
                             <div className="mb-3 flex items-center gap-2 text-xs font-bold text-rose-700">
-                              <Ban className="size-4 text-rose-500" />
-                              {t('editorialBoard.cancelSeries')}
+                              <Gavel className="size-4 text-rose-500" />
+                              Cancellation governance
                             </div>
-                            <p className="text-[11px] text-rose-750 leading-relaxed mb-4">Halt all development and cancel publication of this series manuscript.</p>
+                            <p className="mb-4 text-[11px] leading-relaxed text-neutral-500">
+                              Review evidence, meeting attendance, individual votes and the majority result in the dedicated workspace.
+                            </p>
                           </div>
-                          
-                          {cancelSeriesId === series._id ? (
-                            <div className="space-y-3 animate-in fade-in duration-200">
-                              <Textarea
-                                value={cancelReason}
-                                onChange={(e) => setCancelReason(e.target.value)}
-                                placeholder={t('editorialBoard.cancelReason')}
-                                className="min-h-[50px] rounded-xl text-xs bg-white border-neutral-200 focus:border-rose-500"
-                              />
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="ghost" className="flex-1 rounded-xl text-xs border border-neutral-200 hover:bg-neutral-100 h-8" onClick={() => setCancelSeriesId(null)}>
-                                  {t('common.cancel')}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="flex-1 gap-1 rounded-xl bg-red-600 text-xs text-white hover:bg-red-700 h-8 font-bold"
-                                  onClick={() => handleCancelSeries(series._id)}
-                                  disabled={!user?.isEbHead || !cancelReason.trim()}
-                                >
-                                  <Ban className="size-3" />
-                                  {t('editorialBoard.confirmCancel')}
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="w-full gap-1.5 rounded-xl border border-rose-200 text-xs text-rose-600 hover:bg-rose-105 font-bold h-9 shadow-3xs bg-white"
-                              disabled={!user?.isEbHead}
-                              onClick={() => setCancelSeriesId(series._id)}
-                            >
-                              <Ban className="size-3.5" />
-                              {t('editorialBoard.cancelSeries')}
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-9 w-full gap-1.5 rounded-xl border-rose-200 bg-white text-xs font-bold text-rose-700 hover:bg-rose-50"
+                            onClick={() => handleOpenCancellationWorkspace(series)}
+                          >
+                            <ShieldAlert className="size-3.5" />
+                            {series.cancellationReview ? 'Open active vote case' : 'Open cancellation workspace'}
+                          </Button>
                         </div>
                       </div>
                     </CardContent>

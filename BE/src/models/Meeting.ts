@@ -5,6 +5,11 @@ export interface IMeeting extends Document {
   description?: string;
   dateTime: Date;
   location?: string;
+  purpose: 'proposal_review' | 'cancellation_review';
+  decisionStatus: 'open' | 'cancelled' | 'continued';
+  decisionReason?: string;
+  finalizedAt?: Date;
+  finalizedBy?: mongoose.Types.ObjectId;
   seriesIds: mongoose.Types.ObjectId[];
   participants: mongoose.Types.ObjectId[];
   createdBy: mongoose.Types.ObjectId;
@@ -19,6 +24,19 @@ const meetingSchema = new Schema<IMeeting>(
     description: { type: String, trim: true },
     dateTime: { type: Date, required: true },
     location: { type: String, trim: true },
+    purpose: {
+      type: String,
+      enum: ['proposal_review', 'cancellation_review'],
+      default: 'proposal_review',
+    },
+    decisionStatus: {
+      type: String,
+      enum: ['open', 'cancelled', 'continued'],
+      default: 'open',
+    },
+    decisionReason: { type: String, trim: true },
+    finalizedAt: { type: Date },
+    finalizedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     seriesIds: [{ type: Schema.Types.ObjectId, ref: 'Series' }],
     participants: [{ type: Schema.Types.ObjectId, ref: 'User', required: true }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

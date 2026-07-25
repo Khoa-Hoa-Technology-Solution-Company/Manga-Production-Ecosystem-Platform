@@ -16,6 +16,7 @@ export interface ISeriesPerformance extends Document {
   uniqueReactors: number;
   reactionBreakdown: Record<string, number>;
   publishedChapterCount: number;
+  activeDays: number;
   score: number;
   previousScore?: number;
   trendPercent: number;
@@ -40,6 +41,7 @@ const seriesPerformanceSchema = new Schema<ISeriesPerformance>(
     uniqueReactors: { type: Number, default: 0 },
     reactionBreakdown: { type: Schema.Types.Mixed, default: {} },
     publishedChapterCount: { type: Number, default: 0 },
+    activeDays: { type: Number, default: 0 },
     score: { type: Number, default: 0 },
     previousScore: { type: Number },
     trendPercent: { type: Number, default: 0 },
