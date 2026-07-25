@@ -224,16 +224,6 @@ export function LoginPage() {
             </button>
           </p>
 
-          {/* Demo accounts hint */}
-          <div className="rounded-xl bg-neutral-100 p-3 space-y-1">
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Demo Accounts</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-neutral-600">
-              <span>mangaka@mangaflow.com</span><span>password123</span>
-              <span>assistant@mangaflow.com</span><span>password123</span>
-              <span>editor@mangaflow.com</span><span>password123</span>
-              <span>reader@mangaflow.com</span><span>password123</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

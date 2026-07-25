@@ -16,7 +16,6 @@ import {
   BookOpen,
   Eye,
   EyeOff,
-  Sparkles,
   User,
   Mail,
   Lock,
@@ -32,13 +31,6 @@ const roleOptions = [
   { value: 'mangaka', labelKey: 'roles.mangaka', descKey: 'mobile.login.roleMangaka' },
   { value: 'assistant', labelKey: 'roles.assistant', descKey: 'mobile.login.roleAssistant' },
   { value: 'reader', labelKey: 'roles.reader', descKey: 'mobile.login.roleReader' },
-];
-
-const demoAccounts = [
-  { email: 'mangaka@mangaflow.com', labelKey: 'roles.mangaka' },
-  { email: 'assistant@mangaflow.com', labelKey: 'roles.assistant' },
-  { email: 'editor@mangaflow.com', labelKey: 'roles.editor' },
-  { email: 'reader@mangaflow.com', labelKey: 'roles.reader' },
 ];
 
 export default function LoginScreen() {
@@ -86,12 +78,6 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setIsLogin(true);
   };
 
   return (
@@ -339,45 +325,6 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Demo Accounts */}
-            <View
-              style={[
-                styles.demoCard,
-                {
-                  backgroundColor: isDark ? 'rgba(22, 17, 41, 0.45)' : 'rgba(15, 23, 42, 0.03)',
-                  borderColor: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(15, 23, 42, 0.08)',
-                },
-              ]}
-            >
-              <View style={styles.demoHeader}>
-                <Sparkles size={12} color="#f43f5e" />
-                <ThemedText themeColor="textSecondary" style={styles.demoTitle}>{t('mobile.login.demoTitle')}</ThemedText>
-              </View>
-              <View style={styles.demoGrid}>
-                {demoAccounts.map((d) => (
-                  <Pressable
-                    key={d.email}
-                    onPress={() => fillDemo(d.email)}
-                    style={({ pressed }) => [
-                      styles.demoChip,
-                      {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#ffffff',
-                        borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.06)',
-                      },
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <ThemedText style={[styles.demoChipLabel, { color: theme.text }]}>{t(d.labelKey)}</ThemedText>
-                    <ThemedText style={[styles.demoChipEmail, { color: theme.textSecondary }]} numberOfLines={1}>
-                      {d.email}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-              <ThemedText style={[styles.demoHint, { color: theme.textSecondary }]}>
-                {t('mobile.login.demoPassword')}
-              </ThemedText>
-            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -515,42 +462,4 @@ const styles = StyleSheet.create({
   },
   toggleText: { color: '#64748b', fontSize: 12 },
   toggleLink: { color: '#f43f5e', fontSize: 12, fontWeight: '800' },
-  demoCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.45)',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.1)',
-    gap: 10,
-  },
-  demoHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  demoTitle: {
-    color: '#94a3b8',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-  },
-  demoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  demoChip: {
-    width: '48%',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
-  },
-  demoChipLabel: { color: '#cbd5e1', fontSize: 11, fontWeight: '800' },
-  demoChipEmail: { color: '#475569', fontSize: 9 },
-  demoHint: {
-    color: '#475569',
-    fontSize: 10,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
 });
