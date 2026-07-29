@@ -4,8 +4,23 @@ import { Chapter } from '../models/Chapter';
 import { Reaction } from '../models/Reaction';
 import { ReactionEvent } from '../models/ReactionEvent';
 import { emitToRoom } from '../socket';
+import { Series } from '../models/Series';
+import { canAccessChapterDocument } from '../middleware/chapterAccess';
+import { Task } from '../models/Task';
 
 const REACTION_OPTIONS = new Set(['🔥', '❤️', '😮', '😭', '👏']);
+const PUBLIC_SERIES_STATUSES = new Set(['Active', 'Completed']);
+
+function canAccessSeriesReactions(series: any, user: { _id: string; role: string } | undefined): boolean {
+  if (PUBLIC_SERIES_STATUSES.has(String(series?.status))) return true;
+  if (!series || !user) return false;
+  const userId = String(user._id);
+  return String(series.mangakaId?._id || series.mangakaId) === userId
+    || (user.role === 'editor'
+      && String(series.editorId?._id || series.editorId) === userId
+      && series.editorStatus === 'accepted')
+    || user.role === 'editorial_board';
+}
 
 async function summarizeReaction(targetType: string, targetId: string, userId?: string) {
   const matchQuery: any = {};
@@ -55,15 +70,32 @@ export async function toggleReaction(req: Request, res: Response): Promise<void>
     let seriesId: mongoose.Types.ObjectId;
     let chapterId: mongoose.Types.ObjectId | undefined;
     if (targetType === 'chapter') {
-      const chapter = await Chapter.findById(targetId).select('seriesId');
+      const chapter = await Chapter.findById(targetId).select('seriesId mangakaId collaborators status');
       if (!chapter) {
         res.status(404).json({ error: 'Chapter not found.' });
+        return;
+      }
+      const series = await Series.findById(chapter.seriesId).select('status editorId editorStatus mangakaId');
+      const assignedAssistant = req.user?.role === 'assistant'
+        ? await Task.exists({ chapterId: chapter._id, assignedTo: req.user._id })
+        : false;
+      if (!series || (!canAccessChapterDocument(chapter, series, req.user as any, 'comment') && !assignedAssistant)) {
+        res.status(403).json({ error: 'You do not have access to this chapter.' });
         return;
       }
       chapterId = chapter._id;
       seriesId = chapter.seriesId;
     } else {
-      seriesId = new mongoose.Types.ObjectId(targetId);
+      const series = await Series.findById(targetId).select('_id status mangakaId editorId editorStatus');
+      if (!series) {
+        res.status(404).json({ error: 'Series not found.' });
+        return;
+      }
+      if (!canAccessSeriesReactions(series, req.user as any)) {
+        res.status(403).json({ error: 'This series is not available for reactions.' });
+        return;
+      }
+      seriesId = series._id;
     }
 
     const query: any = { userId, seriesId };
@@ -121,6 +153,32 @@ export async function getReactions(req: Request, res: Response): Promise<void> {
     if (!['series', 'chapter'].includes(targetType) || !mongoose.Types.ObjectId.isValid(targetId)) {
       res.status(400).json({ error: 'Invalid reaction target.' });
       return;
+    }
+
+    if (targetType === 'chapter') {
+      const chapter = await Chapter.findById(targetId).select('seriesId mangakaId collaborators status');
+      const series = chapter ? await Series.findById(chapter.seriesId).select('status editorId editorStatus mangakaId') : null;
+      if (!chapter || !series) {
+        res.status(404).json({ error: 'Chapter not found.' });
+        return;
+      }
+      const assignedAssistant = req.user?.role === 'assistant'
+        ? await Task.exists({ chapterId: chapter._id, assignedTo: req.user._id })
+        : false;
+      if (!canAccessChapterDocument(chapter, series, req.user as any, 'read') && !assignedAssistant) {
+        res.status(403).json({ error: 'You do not have access to this chapter.' });
+        return;
+      }
+    } else {
+      const series = await Series.findById(targetId).select('_id status mangakaId editorId editorStatus');
+      if (!series) {
+        res.status(404).json({ error: 'Series not found.' });
+        return;
+      }
+      if (!canAccessSeriesReactions(series, req.user as any)) {
+        res.status(403).json({ error: 'This series is not available for reactions.' });
+        return;
+      }
     }
 
     const summary = await summarizeReaction(targetType, targetId, req.user?._id);

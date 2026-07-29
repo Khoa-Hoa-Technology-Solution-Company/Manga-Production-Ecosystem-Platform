@@ -133,16 +133,16 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-neutral-50 shadow-xl transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:w-55 lg:translate-x-0 lg:shadow-none lg:border-r lg:border-neutral-200
+          fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-neutral-200/80 bg-[var(--color-paper-2)] shadow-xl transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:w-60 lg:translate-x-0 lg:shadow-none
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <div className="flex items-center justify-between px-5 py-5">
+        <div className="flex items-center justify-between border-b border-neutral-200/80 px-5 py-5">
           <div className="flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-lg bg-neutral-900 text-white">
+            <div className="grid size-8 place-items-center rounded-xl bg-neutral-950 text-white shadow-sm">
               <BookMarked className="size-4" />
             </div>
-            <span className="text-base font-semibold leading-6 text-neutral-950">MangaFlow</span>
+            <span className="text-base font-semibold leading-6 tracking-[-0.03em] text-neutral-950">MangaFlow</span>
           </div>
           <Button
             variant="ghost"
@@ -170,7 +170,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
             return (
               <div key={section.key} className="mb-1">
                 {section.labelKey && (
-                  <p className="mb-1 mt-4 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                  <p className="mb-1 mt-5 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
                     {t(section.labelKey)}
                   </p>
                 )}
@@ -182,8 +182,8 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                       variant={isActive ? 'secondary' : 'ghost'}
                       className={
                         isActive
-                          ? 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 font-medium'
-                          : 'h-9 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 text-neutral-500 font-normal'
+                          ? 'h-10 w-full shrink-0 justify-start gap-2.5 rounded-xl border border-neutral-200 bg-white px-3 font-semibold shadow-sm'
+                          : 'h-10 w-full shrink-0 justify-start gap-2.5 rounded-xl px-3 text-neutral-500 font-normal hover:bg-white hover:text-neutral-900'
                       }
                       onClick={() => {
                         navigate(routeMap[key])

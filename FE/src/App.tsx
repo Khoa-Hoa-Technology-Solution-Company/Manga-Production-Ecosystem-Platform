@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Menu, Server, Loader2 } from 'lucide-react'
@@ -6,21 +6,31 @@ import { Button } from './components/ui'
 import { Shell } from './components/layout/Shell'
 import { Sidebar } from './components/layout/Sidebar'
 import { Footer } from './components/layout/Footer'
-import { DashboardPage } from './components/sections/DashboardPage'
-import { StudioPage } from './components/sections/StudioPage'
-import { StudioWorkspacePage } from './components/sections/StudioWorkspacePage'
-import { MangakaSeriesManagerPage } from './components/sections/MangakaSeriesManagerPage'
-import { AssistantPortalPage } from './components/sections/AssistantPortalPage'
-import { EditorialBoardPortalPage } from './components/sections/EditorialBoardPortalPage'
-import { ReaderHubPage } from './components/sections/ReaderHubPage'
-import { ReadingViewPage } from './components/sections/ReadingViewPage'
-import { LoginPage } from './components/sections/LoginPage'
-import { EditorPortalPage } from './components/sections/EditorPortalPage'
-import { ManuscriptReviewPage } from './components/sections/ManuscriptReviewPage'
-import { SettingsPage } from './components/sections/SettingsPage'
 import { ProtectedRoute, ProtectedReaderRoute, ProtectedMangakaRoute, ProtectedEditorRoute, ProtectedEditorialBoardRoute, ProtectedReviewerRoute } from './components/layout/ProtectedRoute'
 import { useAuth } from './lib/auth'
 import { socketService } from './lib/socket'
+
+const DashboardPage = lazy(() => import('./components/sections/DashboardPage').then(module => ({ default: module.DashboardPage })))
+const StudioPage = lazy(() => import('./components/sections/StudioPage').then(module => ({ default: module.StudioPage })))
+const StudioWorkspacePage = lazy(() => import('./components/sections/StudioWorkspacePage').then(module => ({ default: module.StudioWorkspacePage })))
+const MangakaSeriesManagerPage = lazy(() => import('./components/sections/MangakaSeriesManagerPage').then(module => ({ default: module.MangakaSeriesManagerPage })))
+const AssistantPortalPage = lazy(() => import('./components/sections/AssistantPortalPage').then(module => ({ default: module.AssistantPortalPage })))
+const EditorialBoardPortalPage = lazy(() => import('./components/sections/EditorialBoardPortalPage').then(module => ({ default: module.EditorialBoardPortalPage })))
+const ReaderHubPage = lazy(() => import('./components/sections/ReaderHubPage').then(module => ({ default: module.ReaderHubPage })))
+const ReadingViewPage = lazy(() => import('./components/sections/ReadingViewPage').then(module => ({ default: module.ReadingViewPage })))
+const LoginPage = lazy(() => import('./components/sections/LoginPage').then(module => ({ default: module.LoginPage })))
+const EditorPortalPage = lazy(() => import('./components/sections/EditorPortalPage').then(module => ({ default: module.EditorPortalPage })))
+const ManuscriptReviewPage = lazy(() => import('./components/sections/ManuscriptReviewPage').then(module => ({ default: module.ManuscriptReviewPage })))
+const SettingsPage = lazy(() => import('./components/sections/SettingsPage').then(module => ({ default: module.SettingsPage })))
+
+function RouteFallback() {
+  return (
+    <div className="grid min-h-64 place-items-center" role="status" aria-live="polite">
+      <Loader2 className="size-6 animate-spin text-neutral-500" aria-hidden="true" />
+      <span className="sr-only">Loading page</span>
+    </div>
+  )
+}
 
 function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -104,7 +114,8 @@ function App() {
   return (
     <>
       <BrowserRouter>
-        <Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
 
           <Route element={<ProtectedRoute />}>
@@ -139,11 +150,12 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>
-        </Routes>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
 
       {!isServerUp && (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-neutral-950/85 backdrop-blur-md select-none p-4 transition-all duration-500">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-neutral-950/85 backdrop-blur-md select-none p-4 transition-opacity duration-500">
           <div className="flex w-full max-w-sm flex-col items-center gap-6 p-6 text-center rounded-2xl bg-neutral-900 border border-neutral-800 shadow-2xl animate-in fade-in zoom-in duration-300">
             {/* Pulsing server icon */}
             <div className="relative">

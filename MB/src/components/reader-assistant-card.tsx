@@ -148,11 +148,17 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
             ]}
           >
             <Pressable style={styles.continuePressable} onPress={() => onContinue(currentRead)}>
-              <Image
-                source={{ uri: getImageUrl(currentRead.coverImage) || `https://picsum.photos/seed/${currentRead.id}/180/240` }}
-                style={styles.continueCover}
-                contentFit="cover"
-              />
+              {getImageUrl(currentRead.coverImage) ? (
+                <Image
+                  source={{ uri: getImageUrl(currentRead.coverImage) }}
+                  style={styles.continueCover}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.continueCover, styles.coverPlaceholder]}>
+                  <BookOpen size={22} color="#a4a49d" />
+                </View>
+              )}
               <View style={styles.continueBody}>
                 <ThemedText style={styles.continueEyebrow}>{t('assistantReader.continue')}</ThemedText>
                 <ThemedText style={styles.continueTitle} numberOfLines={1}>{currentRead.title}</ThemedText>
@@ -262,11 +268,17 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                             style={({ pressed }) => [styles.seriesResultCard, pressed && styles.seriesResultCardPressed]}
                             onPress={() => onOpenSeries(series)}
                           >
-                            <Image
-                              source={{ uri: getImageUrl(series.coverImage) || `https://picsum.photos/seed/${series.id}/160/220` }}
-                              style={styles.seriesResultCover}
-                              contentFit="cover"
-                            />
+                            {getImageUrl(series.coverImage) ? (
+                              <Image
+                                source={{ uri: getImageUrl(series.coverImage) }}
+                                style={styles.seriesResultCover}
+                                contentFit="cover"
+                              />
+                            ) : (
+                              <View style={[styles.seriesResultCover, styles.coverPlaceholder]}>
+                                <BookOpen size={20} color="#a4a49d" />
+                              </View>
+                            )}
                             <View style={styles.seriesResultBody}>
                               <ThemedText style={styles.seriesResultTitle} numberOfLines={2}>{series.title}</ThemedText>
                               <ThemedText style={styles.seriesResultGenre} numberOfLines={1}>
@@ -370,6 +382,7 @@ const styles = StyleSheet.create({
   continueSpotlight: { borderRadius: 18, backgroundColor: '#24104b', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', shadowColor: '#fda4af', shadowRadius: 16, shadowOffset: { width: 0, height: 5 }, elevation: 7 },
   continuePressable: { minHeight: 78, flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden', borderRadius: 17 },
   continueCover: { width: 58, height: 78, backgroundColor: '#3b1d6e' },
+  coverPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   continueBody: { flex: 1, justifyContent: 'center', gap: 3, paddingHorizontal: 11, paddingVertical: 9 },
   continueEyebrow: { color: '#fda4af', fontSize: 9, lineHeight: 12, fontWeight: '900', letterSpacing: 1 },
   continueTitle: { color: '#fff', fontSize: 14, lineHeight: 18, fontWeight: '900' },

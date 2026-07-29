@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,17 +54,13 @@ function ManageScreen() {
   const selectedSeries = useMemo(() => seriesList.find((s) => s._id === selectedSeriesId), [seriesList, selectedSeriesId]);
 
   useEffect(() => {
-    loadMySeries();
-  }, [user?._id]);
-
-  useEffect(() => {
     if (selectedSeriesId) {
       loadChapters(selectedSeriesId);
       loadAssistants(selectedSeriesId);
     }
   }, [selectedSeriesId]);
 
-  const loadMySeries = () => {
+  const loadMySeries = useCallback(() => {
     setLoading(true);
     setError(null);
     seriesAPI.getAll()
@@ -79,7 +75,11 @@ function ManageScreen() {
         setError(err.message || t('mobile.manage.loadError'));
       })
       .finally(() => setLoading(false));
-  };
+  }, [t, user?._id]);
+
+  useEffect(() => {
+    void loadMySeries();
+  }, [loadMySeries]);
 
   const loadChapters = (sId: string) => {
     setLoadingChapters(true);
@@ -529,7 +529,7 @@ function ManageScreen() {
             seriesList.map(series => (
               <Pressable key={series._id} style={styles.seriesCard} onPress={() => setSelectedSeriesId(series._id)}>
                 <Image 
-                  source={{ uri: getImageUrl(series.coverImage) || `https://picsum.photos/seed/${series._id}/200/300` }}
+                  source={{ uri: getImageUrl(series.coverImage) || '' }}
                   style={styles.coverImage}
                   contentFit="cover"
                 />

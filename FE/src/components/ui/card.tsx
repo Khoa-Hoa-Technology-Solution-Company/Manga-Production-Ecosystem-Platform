@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { cn } from '../utils/cn'
 
 type CardProps = {
@@ -8,7 +8,27 @@ type CardProps = {
 }
 
 export function Card({ children, className, onClick }: CardProps) {
-  return <div className={cn('rounded-3xl border border-neutral-200 bg-white', className)} onClick={onClick} role={onClick ? 'button' : undefined}>{children}</div>
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!onClick || (event.key !== 'Enter' && event.key !== ' ')) return
+    event.preventDefault()
+    onClick()
+  }
+
+  return (
+    <div
+      className={cn(
+        'rounded-[var(--radius-card)] border border-neutral-200 bg-white shadow-[var(--shadow-soft)]',
+        onClick && 'cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2',
+        className,
+      )}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
+      {children}
+    </div>
+  )
 }
 
 export function CardHeader({ children, className }: CardProps) {

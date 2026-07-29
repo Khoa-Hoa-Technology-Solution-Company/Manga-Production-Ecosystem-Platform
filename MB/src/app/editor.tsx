@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,11 +25,7 @@ function EditorScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -48,15 +44,20 @@ function EditorScreen() {
       setAnalytics({
         activeSeries: portfolioRes.portfolio?.length || 0,
         pendingCount: pendingCount,
-        approvedCount: 15, // Mock historical stat
-        rating: 4.8
+        // These values are not returned by the current API; do not present fabricated analytics.
+        approvedCount: 0,
+        rating: 0
       });
     } catch (err: any) {
       setError(err.message || t('mobile.editor.loadError'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
 
   const handleReview = (chapterId: string) => {
     router.push(`/editor/review/${chapterId}` as any);

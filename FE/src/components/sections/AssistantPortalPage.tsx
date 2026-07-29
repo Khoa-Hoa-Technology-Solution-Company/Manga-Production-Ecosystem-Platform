@@ -1,4 +1,8 @@
 /* eslint-disable */
+/* Hallmark · component: task-filter-toolbar · genre: modern-minimal · theme: MangaFlow graphite
+ * pre-emit critique: P5 H5 E4 S5 R5 V4 · states: default · hover · focus · active · disabled
+ * contrast: pass · responsive: 320 · 375 · 414 · 768 · 1536
+ */
 import { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -54,6 +58,7 @@ export function AssistantPortalPage() {
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [chapterPages, setChapterPages] = useState<Record<string, any[]>>({})
 
   // ── Viewer Modal States ────────────────────────────
@@ -126,10 +131,12 @@ export function AssistantPortalPage() {
 
   const loadTasks = async () => {
     setLoading(true)
+    setErrorMessage(null)
     try {
-      const res = await tasksAPI.getAll()
+      const res = await tasksAPI.getAll({ limit: '100' })
       setTasks(res.data.tasks || [])
     } catch {
+      setErrorMessage(t('assistant.loadError'))
     } finally {
       setLoading(false)
     }
@@ -142,6 +149,7 @@ export function AssistantPortalPage() {
       await tasksAPI.accept(taskId)
       await loadTasks()
     } catch {
+      setErrorMessage(t('assistant.actionError'))
     } finally {
       setAccepting(null)
     }
@@ -153,7 +161,9 @@ export function AssistantPortalPage() {
     try {
       await tasksAPI.decline(taskId)
       await loadTasks()
-    } catch { }
+    } catch {
+      setErrorMessage(t('assistant.actionError'))
+    }
   }
 
   // ── Submit task ───────────────────────────────────
@@ -169,6 +179,7 @@ export function AssistantPortalPage() {
       }
       await loadTasks()
     } catch {
+      setErrorMessage(t('assistant.actionError'))
     } finally {
       setSubmitting(null)
     }
@@ -191,6 +202,37 @@ export function AssistantPortalPage() {
       await loadTasks()
     } catch (err) {
       console.error('Failed to submit page', err)
+      setErrorMessage(t('assistant.actionError'))
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
+  const handleChapterFinalize = async (task: any) => {
+    const chapterId = task.chapterId?._id || task.chapterId
+    const pages = chapterPages[chapterId] || []
+    const uploadedCount = pages.filter((page: any) => Boolean(page.processedImage)).length
+
+    if (pages.length === 0) {
+      window.alert(t('assistant.chapterPagesUnavailable', 'Chapter pages are not available yet. Please try again.'))
+      return
+    }
+
+    if (uploadedCount < pages.length && !window.confirm(
+      t(
+        'assistant.confirmPartialChapterSubmission',
+        `Only ${uploadedCount} of ${pages.length} pages have an uploaded result. Submit this chapter for review anyway?`,
+      ),
+    )) return
+
+    setSubmitting(task._id)
+    try {
+      const formData = new FormData()
+      formData.append('finalize', 'true')
+      await tasksAPI.submit(task._id, formData)
+      await loadTasks()
+    } catch (err: any) {
+      window.alert(err.response?.data?.error || t('assistant.submitFailed', 'Failed to submit the task.'))
     } finally {
       setSubmitting(null)
     }
@@ -201,7 +243,9 @@ export function AssistantPortalPage() {
     try {
       await tasksAPI.updateStatus(taskId, 'in_progress')
       await loadTasks()
-    } catch { }
+    } catch {
+      setErrorMessage(t('assistant.actionError'))
+    }
   }
 
   // ── Download draft helper ─────────────────────────
@@ -295,8 +339,17 @@ export function AssistantPortalPage() {
               })}
             </section>
 
+            {errorMessage && (
+              <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <span>{errorMessage}</span>
+                <button type="button" onClick={() => setErrorMessage(null)} className="shrink-0 rounded-md p-1 hover:bg-red-100" aria-label={t('common.close')}>
+                  <X className="size-4" />
+                </button>
+              </div>
+            )}
+
             {/* ── Filter + Search ────────────────────────── */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid w-full min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_auto_auto] 2xl:grid-cols-[minmax(27rem,1.5fr)_minmax(12rem,0.55fr)_auto_auto] 2xl:items-center">
               <Tabs
                 tabs={[
                   { key: 'all', label: t('common.all', 'All'), count: tasks.length },
@@ -307,60 +360,63 @@ export function AssistantPortalPage() {
                 ]}
                 active={activeFilter}
                 onChange={setActiveFilter}
+                ariaLabel={t('assistant.filterStatus')}
+                className="!grid w-full min-w-0 grid-cols-2 overflow-visible md:col-span-2 sm:grid-cols-5 xl:col-span-3 2xl:col-span-1 2xl:!flex [&>button:last-child]:col-span-2 sm:[&>button:last-child]:col-span-1 [&>button]:min-w-0 [&>button]:justify-center [&>button]:transition-colors [&>button]:focus-visible:outline-none [&>button]:focus-visible:ring-2 [&>button]:focus-visible:ring-neutral-500 [&>button]:focus-visible:ring-offset-2 [&>button]:active:opacity-80 [&>button]:disabled:cursor-not-allowed [&>button]:disabled:opacity-55 2xl:[&>button]:grow"
               />
 
-              <div className="flex items-center gap-2">
-                <div className="relative">
+              <div className="min-w-0">
+                <div className="relative w-full">
                   <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-500" />
                   <Input
-                    placeholder={t('common.search', 'Search tasks...')}
-                    className="h-8 w-56 pl-8 text-xs"
+                    aria-label={t('assistant.searchTasks')}
+                    placeholder={t('assistant.searchTasks')}
+                    className="h-10 w-full pl-8 text-xs"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4">
-                {/* Assistant Type Filter */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Type:</span>
-                  {(['all', 'dedicated', 'freelance'] as const).map(type => (
-                    <button
-                      key={type}
-                      onClick={() => setAssistantTypeFilter(type)}
-                      className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${assistantTypeFilter === type
-                          ? type === 'dedicated' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : type === 'freelance' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-neutral-100 text-neutral-800 border-neutral-300'
-                          : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
-                        }`}
-                    >
-                      {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
-                    </button>
-                  ))}
-                </div>
+              {/* Assistant Type Filter */}
+              <div className="grid min-w-0 grid-cols-3 items-center gap-1.5 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))] md:justify-self-stretch 2xl:flex 2xl:justify-self-end" role="group" aria-label={t('assistant.filterType')}>
+                <span className="col-span-3 mb-0.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 sm:col-span-1 sm:mb-0 sm:mr-1">{t('assistant.filterType')}:</span>
+                {(['all', 'dedicated', 'freelance'] as const).map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setAssistantTypeFilter(type)}
+                    aria-pressed={assistantTypeFilter === type}
+                    className={`h-10 whitespace-nowrap rounded-lg border px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-55 ${assistantTypeFilter === type
+                        ? 'border-neutral-900 bg-neutral-900 text-white'
+                        : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                      }`}
+                  >
+                    {type === 'all' ? t('common.all', 'All') : type === 'dedicated' ? t('assistant.dedicated', 'Dedicated') : t('assistant.freelance', 'Freelance')}
+                  </button>
+                ))}
+              </div>
 
-                {/* Assignment Level Filter */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mr-1">Level:</span>
-                  {(['all', 'chapter', 'page'] as const).map(lvl => (
-                    <button
-                      key={lvl}
-                      onClick={() => setAssignmentLevelFilter(lvl)}
-                      className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold transition-all border ${assignmentLevelFilter === lvl
-                          ? 'bg-neutral-900 text-white border-neutral-900'
-                          : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
-                        }`}
-                    >
-                      {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? (
-                        <span className="flex items-center gap-1"><BookOpen className="size-3" /> {t('common.chapter', 'Chapter')}</span>
-                      ) : (
-                        <span className="flex items-center gap-1"><FileText className="size-3" /> {t('common.page', 'Page')}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+              {/* Assignment Level Filter */}
+              <div className="grid min-w-0 grid-cols-3 items-center gap-1.5 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))] md:justify-self-stretch 2xl:flex 2xl:justify-self-end" role="group" aria-label={t('assistant.filterLevel')}>
+                <span className="col-span-3 mb-0.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 sm:col-span-1 sm:mb-0 sm:mr-1">{t('assistant.filterLevel')}:</span>
+                {(['all', 'chapter', 'page'] as const).map(lvl => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => setAssignmentLevelFilter(lvl)}
+                    aria-pressed={assignmentLevelFilter === lvl}
+                    className={`flex h-10 items-center justify-center whitespace-nowrap rounded-lg border px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-55 ${assignmentLevelFilter === lvl
+                        ? 'bg-neutral-900 text-white border-neutral-900'
+                        : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                      }`}
+                  >
+                    {lvl === 'all' ? t('common.all', 'All') : lvl === 'chapter' ? (
+                      <span className="flex items-center gap-1"><BookOpen className="size-3" /> {t('common.chapter', 'Chapter')}</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><FileText className="size-3" /> {t('common.page', 'Page')}</span>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -506,13 +562,21 @@ export function AssistantPortalPage() {
 
                           {task.assignmentLevel === 'chapter' ? (
                             <div className="space-y-2 border-t border-neutral-100 pt-2">
-                              <p className="text-[10px] font-semibold text-neutral-500 mb-1">Upload files for pages:</p>
+                              <div className="mb-1 flex items-center justify-between gap-2 text-[10px]">
+                                <p className="font-semibold text-neutral-500">{t('assistant.uploadPages')}</p>
+                                <span className="font-medium text-neutral-400">
+                                  {t('assistant.uploadedCount', {
+                                    uploaded: (chapterPages[task.chapterId?._id || task.chapterId] || []).filter((page: any) => page.processedImage).length,
+                                    total: (chapterPages[task.chapterId?._id || task.chapterId] || []).length,
+                                  })}
+                                </span>
+                              </div>
                               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                                 {(chapterPages[task.chapterId?._id || task.chapterId] || []).map((page: any) => (
                                   <div key={page._id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-neutral-100 bg-neutral-50/50 text-[10px]">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <div className="size-6 rounded overflow-hidden bg-neutral-200 shrink-0">
-                                        <img src={(page.compositeImage || page.originalImage).startsWith('http') ? (page.compositeImage || page.originalImage) : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.compositeImage || page.originalImage}`} className="h-full w-full object-cover" />
+                                        <img src={(page.compositeImage || page.originalImage).startsWith('http') ? (page.compositeImage || page.originalImage) : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}${page.compositeImage || page.originalImage}`} alt="" className="h-full w-full object-cover" />
                                       </div>
                                       <span className="truncate">Page {page.pageNumber}</span>
                                     </div>
@@ -520,15 +584,19 @@ export function AssistantPortalPage() {
                                       {page.processedImage && (
                                         <span className="text-[9px] text-emerald-600 bg-emerald-50 px-1 rounded font-medium">Uploaded</span>
                                       )}
-                                      <button
-                                        title={t('assistant.viewManuscript', 'View Manuscript')}
+                                        <button
+                                          type="button"
+                                          title={t('assistant.viewManuscript', 'View Manuscript')}
+                                          aria-label={t('assistant.viewPage', { page: page.pageNumber })}
                                         onClick={() => openViewer(page, task)}
                                         className="flex items-center justify-center size-6 rounded bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
                                       >
                                         <Eye className="size-3" />
                                       </button>
-                                      <button
-                                        title={t('assistant.downloadDraft', 'Download Draft')}
+                                        <button
+                                          type="button"
+                                          title={t('assistant.downloadDraft', 'Download Draft')}
+                                          aria-label={t('assistant.downloadPage', { page: page.pageNumber })}
                                         onClick={() => {
                                           const rawSrc = page.compositeImage || page.originalImage;
                                           const url = rawSrc.startsWith('http')
@@ -542,7 +610,7 @@ export function AssistantPortalPage() {
                                       >
                                         <Download className="size-3" />
                                       </button>
-                                      <label className="flex items-center justify-center size-6 rounded bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors">
+                                      <label className="flex items-center justify-center size-6 rounded bg-neutral-900 text-white cursor-pointer hover:bg-neutral-800 transition-colors" aria-label={t('assistant.uploadPage', { page: page.pageNumber })}>
                                         <Upload className="size-3" />
                                         <input
                                           type="file"
@@ -560,10 +628,10 @@ export function AssistantPortalPage() {
                               <Button
                                 size="sm"
                                 className="w-full h-7 text-xs rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 mt-2"
-                                onClick={() => handleSubmit(task._id)}
+                                onClick={() => handleChapterFinalize(task)}
                                 disabled={submitting === task._id}
                               >
-                                {submitting === task._id ? t('common.loading', 'Loading...') : 'Submit Chapter for Review'}
+                                {submitting === task._id ? t('common.loading', 'Loading...') : t('assistant.submitChapter')}
                               </Button>
                             </div>
                           ) : (
@@ -676,6 +744,7 @@ function ManuscriptViewerModal({
 }: ViewerModalProps) {
   const { t } = useTranslation()
   const imgRef = useRef<HTMLImageElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 })
   const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 })
 
@@ -706,6 +775,20 @@ function ManuscriptViewerModal({
     return () => window.removeEventListener('resize', handleResize)
   }, [isOpen, page])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    closeButtonRef.current?.focus()
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [isOpen, onClose])
+
   if (!isOpen || !page) return null
 
   const scaleX = imgSize.width / (naturalSize.width || 1)
@@ -713,19 +796,19 @@ function ManuscriptViewerModal({
 
   const selectedZone = zones.find(z => z._id === selectedZoneId)
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
-  const rawSrc = task?.referenceImage || page.compositeImage || page.originalImage
+  const rawSrc = task?.referenceImage || page.compositeImage || page.originalImage || ''
   const imgUrl = rawSrc.startsWith('http')
     ? rawSrc
     : `${apiBase}${rawSrc}`
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4">
+      <div className="flex h-[92dvh] max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl animate-in fade-in zoom-in duration-200 dark:border-neutral-800 dark:bg-neutral-900" role="dialog" aria-modal="true" aria-labelledby="manuscript-viewer-title">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-900/50">
           <div>
-            <h2 className="text-base font-semibold text-neutral-900 dark:text-white">
+            <h2 id="manuscript-viewer-title" className="text-base font-semibold text-neutral-900 dark:text-white">
               {task?.seriesId?.title || 'Series'}
             </h2>
             <p className="text-xs text-neutral-500">
@@ -733,7 +816,10 @@ function ManuscriptViewerModal({
             </p>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
+            aria-label={t('common.close')}
             className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors text-neutral-500 dark:text-neutral-400"
           >
             <X className="size-5" />
@@ -741,10 +827,10 @@ function ManuscriptViewerModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 flex overflow-hidden bg-neutral-50 dark:bg-neutral-900">
+        <div className="flex flex-1 flex-col overflow-y-auto bg-neutral-50 dark:bg-neutral-900 md:flex-row md:overflow-hidden">
 
           {/* Left Panel - Image Viewer */}
-          <div className="flex-1 bg-neutral-100 dark:bg-neutral-950 p-6 flex items-center justify-center overflow-auto relative">
+          <div className="relative flex min-h-[45dvh] flex-1 items-center justify-center overflow-auto bg-neutral-100 p-3 dark:bg-neutral-950 sm:p-6 md:min-h-0">
             {loading ? (
               <div className="flex items-center justify-center">
                 <div className="size-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-950" />
@@ -756,7 +842,7 @@ function ManuscriptViewerModal({
                   src={imgUrl}
                   alt={`Page ${page.pageNumber}`}
                   onLoad={handleImgLoad}
-                  className="max-h-[60vh] w-auto object-contain select-none"
+                  className="max-h-[45dvh] w-auto object-contain select-none md:max-h-[60dvh]"
                   draggable={false}
                 />
 
@@ -772,7 +858,15 @@ function ManuscriptViewerModal({
                     <div
                       key={zone._id}
                       onClick={() => setSelectedZoneId(zone._id)}
-                      className={`absolute border-2 transition-all cursor-pointer flex flex-col justify-between p-1 select-none ${isSelected
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelectedZoneId(zone._id)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      className={`absolute border-2 transition-[border-color,background-color,box-shadow] cursor-pointer flex flex-col justify-between p-1 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${isSelected
                           ? 'ring-2 ring-white z-10 shadow-lg'
                           : 'hover:border-neutral-950/60 hover:bg-neutral-950/5'
                         }`}
@@ -800,7 +894,7 @@ function ManuscriptViewerModal({
           </div>
 
           {/* Right Panel - Zones & Task details */}
-          <div className="w-80 border-l border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col overflow-hidden">
+          <div className="flex w-full shrink-0 flex-col overflow-visible border-t border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 md:w-80 md:overflow-hidden md:border-l md:border-t-0">
 
             {/* Zones list header */}
             <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
@@ -816,7 +910,9 @@ function ManuscriptViewerModal({
                   {/* Back button/zone header */}
                   <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
                     <button
+                      type="button"
                       onClick={() => setSelectedZoneId(null)}
+                      aria-label={t('common.back')}
                       className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                       <ChevronLeft className="size-4 text-neutral-600 dark:text-neutral-400" />

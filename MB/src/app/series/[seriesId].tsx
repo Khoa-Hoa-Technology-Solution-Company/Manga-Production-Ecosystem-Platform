@@ -103,12 +103,12 @@ export default function SeriesDetailScreen() {
       description: seriesData.description || t('mobile.series.noDescription'),
       author: seriesData.mangakaId?.displayName || t('mobile.series.unknownAuthor'),
       genres: seriesData.genre || [],
-      cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesId}/600/900`,
+      cover: getImageUrl(seriesData.coverImage) || '',
       subscribers: seriesData.subscribers || [],
       readerCount: seriesData.readerCount || 0,
       status: seriesData.status || t('mobile.series.ongoing'),
     };
-  }, [seriesData, seriesId, t]);
+  }, [seriesData, t]);
 
   const isSubscribed = useMemo(
     () => !!user && !!series && series.subscribers.includes(user._id),

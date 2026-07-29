@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImageBackground, Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, TextInput, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,14 +40,6 @@ const moodOptions = [
   { key: 'sliceOfLife', label: 'categories.sliceOfLife', value: 'Slice of Life' },
   { key: 'horror', label: 'categories.horror', value: 'Horror' },
 ] as const;
-
-// Level color map for leaderboard
-const levelColors: Record<string, string> = {
-  Diamond: '#38bdf8',
-  Platinum: '#a855f7',
-  Gold: '#f59e0b',
-  Silver: '#94a3b8',
-};
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -92,16 +84,12 @@ export default function HomeScreen() {
   const [rankings, setRankings] = useState<any[]>([]);
   const [readerHome, setReaderHome] = useState<ReaderHome | null>(null);
   const [activeShelfTab, setActiveShelfTab] = useState<'all' | 'shared'>('all');
-  const [loadingSeries, setLoadingSeries] = useState(true);
-  const [loadingRankings, setLoadingRankings] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setError(null);
     setRefreshing(true);
-    setLoadingSeries(true);
-    setLoadingRankings(true);
 
     const refreshRequests: Promise<unknown>[] = [seriesAPI
       .getAll({ limit: '20' })
@@ -111,8 +99,7 @@ export default function HomeScreen() {
       .catch((err) => {
         console.error('Index load series error:', err);
         setError(err.message || t('readerHome.seriesLoadError'));
-      })
-      .finally(() => setLoadingSeries(false)),
+      }),
 
     dashboardAPI
       .getRankings('rating')
@@ -122,8 +109,7 @@ export default function HomeScreen() {
       .catch((err) => {
         console.error('Index load rankings error:', err);
         setError(err.message || t('readerHome.serverError'));
-      })
-      .finally(() => setLoadingRankings(false))];
+      })];
 
     if (user?.role === 'reader') {
       refreshRequests.push(readerAPI
@@ -133,11 +119,11 @@ export default function HomeScreen() {
     }
 
     Promise.all(refreshRequests).finally(() => setRefreshing(false));
-  };
+  }, [t, user?.role]);
 
   useEffect(() => {
-    loadData();
-  }, [user?._id]);
+    void loadData();
+  }, [loadData, user?._id]);
 
   // ── Derived data ──────────────────────────────────
   const featuredSeries = useMemo(
@@ -149,7 +135,7 @@ export default function HomeScreen() {
         genre: s.genre?.[0] || t('readerHome.unknownGenre'),
         readers: s.readerCount ? `${(s.readerCount / 1000).toFixed(0)}K` : '0',
         rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
-        cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/800/600`,
+        cover: getImageUrl(s.coverImage) || '',
         accent: [
           ['#120F2A', '#4c1d95', '#fb7185'],
           ['#030712', '#1e1b4b', '#6366f1'],
@@ -163,7 +149,7 @@ export default function HomeScreen() {
     () =>
       (readerHome?.continueReading || []).map((item) => ({
         ...item,
-        cover: getImageUrl(item.coverImage) || `https://picsum.photos/seed/${item.id}/400/600`,
+        cover: getImageUrl(item.coverImage) || '',
         progress: `Ch. ${item.chapterNumber}`,
         percent: item.percentage,
       })),
@@ -178,7 +164,7 @@ export default function HomeScreen() {
         genre: s.genre?.[0] || t('readerHome.unknownGenre'),
         author: s.mangakaId?.displayName || t('readerHome.unknownAuthor'),
         chapters: s.totalChapters || 0,
-        cover: getImageUrl(s.coverImage) || `https://picsum.photos/seed/${s._id}/600/400`,
+        cover: getImageUrl(s.coverImage) || '',
         hot: (s.averageRating || 0) >= 4.5,
         rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
         shared: Boolean(s.sharedWithMe),
@@ -208,7 +194,7 @@ export default function HomeScreen() {
     genre: '',
     readers: '0',
     rating: '0',
-    cover: 'https://picsum.photos/800/600',
+    cover: '',
     accent: ['#120F2A', '#4c1d95', '#fb7185'],
   };
 

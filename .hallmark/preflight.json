@@ -1,0 +1,8 @@
+{
+  "date": "2026-07-28",
+  "framework": "React 19 + Vite 8 + Tailwind CSS 4; Expo SDK 55 mobile",
+  "fontStack": "Inter body with Avenir Next / Segoe UI display fallback",
+  "palette": "Existing white/black brand preserved and normalized into graphite tokens",
+  "motion": "Motion-cut project; restrained transform/opacity transitions only",
+  "spacing": "4-point semantic spacing scale in tokens.css"
+}

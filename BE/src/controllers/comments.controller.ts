@@ -34,11 +34,22 @@ export async function getByChapter(req: Request, res: Response): Promise<void> {
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { text, parentId } = req.body;
+    if (!text || !String(text).trim()) {
+      res.status(400).json({ error: 'Comment text is required.' });
+      return;
+    }
+    if (parentId) {
+      const parent = await Comment.findOne({ _id: parentId, chapterId: req.params.id });
+      if (!parent) {
+        res.status(400).json({ error: 'Parent comment does not belong to this chapter.' });
+        return;
+      }
+    }
     const comment = await Comment.create({
       userId: req.user!._id,
       chapterId: req.params.id,
       parentId: parentId || undefined,
-      text,
+      text: String(text).trim(),
     });
 
     const populated = await comment.populate('userId', 'displayName avatar role');

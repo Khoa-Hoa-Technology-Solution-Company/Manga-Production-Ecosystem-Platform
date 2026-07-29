@@ -108,14 +108,15 @@ export function SettingsPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-neutral-950">{t('settingsPage.profileSection')}</h2>
-              <p className="text-xs text-neutral-550">Update your public identity details.</p>
+              <p className="text-xs text-neutral-550">{t('settingsPage.profileHint')}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-neutral-700">{t('settingsPage.displayName')}</label>
+              <label htmlFor="settings-display-name" className="text-xs font-semibold text-neutral-700">{t('settingsPage.displayName')}</label>
               <Input
+                id="settings-display-name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t('settingsPage.displayNamePlaceholder')}
@@ -125,8 +126,9 @@ export function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-neutral-700">{t('settingsPage.avatarUrl')}</label>
+              <label htmlFor="settings-avatar-url" className="text-xs font-semibold text-neutral-700">{t('settingsPage.avatarUrl')}</label>
               <Input
+                id="settings-avatar-url"
                 value={avatar}
                 onChange={(e) => setAvatar(e.target.value)}
                 placeholder={t('settingsPage.avatarUrlPlaceholder')}
@@ -135,8 +137,9 @@ export function SettingsPage() {
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <label className="text-xs font-semibold text-neutral-700">{t('settingsPage.bio')}</label>
+              <label htmlFor="settings-bio" className="text-xs font-semibold text-neutral-700">{t('settingsPage.bio')}</label>
               <Textarea
+                id="settings-bio"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder={t('settingsPage.bioPlaceholder')}
@@ -154,13 +157,13 @@ export function SettingsPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-neutral-950">{t('settingsPage.notificationSection')}</h2>
-              <p className="text-xs text-neutral-550">Configure how you want to be notified.</p>
+              <p className="text-xs text-neutral-550">{t('settingsPage.notificationHint')}</p>
             </div>
           </div>
 
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-neutral-950">{t('settingsPage.subscribeNewSeries')}</h3>
+              <h3 id="subscribe-new-series-label" className="text-sm font-semibold text-neutral-950">{t('settingsPage.subscribeNewSeries')}</h3>
               <p className="text-xs text-neutral-550 leading-relaxed max-w-xl">
                 {t('settingsPage.subscribeNewSeriesDesc')}
               </p>
@@ -168,6 +171,7 @@ export function SettingsPage() {
             <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
               <input
                 type="checkbox"
+                aria-labelledby="subscribe-new-series-label"
                 checked={subscribedToNewSeries}
                 onChange={(e) => setSubscribedToNewSeries(e.target.checked)}
                 className="sr-only peer"
@@ -178,7 +182,7 @@ export function SettingsPage() {
 
           <div className="flex items-start justify-between gap-4 pt-4 border-t border-neutral-100">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-neutral-950">{t('settingsPage.notificationSound')}</h3>
+              <h3 id="notification-sound-label" className="text-sm font-semibold text-neutral-950">{t('settingsPage.notificationSound')}</h3>
               <p className="text-xs text-neutral-550 leading-relaxed max-w-xl">
                 {t('settingsPage.notificationSoundDesc')}
               </p>
@@ -186,6 +190,7 @@ export function SettingsPage() {
             <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
               <input
                 type="checkbox"
+                aria-labelledby="notification-sound-label"
                 checked={notificationSoundEnabled}
                 onChange={(e) => setNotificationSoundEnabled(e.target.checked)}
                 className="sr-only peer"

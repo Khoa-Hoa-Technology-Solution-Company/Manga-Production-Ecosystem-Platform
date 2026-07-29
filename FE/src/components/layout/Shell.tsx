@@ -9,8 +9,8 @@ type ShellProps = {
 
 export function Shell({ sidebar, header, children, footer }: ShellProps) {
   return (
-    <div className="min-h-screen bg-white text-neutral-950">
-      <div className="mx-auto flex min-h-screen w-full max-w-screen-2xl flex-col border-x border-neutral-200 lg:flex-row">
+    <div className="min-h-screen bg-[var(--color-paper)] text-neutral-950">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col border-x border-neutral-200/80 lg:flex-row">
         {sidebar}
 
         <main className="min-w-0 flex-1 flex flex-col">

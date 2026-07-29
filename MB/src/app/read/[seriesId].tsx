@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -18,19 +18,13 @@ import { Image } from 'expo-image';
 import {
   BookOpen,
   ChevronLeft,
-  ChevronRight,
   ChevronUp,
-  Download,
   Heart,
-  Maximize2,
   MessageCircle,
   MoonStar,
   PanelTop,
-  Play,
   Sparkles,
   Star,
-  Share2,
-  Volume2,
   ZoomIn,
   ThumbsUp,
   X,
@@ -41,14 +35,12 @@ import {
   Activity,
   ZoomOut,
   ChevronDown,
-  Pause,
   Bell,
 } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/constants/theme';
 import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, readerAPI, getImageUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from 'react-i18next';
@@ -107,7 +99,6 @@ const themes = {
 
 export default function ReaderScreen() {
   const { t, i18n } = useTranslation();
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const {
     seriesId,
@@ -187,7 +178,7 @@ export default function ReaderScreen() {
   const hasIncrementedView = useRef<string | null>(null);
 
   // Fetch series details and chapters
-  const loadSeriesData = () => {
+  const loadSeriesData = useCallback(() => {
     if (!seriesId || seriesId === 'undefined') return;
     setError(null);
     setLoading(true);
@@ -221,11 +212,11 @@ export default function ReaderScreen() {
         setError(err.message || t('mobile.reader.serverError'));
       })
       .finally(() => setLoading(false));
-  };
+  }, [chapterIndexParam, seriesId, t]);
 
   useEffect(() => {
-    loadSeriesData();
-  }, [seriesId]);
+    void loadSeriesData();
+  }, [loadSeriesData]);
 
   // Sync activeChapterIndex when chapterIndexParam or chapters changes (e.g. when returning to series detail and choosing another chapter)
   useEffect(() => {
@@ -324,7 +315,7 @@ export default function ReaderScreen() {
         author: '...',
         mood: t('mobile.reader.mood'),
         publishedDate: '...',
-        cover: 'https://picsum.photos/800/1200',
+        cover: '',
         totalPages: 0,
         rating: 0,
         ratingCount: 0,
@@ -339,7 +330,7 @@ export default function ReaderScreen() {
       author: seriesData.mangakaId?.displayName || t('mobile.reader.unknownAuthor'),
       mood: seriesData.genre?.join(', ') || t('mobile.reader.mood'),
       publishedDate: currentChapter ? new Date(currentChapter.createdAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.reader.newUpdated'),
-      cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesData._id}/800/1200`,
+      cover: getImageUrl(seriesData.coverImage) || '',
       totalPages: pages.length,
       rating: seriesData.averageRating || 0,
       ratingCount: seriesData.ratingCount || 0,

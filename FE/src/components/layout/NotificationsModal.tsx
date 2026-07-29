@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Briefcase, PenTool, BookMarked, X, AlertTriangle, ThumbsUp, MessageSquare, Clock, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +32,7 @@ export function NotificationsModal({ isOpen, onClose, onUnreadCountChange }: Not
   const [notifications, setNotifications] = useState<NotificationData[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'tasks' | 'system' | 'social'>('all')
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   const fallbackPath = () => {
     if (user?.role === 'editor') return '/editor'
@@ -216,6 +217,20 @@ export function NotificationsModal({ isOpen, onClose, onUnreadCountChange }: Not
     }
   }, [])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    closeButtonRef.current?.focus()
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [isOpen, onClose])
+
   const handleMarkAllRead = async () => {
     try {
       await notificationsAPI.markAllRead()
@@ -260,14 +275,17 @@ export function NotificationsModal({ isOpen, onClose, onUnreadCountChange }: Not
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[85dvh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
         <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
-          <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
+          <h3 id="notifications-dialog-title" className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
             <Bell className="size-4 text-neutral-800" />
             {t('notifications.title', 'Notifications')}
           </h3>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
+            aria-label={t('common.close', 'Close')}
             className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
           >
             <X className="size-4" />

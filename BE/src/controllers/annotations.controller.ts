@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Annotation } from '../models/Annotation';
+import { Page } from '../models/Page';
 
 export async function getByChapterId(req: Request, res: Response): Promise<void> {
   try {
@@ -20,8 +21,15 @@ export async function getByChapterId(req: Request, res: Response): Promise<void>
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { chapterId, pageId, x, y, note, source } = req.body;
-    if (!chapterId || !pageId || x === undefined || y === undefined || !note) {
+    const numericX = Number(x);
+    const numericY = Number(y);
+    if (!chapterId || !pageId || !note || !Number.isFinite(numericX) || !Number.isFinite(numericY) || numericX < 0 || numericX > 100 || numericY < 0 || numericY > 100) {
       res.status(400).json({ error: 'Missing required annotation fields.' });
+      return;
+    }
+    const page = await Page.findOne({ _id: pageId, chapterId }).select('_id');
+    if (!page) {
+      res.status(400).json({ error: 'pageId does not belong to chapterId.' });
       return;
     }
 
@@ -29,9 +37,9 @@ export async function create(req: Request, res: Response): Promise<void> {
       chapterId,
       pageId,
       authorId: req.user?._id,
-      x,
-      y,
-      note,
+      x: numericX,
+      y: numericY,
+      note: String(note).trim().slice(0, 2000),
       source: source === 'review' ? 'review' : 'tracking',
       status: 'open',
     });

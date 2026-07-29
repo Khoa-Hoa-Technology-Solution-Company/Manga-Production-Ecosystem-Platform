@@ -83,7 +83,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={isDark ? ['#0e051d', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
+        colors={isDark ? ['#111110', '#0b0b0a'] : ['#f5f5f3', '#fafaf9', '#eeeeec']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -101,7 +101,7 @@ export default function LoginScreen() {
             {/* Logo & Brand */}
             <View style={styles.brandSection}>
               <LinearGradient
-                colors={['#f43f5e', '#8b5cf6']}
+                colors={['#111111', '#4a4a45']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.logoCircle}
@@ -119,8 +119,8 @@ export default function LoginScreen() {
               style={[
                 styles.card,
                 {
-                  backgroundColor: isDark ? 'rgba(22, 17, 41, 0.65)' : 'rgba(255, 255, 255, 0.85)',
-                  borderColor: isDark ? 'rgba(244, 63, 94, 0.12)' : 'rgba(244, 63, 94, 0.15)',
+                  backgroundColor: isDark ? 'rgba(27, 27, 25, 0.86)' : 'rgba(255, 255, 255, 0.88)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(17,17,17,0.12)',
                 },
               ]}
             >
@@ -157,7 +157,7 @@ export default function LoginScreen() {
                       nameFocused && styles.inputRowActive,
                     ]}
                   >
-                    <User size={16} color={nameFocused ? '#fb7185' : '#64748b'} />
+                    <User size={16} color={nameFocused ? '#111111' : '#6b6b67'} />
                     <TextInput
                       style={[styles.textInput, { color: theme.text }]}
                       value={displayName}
@@ -185,7 +185,7 @@ export default function LoginScreen() {
                     emailFocused && styles.inputRowActive,
                   ]}
                 >
-                  <Mail size={16} color={emailFocused ? '#fb7185' : '#64748b'} />
+                  <Mail size={16} color={emailFocused ? '#111111' : '#6b6b67'} />
                   <TextInput
                     style={[styles.textInput, { color: theme.text }]}
                     value={email}
@@ -214,7 +214,7 @@ export default function LoginScreen() {
                     passwordFocused && styles.inputRowActive,
                   ]}
                 >
-                  <Lock size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
+                  <Lock size={16} color={passwordFocused ? '#111111' : '#6b6b67'} />
                   <TextInput
                     style={[styles.textInput, { flex: 1, color: theme.text }]}
                     value={password}
@@ -228,9 +228,9 @@ export default function LoginScreen() {
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)}>
                     {showPassword ? (
-                      <EyeOff size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
+                        <EyeOff size={16} color={passwordFocused ? '#111111' : '#6b6b67'} />
                     ) : (
-                      <Eye size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
+                        <Eye size={16} color={passwordFocused ? '#111111' : '#6b6b67'} />
                     )}
                   </Pressable>
                 </View>
@@ -289,7 +289,7 @@ export default function LoginScreen() {
                 ]}
               >
                 <LinearGradient
-                  colors={['#f43f5e', '#8b5cf6']}
+                  colors={['#111111', '#4a4a45']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.submitBtn}
@@ -333,7 +333,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#07020d' },
+  root: { flex: 1, backgroundColor: '#111110' },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: {
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
-    shadowColor: '#f43f5e',
+    shadowColor: '#111111',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -367,11 +367,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   card: {
-    backgroundColor: 'rgba(22, 17, 41, 0.65)',
+    backgroundColor: 'rgba(27, 27, 25, 0.86)',
     borderRadius: 24,
     padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.12)',
+    borderColor: 'rgba(17, 17, 17, 0.12)',
     gap: 16,
   },
   cardHeader: { gap: 4 },
@@ -406,8 +406,8 @@ const styles = StyleSheet.create({
     height: 48,
   },
   inputRowActive: {
-    borderColor: '#f43f5e',
-    backgroundColor: 'rgba(244, 63, 94, 0.05)',
+    borderColor: '#111111',
+    backgroundColor: 'rgba(17, 17, 17, 0.05)',
   },
   textInput: {
     flex: 1,
@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   roleChipActive: {
-    borderColor: '#f43f5e',
-    backgroundColor: 'rgba(244,63,94,0.1)',
+    borderColor: '#111111',
+    backgroundColor: 'rgba(17,17,17,0.08)',
   },
   roleChipLabel: {
     color: '#94a3b8',
@@ -461,5 +461,5 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   toggleText: { color: '#64748b', fontSize: 12 },
-  toggleLink: { color: '#f43f5e', fontSize: 12, fontWeight: '800' },
+  toggleLink: { color: '#111111', fontSize: 12, fontWeight: '800' },
 });

@@ -102,7 +102,7 @@ function ManuscriptReviewScreen() {
                   {t('editor.pageNumber', { number: index + 1 })}
                 </ThemedText>
                 <Image 
-                  source={{ uri: getImageUrl(page.imageUrl) }} 
+                  source={{ uri: getImageUrl(page.originalImage || page.processedImage) }}
                   style={styles.pageImage} 
                   contentFit="contain"
                 />

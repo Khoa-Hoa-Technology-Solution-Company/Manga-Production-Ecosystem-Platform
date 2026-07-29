@@ -1,24 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   ImageBackground,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
-  Dimensions,
   GestureResponderEvent,
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import {
-  ArrowRight,
   Brush,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   EyeOff,
   LayoutGrid,
@@ -32,12 +26,9 @@ import {
   Users2,
   ZoomIn,
   ZoomOut,
-  SplitSquareHorizontal,
-  SplitSquareVertical,
   CheckCircle,
   Clock,
   Briefcase,
-  Layers,
   ArrowUpRight,
   AlertCircle,
   UploadCloud,
@@ -47,13 +38,10 @@ import {
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { withProtectedReaderRoute } from '@/components/protected-route';
 import { seriesAPI, chaptersAPI, pagesAPI, zonesAPI, tasksAPI, dashboardAPI, getImageUrl } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
-
-const { width: screenWidth } = Dimensions.get('window');
 
 const roles = [
   { id: 'editor', titleKey: 'mobile.studio.roleEditor', descKey: 'mobile.studio.roleEditorDesc', icon: Layers3, accent: '#0ea5e9' },
@@ -83,7 +71,6 @@ interface Zone {
 }
 
 function StudioScreen() {
-  const theme = useTheme();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -99,12 +86,8 @@ function StudioScreen() {
   const [zoom, setZoom] = useState(100);
 
   // Manga pages thumbnail strip state
-  const [mangaPages, setMangaPages] = useState<any[]>([
-    { id: 'p1', num: 1, img: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=300&q=80' },
-    { id: 'p2', num: 2, img: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?auto=format&fit=crop&w=300&q=80' },
-    { id: 'p12', num: 12, img: 'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=600&q=80' },
-  ]);
-  const [activePageIdx, setActivePageIdx] = useState(2); // Page 12
+  const [mangaPages, setMangaPages] = useState<any[]>([]);
+  const [activePageIdx, setActivePageIdx] = useState(0);
 
   // Zones State (Panel segments drawn on canvas)
   const [zones, setZones] = useState<Zone[]>([
@@ -127,31 +110,31 @@ function StudioScreen() {
 
   // Freelance Assistant states & task list
   const [assistantTab, setAssistantTab] = useState<'all' | 'available' | 'progress' | 'review' | 'completed'>('all');
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
   const [freelanceTasks, setFreelanceTasks] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // ── API Fetching Cascades ──────────────────────────
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setError(null);
 
     // 1. Fetch Assistant Freelance Tasks
     tasksAPI.getAll()
       .then((data) => {
-        const mapped = (data.tasks || []).map((t: any) => ({
-          id: t._id,
-          title: t.title || `${t.type || t('mobile.studio.taskFallback')}`,
-          series: t.seriesId?.title || t('mobile.studio.workFallback'),
-          deadline: t.deadline ? new Date(t.deadline).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.studio.oneDay'),
-          status: t.status === 'open' 
+        const mapped = (data.tasks || []).map((task: any) => ({
+          id: task._id,
+          title: task.title || `${task.type || t('mobile.studio.taskFallback')}`,
+          series: task.seriesId?.title || t('mobile.studio.workFallback'),
+          deadline: task.deadline ? new Date(task.deadline).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.studio.oneDay'),
+          status: task.status === 'open'
             ? 'available' 
-            : (t.status === 'assigned' || t.status === 'in_progress') 
+            : (task.status === 'assigned' || task.status === 'in_progress')
               ? 'progress' 
-              : t.status === 'review' 
+              : task.status === 'review'
                 ? 'review' 
                 : 'completed',
-          desc: t.description || t('mobile.studio.taskDescription'),
+          backendStatus: task.status,
+          desc: task.description || t('mobile.studio.taskDescription'),
         }));
         setFreelanceTasks(mapped);
       })
@@ -235,7 +218,7 @@ function StudioScreen() {
         const fetchedPages = (pData.pages || []).map((p: any, idx: number) => ({
           id: p._id,
           num: idx + 1,
-          img: getImageUrl(p.imageUrl) || `https://picsum.photos/seed/${p._id}/600/800`,
+          img: getImageUrl(p.originalImage || p.processedImage),
         }));
         if (fetchedPages.length > 0) {
           setMangaPages(fetchedPages);
@@ -246,11 +229,11 @@ function StudioScreen() {
         console.log('Studio fetch editor cascade info:', err.message);
       });
 
-  };
+  }, [i18n.language, t]);
 
   useEffect(() => {
-    loadData();
-  }, [user]);
+    void loadData();
+  }, [loadData]);
 
   // Sync zones when active page changes
   useEffect(() => {
@@ -264,10 +247,10 @@ function StudioScreen() {
           name: z.name || t('mobile.studio.newZone'),
           type: z.type || 'background',
           color: zoneTypes.find((t) => t.key === z.type)?.color || '#3b82f6',
-          x: z.x || 20,
-          y: z.y || 30,
-          width: z.width || 100,
-          height: z.height || 100,
+          x: z.boundingBox?.x ?? 20,
+          y: z.boundingBox?.y ?? 30,
+          width: z.boundingBox?.width ?? 100,
+          height: z.boundingBox?.height ?? 100,
           visible: true,
         }));
         if (mappedZones.length > 0) {
@@ -275,13 +258,13 @@ function StudioScreen() {
         }
       })
       .catch(() => {});
-  }, [activePageIdx, mangaPages]);
+  }, [activePageIdx, mangaPages, t]);
 
   const handleAcceptFreelanceTask = (id: string) => {
     tasksAPI.accept(id)
       .then(() => {
         setFreelanceTasks((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, status: 'progress' } : t))
+          prev.map((task) => (task.id === id ? { ...task, status: 'progress', backendStatus: 'assigned' } : task))
         );
         Alert.alert(t('common.success'), t('mobile.studio.accepted'));
       })
@@ -291,46 +274,30 @@ function StudioScreen() {
       });
   };
 
+  const handleStartFreelanceTask = (id: string) => {
+    tasksAPI.updateStatus(id, 'in_progress')
+      .then(() => {
+        setFreelanceTasks((prev) => prev.map((task) => (
+          task.id === id ? { ...task, status: 'progress', backendStatus: 'in_progress' } : task
+        )));
+      })
+      .catch((err) => Alert.alert(t('common.error'), err.message || t('mobile.studio.permissionError')));
+  };
+
   const handleSubmitFreelanceTask = (id: string) => {
     setUploadingTaskId(id);
-    setUploadProgress((prev) => ({ ...prev, [id]: 0 }));
-    
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 10;
-      setUploadProgress((prev) => ({ ...prev, [id]: progress }));
-      
-      if (progress >= 100) {
-        clearInterval(interval);
-        
-        const formData = new FormData();
-        formData.append('file', {
-          uri: 'https://picsum.photos/seed/task/600/800',
-          name: 'submission.jpg',
-          type: 'image/jpeg',
-        } as any);
-
-        tasksAPI.submit(id, formData)
-          .then(() => {
-            setFreelanceTasks((prev) =>
-              prev.map((t) => (t.id === id ? { ...t, status: 'review' } : t))
-            );
-            Alert.alert(t('common.success'), t('mobile.studio.submitted'));
-          })
-          .catch((err) => {
-            console.error('Submit task error:', err);
-            Alert.alert(t('common.error'), err.message || t('mobile.studio.permissionError'));
-          })
-          .finally(() => {
-            setUploadingTaskId(null);
-          });
-      }
-    }, 120);
+    tasksAPI.updateStatus(id, 'review')
+      .then(() => {
+        setFreelanceTasks((prev) => prev.map((task) => (
+          task.id === id ? { ...task, status: 'review', backendStatus: 'review' } : task
+        )));
+        Alert.alert(t('common.success'), t('mobile.studio.submitted'));
+      })
+      .catch((err) => Alert.alert(t('common.error'), err.message || t('mobile.studio.permissionError')))
+      .finally(() => setUploadingTaskId(null));
   };
 
 
-
-  const selectedZone = zones.find((z) => z.id === selectedZoneId);
 
   // Core Drawing responder logic for Canvas
   const handleCanvasTouchStart = (e: GestureResponderEvent) => {
@@ -378,10 +345,8 @@ function StudioScreen() {
         const newZoneData = {
           name: `Khung ${zones.length + 1}`,
           type: 'background',
-          x,
-          y,
-          width,
-          height,
+          color: '#3b82f6',
+          boundingBox: { x, y, width, height },
         };
 
         const activePage = mangaPages[activePageIdx];
@@ -393,10 +358,10 @@ function StudioScreen() {
               name: z.name || newZoneData.name,
               type: z.type || newZoneData.type,
               color: '#3b82f6',
-              x: z.x,
-              y: z.y,
-              width: z.width,
-              height: z.height,
+              x: z.boundingBox?.x ?? x,
+              y: z.boundingBox?.y ?? y,
+              width: z.boundingBox?.width ?? width,
+              height: z.boundingBox?.height ?? height,
               visible: true,
             };
             setZones((prev) => [...prev, newZone]);
@@ -428,7 +393,7 @@ function StudioScreen() {
       const movedZone = updated.find(z => z.id === selectedZoneId);
       if (movedZone) {
         // debounce this in real app, but for now just send it
-        zonesAPI.update(movedZone.id, { x: movedZone.x, y: movedZone.y }).catch(console.error);
+        zonesAPI.update(movedZone.id, { boundingBox: { x: movedZone.x, y: movedZone.y, width: movedZone.width, height: movedZone.height } }).catch(console.error);
       }
       return updated;
     });
@@ -448,29 +413,24 @@ function StudioScreen() {
       );
       const resizedZone = updated.find(z => z.id === selectedZoneId);
       if (resizedZone) {
-        zonesAPI.update(resizedZone.id, { width: resizedZone.width, height: resizedZone.height }).catch(console.error);
+        zonesAPI.update(resizedZone.id, { boundingBox: { x: resizedZone.x, y: resizedZone.y, width: resizedZone.width, height: resizedZone.height } }).catch(console.error);
       }
       return updated;
     });
   };
 
-  // Add mock page
   const handleAddPage = () => {
-    const newNum = mangaPages[mangaPages.length - 1].num + 1;
-    const newPage = {
-      id: 'p_' + Date.now(),
-      num: newNum,
-      img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
-    };
-    setMangaPages((prev) => [...prev, newPage]);
-    setActivePageIdx(mangaPages.length);
+    Alert.alert(t('common.error'), 'Upload a real page from the web studio before editing it.');
   };
 
-  // Delete page
   const handleDeletePage = (id: string) => {
     if (mangaPages.length <= 1) return;
-    setMangaPages((prev) => prev.filter((p) => p.id !== id));
-    setActivePageIdx(0);
+    pagesAPI.delete(id)
+      .then(() => {
+        setMangaPages((prev) => prev.filter((p) => p.id !== id));
+        setActivePageIdx(0);
+      })
+      .catch((err) => Alert.alert(t('common.error'), err.message || 'Unable to delete page.'));
   };
 
   // Kanban task status transition
@@ -665,7 +625,6 @@ function StudioScreen() {
                                 style={[styles.resizeAnchorGrip, { right: -6, bottom: -6 }]}
                                 onStartShouldSetResponder={() => true}
                                 onResponderMove={(ev) => {
-                                  const { pageX, pageY } = ev.nativeEvent;
                                   handleResizeZone(2, 2);
                                 }}
                               />
@@ -986,7 +945,6 @@ function StudioScreen() {
                   })
                   .map((task) => {
                     const isUploading = uploadingTaskId === task.id;
-                    const progress = uploadProgress[task.id] || 0;
                     return (
                       <ThemedView key={task.id} style={styles.freelanceTaskCard}>
                         <View style={styles.taskCardHeader}>
@@ -1049,28 +1007,22 @@ function StudioScreen() {
 
                           {task.status === 'progress' && (
                             <View style={{ width: '100%', gap: 8 }}>
-                              {isUploading ? (
-                                <View style={styles.progressUploadContainer}>
-                                  <View style={styles.progressInfoRow}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                      <UploadCloud size={14} color="#f43f5e" />
-                                      <ThemedText style={styles.progressLoadingText}>{t('mobile.studio.uploading')}</ThemedText>
-                                    </View>
-                                    <ThemedText style={styles.progressPercentText}>{progress}%</ThemedText>
-                                  </View>
-                                  <View style={styles.progressBarTrack}>
-                                    <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                                  </View>
-                                </View>
-                              ) : (
-                                <Pressable
-                                  onPress={() => handleSubmitFreelanceTask(task.id)}
-                                  style={styles.taskSubmitBtn}
-                                >
-                                  <UploadCloud size={12} color="#fff" />
-                                  <ThemedText style={styles.taskSubmitBtnText}>{t('mobile.studio.submitProduct')}</ThemedText>
-                                </Pressable>
-                              )}
+                              <Pressable
+                                onPress={() => task.backendStatus === 'assigned'
+                                  ? handleStartFreelanceTask(task.id)
+                                  : handleSubmitFreelanceTask(task.id)}
+                                disabled={isUploading}
+                                style={[styles.taskSubmitBtn, isUploading && { opacity: 0.6 }]}
+                              >
+                                {isUploading ? <Activity size={12} color="#fff" /> : task.backendStatus === 'assigned' ? <Briefcase size={12} color="#fff" /> : <UploadCloud size={12} color="#fff" />}
+                                <ThemedText style={styles.taskSubmitBtnText}>
+                                  {isUploading
+                                    ? t('mobile.studio.uploading')
+                                    : task.backendStatus === 'assigned'
+                                      ? t('mobile.tasks.working')
+                                      : t('mobile.studio.submitProduct')}
+                                </ThemedText>
+                              </Pressable>
                             </View>
                           )}
 

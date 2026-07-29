@@ -23,28 +23,22 @@ import { commentsAPI, seriesAPI, chaptersAPI, seriesRatingsAPI, pagesAPI, reacti
 import { socketService } from '../../lib/socket'
 import { useAuth } from '../../lib/auth'
 
-/* ── Chapter data (Mock fallbacks) ──────────────────── */
-const MOCK_CHAPTER_INFO = {
-  series: 'Shadow Blade Saga',
-  chapter: 42,
-  title: 'The Blade Awakens',
-  author: 'Yuki Mori',
-  publishedDate: 'March 18, 2026',
-  totalPages: 24,
-  rating: 4.9,
-  ratingCount: 2847,
+/* ── Chapter fallback values ───────────────────────── */
+const EMPTY_CHAPTER_INFO = {
+  series: '—',
+  chapter: 0,
+  title: '—',
+  author: '—',
+  publishedDate: '—',
+  totalPages: 0,
+  rating: 0,
+  ratingCount: 0,
 }
 
-/* ── Page images (Mock fallbacks) ───────────────────── */
-const MOCK_PAGES = [
-  '/manga/page-panels.png',
-  '/manga/cover-action.png',
-  '/manga/cover-scifi.png',
-  '/manga/cover-fantasy.png',
-  '/manga/cover-horror.png',
-]
+/* ── Page image state ──────────────────────────────── */
 
 /* ── Comments ────────────────────────────────────────── */
+/* Deprecated static comments retained below only as historical reference; API data is authoritative.
 const comments = [
   {
     id: 1,
@@ -97,6 +91,7 @@ const comments = [
     liked: true,
   },
 ]
+*/
 
 /* ── Reactions ───────────────────────────────────────── */
 const reactions = [
@@ -165,7 +160,7 @@ export function ReadingViewPage() {
 
   // Dynamic state for real-time updates
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
-  const [commentsList, setCommentsList] = useState<any[]>([]) // Initial empty, will load static + API
+  const [commentsList, setCommentsList] = useState<any[]>([]) // Loaded from the API for the active chapter
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [avgRating, setAvgRating] = useState<number>(0)
   const [ratingCount, setRatingCount] = useState<number>(0)
@@ -174,7 +169,7 @@ export function ReadingViewPage() {
   // Real database entities
   const [chapter, setChapter] = useState<any>(null)
   const [series, setSeries] = useState<any>(null)
-  const [pagesList, setPagesList] = useState<string[]>(MOCK_PAGES)
+  const [pagesList, setPagesList] = useState<string[]>([])
   const [hasRealPages, setHasRealPages] = useState(false)
   const [loading, setLoading] = useState(true)
   const [chaptersList, setChaptersList] = useState<any[]>([])
@@ -182,11 +177,11 @@ export function ReadingViewPage() {
   // Shadow variables for original JSX compatibility
   const pages = pagesList
   const chapterInfo = {
-    series: series?.title || MOCK_CHAPTER_INFO.series,
-    chapter: chapter?.chapterNumber || MOCK_CHAPTER_INFO.chapter,
-    title: chapter?.title || MOCK_CHAPTER_INFO.title,
-    author: series?.mangakaId?.displayName || MOCK_CHAPTER_INFO.author,
-    publishedDate: chapter?.createdAt ? new Date(chapter.createdAt).toLocaleDateString() : MOCK_CHAPTER_INFO.publishedDate,
+    series: series?.title || EMPTY_CHAPTER_INFO.series,
+    chapter: chapter?.chapterNumber || EMPTY_CHAPTER_INFO.chapter,
+    title: chapter?.title || EMPTY_CHAPTER_INFO.title,
+    author: series?.mangakaId?.displayName || EMPTY_CHAPTER_INFO.author,
+    publishedDate: chapter?.createdAt ? new Date(chapter.createdAt).toLocaleDateString() : EMPTY_CHAPTER_INFO.publishedDate,
     totalPages: pagesList.length,
     rating: avgRating,
     ratingCount: ratingCount,
@@ -263,12 +258,14 @@ export function ReadingViewPage() {
           setPagesList(p)
           setHasRealPages(true)
         } else {
-          setPagesList(MOCK_PAGES)
+          setPagesList([])
+          setHasRealPages(false)
         }
       })
       .catch((err) => {
         console.error('Failed to load pages:', err)
-        setPagesList(MOCK_PAGES)
+        setPagesList([])
+        setHasRealPages(false)
       })
       .finally(() => {
         setLoading(false)
@@ -318,7 +315,7 @@ export function ReadingViewPage() {
   // Setup Socket.io and fetch initial comments
   useEffect(() => {
     if (!activeChapterId || activeChapterId === 'fallback') {
-      setCommentsList(comments) // Load static mock data
+      setCommentsList([])
       return
     }
 

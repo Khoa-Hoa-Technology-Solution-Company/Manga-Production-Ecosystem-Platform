@@ -46,14 +46,14 @@ export default function AppTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: scheme === 'dark' ? '#10081f' : '#fff8fd',
-          borderTopColor: scheme === 'dark' ? '#2d1b50' : '#f3d5ef',
+          backgroundColor: colors.backgroundElement,
+          borderTopColor: colors.borderGlow,
           borderTopWidth: 1,
           height: 66,
           paddingBottom: 9,
           paddingTop: 8,
-          shadowColor: '#a855f7',
-          shadowOpacity: 0.14,
+          shadowColor: '#111111',
+          shadowOpacity: 0.08,
           shadowRadius: 14,
           shadowOffset: { width: 0, height: -4 },
           elevation: 10,
@@ -166,7 +166,7 @@ export default function AppTabs() {
         options={{
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: '#fb7185',
+            backgroundColor: colors.primaryNeon,
             color: '#fff',
             fontSize: 9,
             fontWeight: '900',
@@ -178,7 +178,7 @@ export default function AppTabs() {
             top: -2,
             right: -8,
             borderWidth: 1.5,
-            borderColor: scheme === 'dark' ? '#10081f' : '#fff8fd',
+            borderColor: colors.backgroundElement,
           },
           title: t('notifications.title'),
           tabBarIcon: ({ color }) => (
@@ -231,12 +231,6 @@ export default function AppTabs() {
         }}
       />
 
-      <Tabs.Screen
-        name="editor/review/[id]"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }

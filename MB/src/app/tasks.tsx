@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,20 +29,15 @@ function TasksScreen() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
-  const [simulatedProgress, setSimulatedProgress] = useState(0);
 
-  useEffect(() => {
-    loadTasks();
-  }, [user?._id]);
-
-  const loadTasks = () => {
+  const loadTasks = useCallback(() => {
     setLoading(true);
     setError(null);
     tasksAPI.getAll()
       .then(data => {
         // Filter tasks assigned to me OR open tasks (available)
         const myTasks = (data?.tasks || []).filter(t => {
-          const assigneeId = typeof t.assigneeId === 'object' ? t.assigneeId?._id : t.assigneeId;
+          const assigneeId = typeof t.assignedTo === 'object' ? t.assignedTo?._id : t.assignedTo;
           return assigneeId === user?._id || t.status === 'open';
         });
         setTasks(myTasks);
@@ -51,7 +46,7 @@ function TasksScreen() {
         setError(err.message || t('mobile.tasks.loadError'));
       })
       .finally(() => setLoading(false));
-  };
+  }, [t, user?._id]);
 
   const handleAcceptTask = (id: string) => {
     tasksAPI.accept(id)
@@ -71,37 +66,26 @@ function TasksScreen() {
   const openSubmitModal = (task: any) => {
     setSelectedTask(task);
     setShowSubmitModal(true);
-    setSimulatedProgress(0);
   };
+
+  useEffect(() => {
+    void loadTasks();
+  }, [loadTasks]);
 
   const handleSubmitTask = () => {
     if (!selectedTask) return;
     setUploading(true);
     
-    // Simulate File Upload Progress in Mobile
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 15;
-      setSimulatedProgress(p);
-      if (p >= 100) {
-        clearInterval(interval);
-        const formData = new FormData();
-        formData.append('file', {
-          uri: 'https://picsum.photos/seed/task/600/800',
-          name: 'submission.jpg',
-          type: 'image/jpeg',
-        } as any);
-
-        tasksAPI.submit(selectedTask._id, formData)
-          .then(() => {
-            Alert.alert(t('common.success'), t('mobile.tasks.submitted'));
-            setShowSubmitModal(false);
-            loadTasks();
-          })
-          .catch(err => Alert.alert(t('common.error'), err.message))
-          .finally(() => setUploading(false));
-      }
-    }, 200);
+    // Do not submit a fabricated remote image. Until a native file picker is wired in,
+    // transition the real task to review and let the web studio attach the file.
+    tasksAPI.updateStatus(selectedTask._id, 'review')
+      .then(() => {
+        Alert.alert(t('common.success'), t('mobile.tasks.submitted'));
+        setShowSubmitModal(false);
+        loadTasks();
+      })
+      .catch(err => Alert.alert(t('common.error'), err.message))
+      .finally(() => setUploading(false));
   };
 
   const filteredTasks = tasks.filter(t => {
@@ -109,7 +93,7 @@ function TasksScreen() {
     if (activeTab === 'open') return t.status === 'open';
     if (activeTab === 'progress') return t.status === 'assigned' || t.status === 'in_progress';
     if (activeTab === 'review') return t.status === 'review';
-    if (activeTab === 'completed') return t.status === 'completed' || t.status === 'approved';
+    if (activeTab === 'completed') return t.status === 'done';
     return true;
   });
 
@@ -174,7 +158,7 @@ function TasksScreen() {
                   <View style={styles.metaItem}>
                     <Clock size={12} color="#94a3b8" />
                     <ThemedText style={styles.metaText}>
-                      {t('mobile.tasks.deadline', { date: task.dueDate ? new Date(task.dueDate).toLocaleDateString() : t('mobile.tasks.oneDay') })}
+                      {t('mobile.tasks.deadline', { date: task.deadline ? new Date(task.deadline).toLocaleDateString() : t('mobile.tasks.oneDay') })}
                     </ThemedText>
                   </View>
                   <View style={styles.metaItem}>
@@ -190,16 +174,17 @@ function TasksScreen() {
                   </Pressable>
                 )}
 
-                {(task.status === 'assigned' || task.status === 'in_progress') && (
-                  <View style={styles.actionRow}>
-                    <Pressable style={[styles.actionBtnSecondary, { flex: 1 }]} onPress={() => handleUpdateStatus(task._id, 'in_progress')}>
-                      <ThemedText style={styles.actionBtnTextSecondary}>{t('mobile.tasks.working')}</ThemedText>
-                    </Pressable>
-                    <Pressable style={[styles.actionBtn, { backgroundColor: '#10b981', flex: 2 }]} onPress={() => openSubmitModal(task)}>
-                      <UploadCloud size={16} color="#fff" style={{ marginRight: 6 }} />
-                      <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.submitResult')}</ThemedText>
-                    </Pressable>
-                  </View>
+                {task.status === 'assigned' && (
+                  <Pressable style={styles.actionBtnSecondary} onPress={() => handleUpdateStatus(task._id, 'in_progress')}>
+                    <ThemedText style={styles.actionBtnTextSecondary}>{t('mobile.tasks.working')}</ThemedText>
+                  </Pressable>
+                )}
+
+                {task.status === 'in_progress' && (
+                  <Pressable style={[styles.actionBtn, { backgroundColor: '#10b981' }]} onPress={() => openSubmitModal(task)}>
+                    <UploadCloud size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.submitResult')}</ThemedText>
+                  </Pressable>
                 )}
 
                 {task.status === 'review' && (
@@ -208,7 +193,7 @@ function TasksScreen() {
                   </View>
                 )}
                 
-                {(task.status === 'completed' || task.status === 'approved') && (
+                {task.status === 'done' && (
                   <View style={[styles.actionBtn, { backgroundColor: '#22c55e', opacity: 0.8 }]}>
                     <CheckCircle size={16} color="#fff" style={{ marginRight: 6 }} />
                     <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.completedLabel')}</ThemedText>
@@ -230,20 +215,6 @@ function TasksScreen() {
             </View>
             <ThemedText style={styles.modalDesc}>{t('mobile.tasks.modalDescription')}</ThemedText>
             
-            <View style={styles.uploadArea}>
-              <UploadCloud size={40} color="#94a3b8" />
-              <ThemedText style={styles.uploadText}>{t('mobile.tasks.chooseFile')}</ThemedText>
-            </View>
-
-            {uploading && (
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${simulatedProgress}%` }]} />
-                </View>
-                <ThemedText style={styles.progressText}>{t('mobile.tasks.uploading', { progress: simulatedProgress })}</ThemedText>
-              </View>
-            )}
-
             <Pressable style={[styles.primaryBtn, { marginTop: 20 }]} onPress={handleSubmitTask} disabled={uploading}>
               {uploading ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>{t('mobile.tasks.confirmSubmit')}</ThemedText>}
             </Pressable>
