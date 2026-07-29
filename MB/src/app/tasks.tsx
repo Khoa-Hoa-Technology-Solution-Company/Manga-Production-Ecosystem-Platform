@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Modal, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { CheckCircle, Clock, FileText, UploadCloud, X } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -35,10 +34,10 @@ function TasksScreen() {
     setError(null);
     tasksAPI.getAll()
       .then(data => {
-        // Filter tasks assigned to me OR open tasks (available)
-        const myTasks = (data?.tasks || []).filter(t => {
+        // Assistants may take open tasks. Creators only see tasks already assigned to them.
+        const myTasks = (Array.isArray(data?.tasks) ? data.tasks : []).filter(t => {
           const assigneeId = typeof t.assignedTo === 'object' ? t.assignedTo?._id : t.assignedTo;
-          return assigneeId === user?._id || t.status === 'open';
+          return assigneeId === user?._id || (user?.role === 'assistant' && t.status === 'open');
         });
         setTasks(myTasks);
       })
@@ -46,7 +45,7 @@ function TasksScreen() {
         setError(err.message || t('mobile.tasks.loadError'));
       })
       .finally(() => setLoading(false));
-  }, [t, user?._id]);
+  }, [t, user?._id, user?.role]);
 
   const handleAcceptTask = (id: string) => {
     tasksAPI.accept(id)
@@ -99,12 +98,12 @@ function TasksScreen() {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={['#0e051d', '#130e2c', '#07020e']} style={StyleSheet.absoluteFillObject} />
+      <View style={StyleSheet.absoluteFillObject} />
       
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={styles.headerSubtitle}>{t('mobile.tasks.eyebrow')}</ThemedText>
+            <ThemedText style={[styles.headerSubtitle, { color: theme.textSecondary }]}>{t('mobile.tasks.eyebrow')}</ThemedText>
             <ThemedText type="title" style={styles.headerTitle}>{t('mobile.tasks.title')}</ThemedText>
           </View>
         </View>
@@ -124,10 +123,14 @@ function TasksScreen() {
             ].map(tab => (
               <Pressable 
                 key={tab.id}
-                style={[styles.tabBtn, activeTab === tab.id && styles.tabBtnActive]}
+                style={[
+                  styles.tabBtn,
+                  { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow },
+                  activeTab === tab.id && [styles.tabBtnActive, { borderColor: theme.text }],
+                ]}
                 onPress={() => setActiveTab(tab.id as any)}
               >
-                <ThemedText style={[styles.tabText, activeTab === tab.id && styles.tabTextActive]}>{tab.label}</ThemedText>
+                <ThemedText style={[styles.tabText, { color: activeTab === tab.id ? theme.text : theme.textSecondary }]}>{tab.label}</ThemedText>
               </Pressable>
             ))}
           </ScrollView>
@@ -139,63 +142,63 @@ function TasksScreen() {
           )}
 
           {loading ? (
-            <ActivityIndicator size="large" color="#38bdf8" style={{ marginTop: 50 }} />
+            <ActivityIndicator size="large" color="#4e8190" style={{ marginTop: 50 }} />
           ) : filteredTasks.length === 0 ? (
             <View style={styles.emptyState}>
-              <CheckCircle size={48} color="#64748b" />
-              <ThemedText style={styles.emptyText}>{t('mobile.tasks.empty')}</ThemedText>
+              <CheckCircle size={48} color={theme.textSecondary} />
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>{t('mobile.tasks.empty')}</ThemedText>
             </View>
           ) : (
             filteredTasks.map(task => (
-              <View key={task._id} style={styles.taskCard}>
+              <View key={task._id} style={[styles.taskCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
                 <View style={styles.taskHeader}>
                   <ThemedText style={styles.taskTitle}>{task.title || t('mobile.tasks.untitled')}</ThemedText>
                 </View>
                 
-                <ThemedText style={styles.taskDesc} numberOfLines={3}>{task.description || t('mobile.tasks.noDescription')}</ThemedText>
+                <ThemedText themeColor="textSecondary" style={styles.taskDesc} numberOfLines={3}>{task.description || t('mobile.tasks.noDescription')}</ThemedText>
                 
                 <View style={styles.metaRow}>
                   <View style={styles.metaItem}>
-                    <Clock size={12} color="#94a3b8" />
-                    <ThemedText style={styles.metaText}>
+                    <Clock size={12} color={theme.textSecondary} />
+                    <ThemedText themeColor="textSecondary" style={styles.metaText}>
                       {t('mobile.tasks.deadline', { date: task.deadline ? new Date(task.deadline).toLocaleDateString() : t('mobile.tasks.oneDay') })}
                     </ThemedText>
                   </View>
                   <View style={styles.metaItem}>
-                    <FileText size={12} color="#94a3b8" />
-                    <ThemedText style={styles.metaText}>{task.type || t('mobile.tasks.general')}</ThemedText>
+                    <FileText size={12} color={theme.textSecondary} />
+                    <ThemedText themeColor="textSecondary" style={styles.metaText}>{task.type || t('mobile.tasks.general')}</ThemedText>
                   </View>
                 </View>
 
                 {/* Status Specific Actions */}
                 {task.status === 'open' && (
-                  <Pressable style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]} onPress={() => handleAcceptTask(task._id)}>
+                  <Pressable style={[styles.actionBtn, { backgroundColor: '#3d7183' }]} onPress={() => handleAcceptTask(task._id)}>
                     <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.accept')}</ThemedText>
                   </Pressable>
                 )}
 
                 {task.status === 'assigned' && (
-                  <Pressable style={styles.actionBtnSecondary} onPress={() => handleUpdateStatus(task._id, 'in_progress')}>
-                    <ThemedText style={styles.actionBtnTextSecondary}>{t('mobile.tasks.working')}</ThemedText>
+                  <Pressable style={[styles.actionBtnSecondary, { backgroundColor: theme.backgroundSelected, borderColor: theme.borderGlow }]} onPress={() => handleUpdateStatus(task._id, 'in_progress')}>
+                    <ThemedText style={[styles.actionBtnTextSecondary, { color: theme.text }]}>{t('mobile.tasks.working')}</ThemedText>
                   </Pressable>
                 )}
 
                 {task.status === 'in_progress' && (
-                  <Pressable style={[styles.actionBtn, { backgroundColor: '#10b981' }]} onPress={() => openSubmitModal(task)}>
-                    <UploadCloud size={16} color="#fff" style={{ marginRight: 6 }} />
+                  <Pressable style={[styles.actionBtn, { backgroundColor: '#357053' }]} onPress={() => openSubmitModal(task)}>
+                    <UploadCloud size={16} color="#fffaf0" style={{ marginRight: 6 }} />
                     <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.submitResult')}</ThemedText>
                   </Pressable>
                 )}
 
                 {task.status === 'review' && (
-                  <View style={[styles.actionBtn, { backgroundColor: '#f59e0b', opacity: 0.8 }]}>
+                  <View style={[styles.actionBtn, { backgroundColor: '#a97822', opacity: 0.8 }]}>
                     <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.waitingReview')}</ThemedText>
                   </View>
                 )}
                 
                 {task.status === 'done' && (
-                  <View style={[styles.actionBtn, { backgroundColor: '#22c55e', opacity: 0.8 }]}>
-                    <CheckCircle size={16} color="#fff" style={{ marginRight: 6 }} />
+                  <View style={[styles.actionBtn, { backgroundColor: '#357053', opacity: 0.8 }]}>
+                    <CheckCircle size={16} color="#fffaf0" style={{ marginRight: 6 }} />
                     <ThemedText style={styles.actionBtnText}>{t('mobile.tasks.completedLabel')}</ThemedText>
                   </View>
                 )}
@@ -208,15 +211,15 @@ function TasksScreen() {
       {/* Submit Modal */}
       <Modal visible={showSubmitModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>{t('mobile.tasks.modalTitle')}</ThemedText>
-              <Pressable onPress={() => !uploading && setShowSubmitModal(false)}><X color="#fff" /></Pressable>
+              <Pressable onPress={() => !uploading && setShowSubmitModal(false)}><X color={theme.text} /></Pressable>
             </View>
-            <ThemedText style={styles.modalDesc}>{t('mobile.tasks.modalDescription')}</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.modalDesc}>{t('mobile.tasks.modalDescription')}</ThemedText>
             
             <Pressable style={[styles.primaryBtn, { marginTop: 20 }]} onPress={handleSubmitTask} disabled={uploading}>
-              {uploading ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.primaryBtnText}>{t('mobile.tasks.confirmSubmit')}</ThemedText>}
+              {uploading ? <ActivityIndicator color="#fffaf0" /> : <ThemedText style={styles.primaryBtnText}>{t('mobile.tasks.confirmSubmit')}</ThemedText>}
             </Pressable>
           </View>
         </View>
@@ -229,51 +232,50 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
-  headerSubtitle: { color: '#38bdf8', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  headerTitle: { color: '#fff', fontSize: 28, lineHeight: 32, fontWeight: '800' },
-  errorBanner: { backgroundColor: 'rgba(244,63,94,0.15)', padding: 12, marginHorizontal: Spacing.three, borderRadius: 8, marginBottom: Spacing.three },
-  errorText: { color: '#fb7185', fontSize: 13, fontWeight: 'bold' },
+  headerSubtitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  headerTitle: { fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  errorBanner: { backgroundColor: 'rgba(185,66,52,0.15)', padding: 12, marginHorizontal: Spacing.three, borderRadius: 8, marginBottom: Spacing.three },
+  errorText: { color: '#c85745', fontSize: 13, fontWeight: 'bold' },
   content: { maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: Spacing.three, gap: Spacing.three },
   emptyState: { alignItems: 'center', marginTop: 60, gap: 10 },
-  emptyText: { color: '#94a3b8', fontSize: 14 },
+  emptyText: { fontSize: 14 },
   
 
 
   tabScroll: { marginBottom: 16, maxHeight: 40 },
-  tabBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', marginRight: 8 },
-  tabBtnActive: { backgroundColor: '#38bdf8' },
-  tabText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
-  tabTextActive: { color: '#0f172a', fontWeight: '800' },
+  tabBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+  tabBtnActive: { borderWidth: 1 },
+  tabText: { fontSize: 13, fontWeight: '600' },
 
-  taskCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', marginBottom: 12 },
+  taskCard: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 12 },
   taskHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  taskTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', flex: 1, paddingRight: 10 },
-  taskDesc: { color: '#cbd5e1', fontSize: 13, marginBottom: 12, lineHeight: 20 },
+  taskTitle: { fontSize: 16, fontWeight: 'bold', flex: 1, paddingRight: 10 },
+  taskDesc: { fontSize: 13, marginBottom: 12, lineHeight: 20 },
   metaRow: { flexDirection: 'row', gap: 16, marginBottom: 16 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaText: { color: '#94a3b8', fontSize: 12 },
+  metaText: { fontSize: 12 },
   
   actionRow: { flexDirection: 'row', gap: 10 },
   actionBtn: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  actionBtnSecondary: { backgroundColor: 'rgba(255,255,255,0.1)', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  actionBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  actionBtnTextSecondary: { color: '#cbd5e1', fontSize: 14, fontWeight: 'bold' },
+  actionBtnSecondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  actionBtnText: { color: '#fffaf0', fontSize: 14, fontWeight: 'bold' },
+  actionBtnTextSecondary: { fontSize: 14, fontWeight: 'bold' },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#1e1b4b', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(28,41,40,0.8)', justifyContent: 'center', padding: 20 },
+  modalContent: { borderRadius: 24, padding: 20, borderWidth: 1 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  modalDesc: { color: '#94a3b8', fontSize: 13, marginBottom: 16 },
-  uploadArea: { height: 120, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.02)', marginBottom: 20 },
-  uploadText: { color: '#94a3b8', fontSize: 13, marginTop: 10 },
-  primaryBtn: { backgroundColor: '#10b981', padding: 16, borderRadius: 12, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  modalDesc: { fontSize: 13, marginBottom: 16 },
+  uploadArea: { height: 120, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,250,240,0.1)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,250,240,0.02)', marginBottom: 20 },
+  uploadText: { color: '#9aa39a', fontSize: 13, marginTop: 10 },
+  primaryBtn: { backgroundColor: '#357053', padding: 16, borderRadius: 12, alignItems: 'center' },
+  primaryBtnText: { color: '#fffaf0', fontSize: 16, fontWeight: 'bold' },
   
   progressContainer: { marginTop: 10, marginBottom: 10 },
-  progressBarBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: '#10b981' },
-  progressText: { color: '#94a3b8', fontSize: 12, marginTop: 6, textAlign: 'right' },
+  progressBarBg: { height: 8, backgroundColor: 'rgba(255,250,240,0.1)', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: '#357053' },
+  progressText: { color: '#9aa39a', fontSize: 12, marginTop: 6, textAlign: 'right' },
 });
 
 export default withProtectedReaderRoute(TasksScreen);

@@ -22,8 +22,8 @@ export function withProtectedReaderRoute<P extends object>(Component: React.Comp
 
     if (loading) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#07020d', alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#f43f5e" />
+        <View style={{ flex: 1, backgroundColor: '#1c2928', alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#b94234" />
         </View>
       );
     }
@@ -54,8 +54,8 @@ export function withProtectedMangakaRoute<P extends object>(Component: React.Com
 
     if (loading) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#07020d', alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#f43f5e" />
+        <View style={{ flex: 1, backgroundColor: '#1c2928', alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#b94234" />
         </View>
       );
     }
@@ -89,8 +89,8 @@ export function withProtectedEditorRoute<P extends object>(Component: React.Comp
 
     if (loading) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#07020d', alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#f43f5e" />
+        <View style={{ flex: 1, backgroundColor: '#1c2928', alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#b94234" />
         </View>
       );
     }
@@ -122,8 +122,8 @@ export function withProtectedEditorialBoardRoute<P extends object>(Component: Re
 
     if (loading) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#07020d', alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#f43f5e" />
+        <View style={{ flex: 1, backgroundColor: '#1c2928', alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#b94234" />
         </View>
       );
     }

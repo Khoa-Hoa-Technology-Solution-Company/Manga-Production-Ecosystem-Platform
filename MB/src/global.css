@@ -1,3 +1,8 @@
+/* Hallmark · pre-emit critique: P5 H4 E4 S5 R5 V3
+ * genre: editorial · macrostructure: Workbench · theme: Manga Print · contrast: pass (40–41)
+ * audience: every MangaFlow role · use: reading and production · flat fills only
+ * palette: warm paper / blue-black ink / vermilion accent / ochre + moss states
+ */
 :root {
   --font-display:
     "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
@@ -6,12 +11,22 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
+  --color-paper: #f6efdf;
+  --color-paper-2: #e9ddc7;
+  --color-ink: #1c2928;
+  --color-ink-2: #59615b;
+  --color-rule: #cbbda5;
+  --color-accent: #b94234;
+  --color-focus: #8e2f27;
+  --color-ochre: #a97822;
+  --color-moss: #357053;
 }
 
 html,
 body {
   overflow-x: clip;
-  background: #fafaf9;
+  background: var(--color-paper);
+  color: var(--color-ink);
 }
 
 * {

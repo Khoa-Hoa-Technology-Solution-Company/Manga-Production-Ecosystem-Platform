@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { BookOpen, ChevronRight, MessageCircle, Send, Sparkles, Star, WandSparkles, X } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -110,16 +109,13 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
 
   return (
     <>
-      <LinearGradient
-        colors={['#7c3aed', '#db2777']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={styles.card}
       >
         <View style={styles.characterHeader}>
           <View style={styles.characterCluster}>
             <Image source={require('@/assets/miko-chibi.png')} style={styles.characterImage} contentFit="contain" />
-            <View style={styles.characterSparkle}><Sparkles size={12} color="#fef3c7" /></View>
+            <View style={styles.characterSparkle}><Sparkles size={12} color="#f4dfa1" /></View>
           </View>
           <View style={styles.headingCopy}>
             <View style={styles.nameRow}>
@@ -129,7 +125,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
             <ThemedText style={styles.label}>{t('assistantReader.companion')}</ThemedText>
           </View>
           <Pressable style={styles.miniChatButton} onPress={() => setChatVisible(true)}>
-            <MessageCircle size={17} color="#fce7f3" />
+            <MessageCircle size={17} color="#f5dfd2" />
           </Pressable>
         </View>
 
@@ -156,7 +152,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                 />
               ) : (
                 <View style={[styles.continueCover, styles.coverPlaceholder]}>
-                  <BookOpen size={22} color="#a4a49d" />
+                  <BookOpen size={22} color="#9ca197" />
                 </View>
               )}
               <View style={styles.continueBody}>
@@ -169,7 +165,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   <View style={[styles.continueProgressFill, { width: `${Math.max(3, currentRead.percentage)}%` }]} />
                 </View>
               </View>
-              <View style={styles.continueArrow}><ChevronRight size={17} color="#fff" /></View>
+              <View style={styles.continueArrow}><ChevronRight size={17} color="#fffaf0" /></View>
             </Pressable>
           </Animated.View>
         )}
@@ -177,21 +173,21 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
         <View style={styles.bubbleActions}>
           {currentRead ? (
             <Pressable style={styles.actionBubble} onPress={() => onContinue(currentRead)}>
-              <BookOpen size={14} color="#fce7f3" />
+              <BookOpen size={14} color="#f5dfd2" />
               <ThemedText style={styles.actionBubbleText}>{t('assistantReader.continueAction')}</ThemedText>
             </Pressable>
           ) : home.recommendations[0] ? (
             <Pressable style={styles.actionBubble} onPress={() => onOpenSeries(home.recommendations[0])}>
-              <Sparkles size={14} color="#fef3c7" />
+              <Sparkles size={14} color="#f4dfa1" />
               <ThemedText style={styles.actionBubbleText}>{t('assistantReader.recommendAction')}</ThemedText>
             </Pressable>
           ) : null}
           <Pressable style={styles.actionBubbleSoft} onPress={() => setChatVisible(true)}>
             <ThemedText style={styles.actionBubbleSoftText}>{t('assistantReader.chatAction', { name: home.assistant.name })}</ThemedText>
-            <ChevronRight size={14} color="#fda4af" />
+            <ChevronRight size={14} color="#dc957d" />
           </Pressable>
         </View>
-      </LinearGradient>
+      </View>
 
       <Modal
         visible={chatVisible}
@@ -222,13 +218,13 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                 <View>
                   <View style={styles.nameRow}>
                   <ThemedText style={styles.chatTitle}>{home.assistant.name}</ThemedText>
-                    <Sparkles size={12} color="#fda4af" />
+                    <Sparkles size={12} color="#dc957d" />
                   </View>
                   <ThemedText style={styles.chatStatus}>{t('assistantReader.status')}</ThemedText>
                 </View>
               </View>
               <Pressable style={styles.closeButton} onPress={() => setChatVisible(false)} hitSlop={8}>
-                <X size={19} color="#cbd5e1" />
+                <X size={19} color="#c9c8b8" />
               </Pressable>
             </View>
 
@@ -276,24 +272,24 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                               />
                             ) : (
                               <View style={[styles.seriesResultCover, styles.coverPlaceholder]}>
-                                <BookOpen size={20} color="#a4a49d" />
+                                <BookOpen size={20} color="#9ca197" />
                               </View>
                             )}
                             <View style={styles.seriesResultBody}>
                               <ThemedText style={styles.seriesResultTitle} numberOfLines={2}>{series.title}</ThemedText>
                               <ThemedText style={styles.seriesResultGenre} numberOfLines={1}>
-                                {(series.genre || []).slice(0, 2).join(' • ') || t('assistantReader.genericGenre')}
+                                {(Array.isArray(series.genre) ? series.genre : []).slice(0, 2).join(' • ') || t('assistantReader.genericGenre')}
                               </ThemedText>
                               <View style={styles.seriesResultMeta}>
                                 <View style={styles.ratingRow}>
-                                  <Star size={11} color="#fbbf24" fill="#fbbf24" />
+                                  <Star size={11} color="#c6942d" fill="#c6942d" />
                                   <ThemedText style={styles.ratingText}>
                             {series.averageRating > 0 ? series.averageRating.toFixed(1) : t('assistantReader.newSeries')}
                                   </ThemedText>
                                 </View>
                                 <View style={styles.openSeriesAction}>
                                   <ThemedText style={styles.openSeriesText}>{t('assistantReader.viewSeries')}</ThemedText>
-                                  <ChevronRight size={13} color="#fda4af" />
+                                  <ChevronRight size={13} color="#dc957d" />
                                 </View>
                               </View>
                             </View>
@@ -309,7 +305,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                 <View style={styles.messageRow}>
                   <View style={styles.messageAvatar}><Image source={require('@/assets/miko-chibi.png')} style={styles.messageAvatarImage} contentFit="contain" /></View>
                   <View style={[styles.bubble, styles.assistantBubble, styles.typingBubble]}>
-                    <ActivityIndicator color="#a78bfa" size="small" />
+                    <ActivityIndicator color="#a88a6b" size="small" />
                     <ThemedText style={styles.typingText}>{t('assistantReader.thinking', { name: home.assistant.name })}</ThemedText>
                   </View>
                 </View>
@@ -318,7 +314,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
 
             <View style={styles.promptSection}>
               <View style={styles.promptHeading}>
-                <WandSparkles size={12} color="#a78bfa" />
+                <WandSparkles size={12} color="#a88a6b" />
                 <ThemedText style={styles.promptHeadingText}>{t('assistantReader.quickSuggestions')}</ThemedText>
               </View>
               <ScrollView
@@ -343,7 +339,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   onChangeText={setDraft}
                   onSubmitEditing={() => sendMessage()}
                   placeholder={t('assistantReader.placeholder', { name: home.assistant.name })}
-                  placeholderTextColor="#746b86"
+                  placeholderTextColor="#786f68"
                   style={styles.input}
                   maxLength={1000}
                   returnKeyType="send"
@@ -355,9 +351,9 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   onPress={() => sendMessage()}
                   disabled={sending || !draft.trim()}
                 >
-                  <LinearGradient colors={['#fb7185', '#e11d48']} style={styles.sendGradient}>
-                    <Send size={18} color="#fff" />
-                  </LinearGradient>
+                  <View style={styles.sendButtonInner}>
+                    <Send size={18} color="#fffaf0" />
+                  </View>
                 </Pressable>
               </View>
               <ThemedText style={styles.disclaimer}>{t('assistantReader.disclaimer', { name: home.assistant.name })}</ThemedText>
@@ -370,97 +366,97 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 26, padding: 16, gap: 13, borderWidth: 1, borderColor: 'rgba(249,168,212,0.24)', shadowColor: '#a855f7', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
+  card: { borderRadius: 26, padding: 16, gap: 13, borderWidth: 1, borderColor: 'rgba(220,149,125,0.24)', backgroundColor: '#273431', shadowColor: '#7a5a43', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
   characterHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   characterCluster: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center' },
   characterImage: { width: 76, height: 76, position: 'absolute', bottom: -4 },
-  characterSparkle: { position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(251,113,133,0.28)' },
-  waveText: { color: '#fda4af', fontSize: 15, fontWeight: '900' },
-  miniChatButton: { width: 36, height: 36, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(36,12,69,0.38)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)' },
-  speechBubble: { position: 'relative', borderRadius: 19, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: 'rgba(36,12,69,0.38)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)' },
-  speechTail: { position: 'absolute', top: -6, left: 27, width: 12, height: 12, transform: [{ rotate: '45deg' }], backgroundColor: '#6e2b9d', borderLeftWidth: 1, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.24)' },
-  continueSpotlight: { borderRadius: 18, backgroundColor: '#24104b', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', shadowColor: '#fda4af', shadowRadius: 16, shadowOffset: { width: 0, height: 5 }, elevation: 7 },
+  characterSparkle: { position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(200,87,69,0.28)' },
+  waveText: { color: '#dc957d', fontSize: 15, fontWeight: '900' },
+  miniChatButton: { width: 36, height: 36, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(39,52,49,0.38)', borderWidth: 1, borderColor: 'rgba(255,250,240,0.24)' },
+  speechBubble: { position: 'relative', borderRadius: 19, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: 'rgba(39,52,49,0.38)', borderWidth: 1, borderColor: 'rgba(255,250,240,0.24)' },
+  speechTail: { position: 'absolute', top: -6, left: 27, width: 12, height: 12, transform: [{ rotate: '45deg' }], backgroundColor: '#6b4d3a', borderLeftWidth: 1, borderTopWidth: 1, borderColor: 'rgba(255,250,240,0.24)' },
+  continueSpotlight: { borderRadius: 18, backgroundColor: '#273431', borderWidth: 1, borderColor: 'rgba(255,250,240,0.28)', shadowColor: '#dc957d', shadowRadius: 16, shadowOffset: { width: 0, height: 5 }, elevation: 7 },
   continuePressable: { minHeight: 78, flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden', borderRadius: 17 },
-  continueCover: { width: 58, height: 78, backgroundColor: '#3b1d6e' },
+  continueCover: { width: 58, height: 78, backgroundColor: '#35433e' },
   coverPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   continueBody: { flex: 1, justifyContent: 'center', gap: 3, paddingHorizontal: 11, paddingVertical: 9 },
-  continueEyebrow: { color: '#fda4af', fontSize: 9, lineHeight: 12, fontWeight: '900', letterSpacing: 1 },
-  continueTitle: { color: '#fff', fontSize: 14, lineHeight: 18, fontWeight: '900' },
-  continueChapter: { color: '#ddd6fe', fontSize: 10, lineHeight: 14, fontWeight: '700' },
-  continueProgressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 4, backgroundColor: 'rgba(255,255,255,0.18)' },
-  continueProgressFill: { height: '100%', borderRadius: 2, backgroundColor: '#fb7185' },
-  continueArrow: { width: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(244,63,94,0.32)' },
+  continueEyebrow: { color: '#dc957d', fontSize: 9, lineHeight: 12, fontWeight: '900', letterSpacing: 1 },
+  continueTitle: { color: '#fffaf0', fontSize: 14, lineHeight: 18, fontWeight: '900' },
+  continueChapter: { color: '#eadcc9', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  continueProgressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 4, backgroundColor: 'rgba(255,250,240,0.18)' },
+  continueProgressFill: { height: '100%', borderRadius: 2, backgroundColor: '#c85745' },
+  continueArrow: { width: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,66,52,0.32)' },
   bubbleActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  actionBubble: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#e11d48', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  actionBubbleText: { color: '#fff', fontSize: 11, lineHeight: 15, fontWeight: '900' },
-  actionBubbleSoft: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: 'rgba(36,12,69,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
-  actionBubbleSoftText: { color: '#fce7f3', fontSize: 11, lineHeight: 15, fontWeight: '800' },
+  actionBubble: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#b94234', borderWidth: 1, borderColor: 'rgba(255,250,240,0.15)' },
+  actionBubbleText: { color: '#fffaf0', fontSize: 11, lineHeight: 15, fontWeight: '900' },
+  actionBubbleSoft: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: 'rgba(39,52,49,0.42)', borderWidth: 1, borderColor: 'rgba(255,250,240,0.22)' },
+  actionBubbleSoftText: { color: '#f5dfd2', fontSize: 11, lineHeight: 15, fontWeight: '800' },
   headingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#7c3aed' },
-  smallAvatar: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', overflow: 'visible', backgroundColor: '#2a1842' },
+  avatar: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6b4d3a' },
+  smallAvatar: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', overflow: 'visible', backgroundColor: '#273431' },
   smallAvatarImage: { width: 61, height: 61, position: 'absolute', bottom: -2 },
-  onlineDot: { position: 'absolute', right: -1, bottom: -1, width: 11, height: 11, borderRadius: 6, backgroundColor: '#22c55e', borderWidth: 2, borderColor: '#10091e' },
+  onlineDot: { position: 'absolute', right: -1, bottom: -1, width: 11, height: 11, borderRadius: 6, backgroundColor: '#357053', borderWidth: 2, borderColor: '#1c2928' },
   headingCopy: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  name: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  label: { color: '#c4b5fd', fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
-  greeting: { color: '#f8fafc', fontSize: 14, lineHeight: 21 },
+  name: { color: '#fffaf0', fontSize: 16, fontWeight: '900' },
+  label: { color: '#d7cbb0', fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  greeting: { color: '#f6efdf', fontSize: 14, lineHeight: 21 },
   actions: { flexDirection: 'row', gap: 10 },
-  primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 999, backgroundColor: '#f43f5e', paddingHorizontal: 16, paddingVertical: 10 },
-  primaryButtonText: { color: '#fff', fontSize: 12, fontWeight: '900' },
-  secondaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  secondaryButtonText: { color: '#e9d5ff', fontSize: 12, fontWeight: '900' },
-  recommendation: { backgroundColor: 'rgba(7,2,13,0.35)', borderRadius: 14, padding: 11 },
-  recommendationLabel: { color: '#fda4af', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
-  recommendationTitle: { color: '#fff', fontSize: 13, fontWeight: '800', marginTop: 3 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(5,2,12,0.2)' },
+  primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 999, backgroundColor: '#b94234', paddingHorizontal: 16, paddingVertical: 10 },
+  primaryButtonText: { color: '#fffaf0', fontSize: 12, fontWeight: '900' },
+  secondaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 999, backgroundColor: 'rgba(255,250,240,0.08)', paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: 'rgba(255,250,240,0.1)' },
+  secondaryButtonText: { color: '#eadcc9', fontSize: 12, fontWeight: '900' },
+  recommendation: { backgroundColor: 'rgba(28,41,40,0.35)', borderRadius: 14, padding: 11 },
+  recommendationLabel: { color: '#dc957d', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  recommendationTitle: { color: '#fffaf0', fontSize: 13, fontWeight: '800', marginTop: 3 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(28,41,40,0.2)' },
   chatBackdropBlur: { ...StyleSheet.absoluteFillObject },
-  chatSheet: { height: '94%', backgroundColor: 'rgba(39,25,58,0.78)', overflow: 'visible' },
-  dragHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: 'rgba(203,213,225,0.28)', alignSelf: 'center', marginTop: 9, marginBottom: 3 },
-  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 14, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 23, borderWidth: 1, borderColor: 'rgba(249,168,212,0.32)', backgroundColor: 'rgba(47,31,68,0.9)' },
-  chatTitle: { color: '#fff', fontSize: 17, lineHeight: 21, fontWeight: '900' },
-  chatStatus: { color: '#a78bfa', fontSize: 10, lineHeight: 15, fontWeight: '700' },
-  closeButton: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  chatSheet: { height: '94%', backgroundColor: 'rgba(39,52,49,0.78)', overflow: 'visible' },
+  dragHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: 'rgba(201,200,184,0.28)', alignSelf: 'center', marginTop: 9, marginBottom: 3 },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 14, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 23, borderWidth: 1, borderColor: 'rgba(220,149,125,0.32)', backgroundColor: 'rgba(39,52,49,0.9)' },
+  chatTitle: { color: '#fffaf0', fontSize: 17, lineHeight: 21, fontWeight: '900' },
+  chatStatus: { color: '#a88a6b', fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  closeButton: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,250,240,0.06)', borderWidth: 1, borderColor: 'rgba(255,250,240,0.06)' },
   messages: { flex: 1 },
   messagesContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20, gap: 12 },
   conversationLabel: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
-  conversationLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
-  conversationLabelText: { color: '#625a73', fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 1.2 },
+  conversationLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,250,240,0.06)' },
+  conversationLabelText: { color: '#706858', fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 1.2 },
   messageGroup: { alignSelf: 'stretch', gap: 9 },
   messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, alignSelf: 'stretch' },
   userMessageRow: { justifyContent: 'flex-end' },
-  messageAvatar: { width: 27, height: 27, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#1b1230', borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)' },
+  messageAvatar: { width: 27, height: 27, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#273431', borderWidth: 1, borderColor: 'rgba(168,138,107,0.2)' },
   messageAvatarImage: { width: 37, height: 37, position: 'absolute', bottom: -2 },
   bubble: { maxWidth: '82%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1 },
-  assistantBubble: { backgroundColor: '#34224d', borderColor: 'rgba(196,181,253,0.28)', borderBottomLeftRadius: 6 },
-  userBubble: { backgroundColor: '#e11d48', borderColor: 'rgba(255,255,255,0.12)', borderBottomRightRadius: 6 },
-  bubbleText: { color: '#f8fafc', fontSize: 14, lineHeight: 20, fontWeight: '500' },
+  assistantBubble: { backgroundColor: '#35433e', borderColor: 'rgba(215,203,176,0.28)', borderBottomLeftRadius: 6 },
+  userBubble: { backgroundColor: '#b94234', borderColor: 'rgba(255,250,240,0.12)', borderBottomRightRadius: 6 },
+  bubbleText: { color: '#f6efdf', fontSize: 14, lineHeight: 20, fontWeight: '500' },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9 },
-  typingText: { color: '#a78bfa', fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  typingText: { color: '#a88a6b', fontSize: 11, lineHeight: 16, fontWeight: '700' },
   seriesResults: { marginLeft: 35, gap: 8 },
-  seriesResultCard: { minHeight: 86, flexDirection: 'row', overflow: 'hidden', borderRadius: 16, backgroundColor: '#2b1a43', borderWidth: 1, borderColor: 'rgba(196,181,253,0.24)' },
+  seriesResultCard: { minHeight: 86, flexDirection: 'row', overflow: 'hidden', borderRadius: 16, backgroundColor: '#273431', borderWidth: 1, borderColor: 'rgba(215,203,176,0.24)' },
   seriesResultCardPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
-  seriesResultCover: { width: 66, minHeight: 86, backgroundColor: '#24193a' },
+  seriesResultCover: { width: 66, minHeight: 86, backgroundColor: '#273431' },
   seriesResultBody: { flex: 1, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'space-between', gap: 3 },
-  seriesResultTitle: { color: '#fff', fontSize: 14, lineHeight: 18, fontWeight: '900' },
-  seriesResultGenre: { color: '#a78bfa', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  seriesResultTitle: { color: '#fffaf0', fontSize: 14, lineHeight: 18, fontWeight: '900' },
+  seriesResultGenre: { color: '#a88a6b', fontSize: 10, lineHeight: 14, fontWeight: '700' },
   seriesResultMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { color: '#fde68a', fontSize: 10, lineHeight: 13, fontWeight: '800' },
+  ratingText: { color: '#e4c66f', fontSize: 10, lineHeight: 13, fontWeight: '800' },
   openSeriesAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  openSeriesText: { color: '#fda4af', fontSize: 10, lineHeight: 13, fontWeight: '900' },
-  promptSection: { flexShrink: 0, paddingTop: 10, paddingBottom: 9, marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(46,30,66,0.86)' },
+  openSeriesText: { color: '#dc957d', fontSize: 10, lineHeight: 13, fontWeight: '900' },
+  promptSection: { flexShrink: 0, paddingTop: 10, paddingBottom: 9, marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,250,240,0.14)', backgroundColor: 'rgba(39,52,49,0.86)' },
   promptHeading: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 16, marginBottom: 8 },
-  promptHeadingText: { color: '#8f82a8', fontSize: 9, lineHeight: 12, fontWeight: '900', letterSpacing: 1.1 },
+  promptHeadingText: { color: '#938775', fontSize: 9, lineHeight: 12, fontWeight: '900', letterSpacing: 1.1 },
   promptScroll: { flexGrow: 0, flexShrink: 0, maxHeight: 38 },
   prompts: { gap: 8, paddingHorizontal: 16, alignItems: 'center' },
-  promptChip: { height: 34, maxWidth: 260, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#392651', borderWidth: 1, borderColor: 'rgba(196,181,253,0.28)' },
-  promptText: { color: '#d8cffa', fontSize: 11, lineHeight: 15, fontWeight: '700' },
-  composerArea: { flexShrink: 0, paddingTop: 11, paddingHorizontal: 14, backgroundColor: 'rgba(43,28,62,0.92)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)' },
-  composer: { minHeight: 50, flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 5, paddingLeft: 14, borderRadius: 18, backgroundColor: '#34234a', borderWidth: 1, borderColor: 'rgba(224,214,254,0.2)' },
-  input: { flex: 1, minHeight: 39, maxHeight: 96, color: '#f8fafc', paddingTop: 9, paddingBottom: 8, paddingHorizontal: 0, fontSize: 14, lineHeight: 20, textAlignVertical: 'center' },
+  promptChip: { height: 34, maxWidth: 260, justifyContent: 'center', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#35433e', borderWidth: 1, borderColor: 'rgba(215,203,176,0.28)' },
+  promptText: { color: '#dfd5c1', fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  composerArea: { flexShrink: 0, paddingTop: 11, paddingHorizontal: 14, backgroundColor: 'rgba(39,52,49,0.92)', borderTopWidth: 1, borderTopColor: 'rgba(255,250,240,0.14)' },
+  composer: { minHeight: 50, flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 5, paddingLeft: 14, borderRadius: 18, backgroundColor: '#35433e', borderWidth: 1, borderColor: 'rgba(225,216,193,0.2)' },
+  input: { flex: 1, minHeight: 39, maxHeight: 96, color: '#f6efdf', paddingTop: 9, paddingBottom: 8, paddingHorizontal: 0, fontSize: 14, lineHeight: 20, textAlignVertical: 'center' },
   sendButton: { width: 40, height: 40, borderRadius: 14, overflow: 'hidden' },
   sendButtonDisabled: { opacity: 0.38 },
-  sendGradient: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  disclaimer: { color: '#5f566f', fontSize: 9, lineHeight: 13, textAlign: 'center', marginTop: 7 },
+  sendButtonInner: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#b94234' },
+  disclaimer: { color: '#6e685d', fontSize: 9, lineHeight: 13, textAlign: 'center', marginTop: 7 },
 });

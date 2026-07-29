@@ -274,7 +274,7 @@ export function NotificationsModal({ isOpen, onClose, onUnreadCountChange }: Not
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4 max-h-[85dvh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
         <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
           <h3 id="notifications-dialog-title" className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">

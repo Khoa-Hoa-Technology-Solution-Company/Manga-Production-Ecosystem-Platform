@@ -9,12 +9,23 @@ const STORAGE_TOKEN_KEY = 'mangaflow-token';
 class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
+  private connectionPromise: Promise<void> | null = null;
+  private connectionRequested = false;
 
-  async connect() {
-    if (this.socket) return;
+  connect(): Promise<void> {
+    this.connectionRequested = true;
+    if (this.socket) return Promise.resolve();
+    if (!this.connectionPromise) {
+      this.connectionPromise = this.createConnection().finally(() => {
+        this.connectionPromise = null;
+      });
+    }
+    return this.connectionPromise;
+  }
 
+  private async createConnection() {
     const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
-    if (!token) return;
+    if (!token || !this.connectionRequested || this.socket) return;
 
     this.socket = io(SOCKET_URL, {
       auth: { token },
@@ -45,6 +56,7 @@ class SocketService {
   }
 
   disconnect() {
+    this.connectionRequested = false;
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
@@ -52,10 +64,9 @@ class SocketService {
   }
 
   on(event: string, callback: (data: any) => void) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set());
-    }
-    this.listeners.get(event)!.add(callback);
+    const callbacks = this.listeners.get(event) ?? new Set<(data: any) => void>();
+    callbacks.add(callback);
+    this.listeners.set(event, callbacks);
 
     if (this.socket) {
       this.socket.on(event, callback);

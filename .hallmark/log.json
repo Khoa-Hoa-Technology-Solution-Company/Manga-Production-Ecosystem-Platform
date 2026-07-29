@@ -1,5 +1,38 @@
 [
   {
+    "date": "2026-07-29",
+    "macrostructure": "Workbench",
+    "theme": "Manga Print",
+    "enrichment": "none",
+    "scope": "mobile role companion",
+    "brief": "Keep only lightweight task updates on mobile and simplify Editorial Board work to voting and meeting creation."
+  },
+  {
+    "date": "2026-07-29",
+    "macrostructure": "Workbench",
+    "theme": "Manga Print",
+    "enrichment": "none",
+    "scope": "reader home and reader shell",
+    "brief": "Replace chapter chips with a dropdown and align mobile reader rankings with the web reader leaderboard."
+  },
+  {
+    "date": "2026-07-29",
+    "macrostructure": "Workbench",
+    "theme": "Manga Print",
+    "enrichment": "none",
+    "scope": "reader home and reader shell",
+    "brief": "Brighten manga covers and leaderboard; add direct chapter navigation."
+  },
+  {
+    "date": "2026-07-29",
+    "macrostructure": "Workbench",
+    "theme": "Manga Print",
+    "theme_axes": "light / editorial sans / warm vermilion",
+    "enrichment": "none",
+    "scope": "mobile app",
+    "brief": "Recolour every MangaFlow mobile role and screen; use flat fills only."
+  },
+  {
     "date": "2026-07-28",
     "macrostructure": "Workbench",
     "theme": "Monochrome Graphite",

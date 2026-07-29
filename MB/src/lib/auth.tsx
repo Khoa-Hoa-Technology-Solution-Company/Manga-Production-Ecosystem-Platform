@@ -32,7 +32,7 @@ type AuthContextType = {
     displayName: string;
     role?: string;
   }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => Promise<void>;
   isAuthenticated: boolean;
 };
@@ -41,6 +41,23 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const USER_KEY = 'mangaflow-user';
 const TOKEN_KEY = 'mangaflow-token';
+
+function isStoredUser(value: unknown): value is User {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Partial<User>;
+  return typeof user._id === 'string'
+    && typeof user.email === 'string'
+    && typeof user.displayName === 'string'
+    && typeof user.role === 'string';
+}
+
+async function clearPersistedSession() {
+  await clearToken().catch(() => {});
+  await Promise.allSettled([
+    AsyncStorage.removeItem(TOKEN_KEY),
+    AsyncStorage.removeItem(USER_KEY),
+  ]);
+}
 
 // ── Provider ────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -67,6 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load saved auth on mount
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
       try {
         const [savedToken, savedUser] = await Promise.all([
@@ -74,26 +93,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(USER_KEY),
         ]);
 
-        if (savedToken && savedUser) {
-          await setApiToken(savedToken);
-          setUser(JSON.parse(savedUser));
+        if (!savedToken || !savedUser) {
+          if (savedToken || savedUser) await clearPersistedSession();
+          return;
+        }
+
+        let parsedUser: unknown;
+        try {
+          parsedUser = JSON.parse(savedUser);
+        } catch {
+          await clearPersistedSession();
+          return;
+        }
+
+        if (!isStoredUser(parsedUser)) {
+          await clearPersistedSession();
+          return;
+        }
+
+        await setApiToken(savedToken);
+        if (mounted) {
+          setUser(parsedUser);
           setToken(savedToken);
         }
       } catch {
-        // Ignore storage errors on startup
+        await clearPersistedSession();
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     const data = await authAPI.login(email, password);
+    if (!data?.token || !isStoredUser(data.user)) {
+      throw new Error('Invalid login response');
+    }
     await setApiToken(data.token);
-    await AsyncStorage.setItem(TOKEN_KEY, data.token);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
     setUser(data.user);
     setToken(data.token);
+    await Promise.all([
+      AsyncStorage.setItem(TOKEN_KEY, data.token),
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user)),
+    ]).catch((error) => console.error('Failed to persist login session:', error));
   };
 
   const register = async (regData: {
@@ -103,19 +149,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role?: string;
   }) => {
     const data = await authAPI.register(regData);
+    if (!data?.token || !isStoredUser(data.user)) {
+      throw new Error('Invalid registration response');
+    }
     await setApiToken(data.token);
-    await AsyncStorage.setItem(TOKEN_KEY, data.token);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
     setUser(data.user);
     setToken(data.token);
+    await Promise.all([
+      AsyncStorage.setItem(TOKEN_KEY, data.token),
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user)),
+    ]).catch((error) => console.error('Failed to persist registration session:', error));
   };
 
   const logout = async () => {
-    await clearToken();
-    await AsyncStorage.removeItem(TOKEN_KEY);
-    await AsyncStorage.removeItem(USER_KEY);
     setUser(null);
     setToken(null);
+    await clearPersistedSession();
   };
 
   const updateUser = async (data: Partial<User>) => {

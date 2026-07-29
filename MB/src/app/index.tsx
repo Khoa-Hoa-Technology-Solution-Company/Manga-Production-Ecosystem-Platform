@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImageBackground, Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, TextInput, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import {
@@ -27,7 +26,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ReaderAssistantCard } from '@/components/reader-assistant-card';
-import { seriesAPI, dashboardAPI, getImageUrl, readerAPI, type ReaderHome, type ContinueReadingItem } from '@/lib/api';
+import { seriesAPI, getImageUrl, readerAPI, type ReaderHome, type ContinueReadingItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from 'react-i18next';
 
@@ -41,6 +40,29 @@ const moodOptions = [
   { key: 'horror', label: 'categories.horror', value: 'Horror' },
 ] as const;
 
+const getReaderTier = (score: number) => {
+  if (score >= 100) return { badge: 'Champion', level: 'Diamond', color: '#4e8190' };
+  if (score >= 60) return { badge: 'Warrior', level: 'Platinum', color: '#7a5a43' };
+  if (score >= 30) return { badge: 'Fire', level: 'Gold', color: '#a97822' };
+  if (score >= 15) return { badge: 'Scholar', level: 'Silver', color: '#6f7b74' };
+  return { badge: 'Reader', level: 'Bronze', color: '#6f7b74' };
+};
+
+const toSafeNumber = (value: unknown): number => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const uniqueById = <T extends { _id?: string }>(items: T[]): T[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const id = item?._id;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
 export default function HomeScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -50,7 +72,6 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const [activeMood, setActiveMood] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [featuredIndex, setFeaturedIndex] = useState(0);
   const [subscribingSeriesId, setSubscribingSeriesId] = useState<string | null>(null);
 
   const handleToggleSeriesSubscribe = async (seriesId: string) => {
@@ -91,23 +112,23 @@ export default function HomeScreen() {
     setError(null);
     setRefreshing(true);
 
-    const refreshRequests: Promise<unknown>[] = [seriesAPI
-      .getAll({ limit: '20' })
+    const refreshRequests: Promise<unknown>[] = [readerAPI
+      .getSeriesRankings('weekly')
       .then((data) => {
-        setSeriesList(data?.series || []);
+        setSeriesList(uniqueById(Array.isArray(data?.rankings) ? data.rankings : []));
       })
       .catch((err) => {
-        console.error('Index load series error:', err);
+        console.error('Index load reader series rankings error:', err);
         setError(err.message || t('readerHome.seriesLoadError'));
       }),
 
-    dashboardAPI
-      .getRankings('rating')
+    readerAPI
+      .getLeaderboard('weekly')
       .then((data) => {
-        setRankings((data?.rankings || []).slice(0, 6));
+        setRankings((Array.isArray(data?.rankings) ? data.rankings : []).slice(0, 6));
       })
       .catch((err) => {
-        console.error('Index load rankings error:', err);
+        console.error('Index load reader leaderboard error:', err);
         setError(err.message || t('readerHome.serverError'));
       })];
 
@@ -128,26 +149,22 @@ export default function HomeScreen() {
   // ── Derived data ──────────────────────────────────
   const featuredSeries = useMemo(
     () =>
-      (seriesList || []).slice(0, 3).map((s, idx) => ({
+      (seriesList || []).slice(0, 1).map((s) => ({
         id: s._id,
-        title: s.title,
+        title: typeof s.title === 'string' ? s.title : t('readerHome.loading'),
         subtitle: s.description || '',
-        genre: s.genre?.[0] || t('readerHome.unknownGenre'),
-        readers: s.readerCount ? `${(s.readerCount / 1000).toFixed(0)}K` : '0',
-        rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
+        genre: Array.isArray(s.genre) && typeof s.genre[0] === 'string' ? s.genre[0] : t('readerHome.unknownGenre'),
+        readers: toSafeNumber(s.readerCount) ? `${(toSafeNumber(s.readerCount) / 1000).toFixed(0)}K` : '0',
+        rating: toSafeNumber(s.averageRating).toFixed(1),
         cover: getImageUrl(s.coverImage) || '',
-        accent: [
-          ['#120F2A', '#4c1d95', '#fb7185'],
-          ['#030712', '#1e1b4b', '#6366f1'],
-          ['#1a0a2e', '#3b1d6e', '#22c55e'],
-        ][idx % 3],
+        accent: ['#1c2928', '#6b4d3a', '#c85745'],
       })),
     [seriesList, t]
   );
 
   const continueReading = useMemo(
     () =>
-      (readerHome?.continueReading || []).map((item) => ({
+      (Array.isArray(readerHome?.continueReading) ? readerHome.continueReading : []).map((item) => ({
         ...item,
         cover: getImageUrl(item.coverImage) || '',
         progress: `Ch. ${item.chapterNumber}`,
@@ -160,15 +177,15 @@ export default function HomeScreen() {
     () =>
       (seriesList || []).map((s) => ({
         id: s._id,
-        title: s.title,
-        genre: s.genre?.[0] || t('readerHome.unknownGenre'),
-        author: s.mangakaId?.displayName || t('readerHome.unknownAuthor'),
-        chapters: s.totalChapters || 0,
+        title: typeof s.title === 'string' ? s.title : t('readerHome.loading'),
+        genre: Array.isArray(s.genre) && typeof s.genre[0] === 'string' ? s.genre[0] : t('readerHome.unknownGenre'),
+        author: typeof s.mangakaId?.displayName === 'string' ? s.mangakaId.displayName : t('readerHome.unknownAuthor'),
+        chapters: toSafeNumber(s.totalChapters),
         cover: getImageUrl(s.coverImage) || '',
-        hot: (s.averageRating || 0) >= 4.5,
-        rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
+        hot: toSafeNumber(s.averageRating) >= 4.5,
+        rating: toSafeNumber(s.averageRating).toFixed(1),
         shared: Boolean(s.sharedWithMe),
-        subscribers: s.subscribers || [],
+        subscribers: Array.isArray(s.subscribers) ? s.subscribers : [],
       })),
     [seriesList, t]
   );
@@ -187,7 +204,7 @@ export default function HomeScreen() {
   const sharedSeries = useMemo(() => hotSeries.filter((item) => item.shared), [hotSeries]);
   const visibleHotSeries = activeShelfTab === 'shared' ? sharedSeries : filteredHotSeries;
 
-  const currentFeatured = featuredSeries[featuredIndex] || {
+  const currentFeatured = featuredSeries[0] || {
     id: '',
     title: t('readerHome.loading'),
     subtitle: '',
@@ -195,18 +212,17 @@ export default function HomeScreen() {
     readers: '0',
     rating: '0',
     cover: '',
-    accent: ['#120F2A', '#4c1d95', '#fb7185'],
+    accent: ['#1c2928', '#6b4d3a', '#c85745'],
   };
 
   const leaderboard = useMemo(
     () =>
       (rankings || []).map((s, idx) => ({
-        rank: idx + 1,
-        name: s.title,
-        rating: s.averageRating ? s.averageRating.toFixed(1) : '0.0',
-        badge: s.mangakaId?.displayName || t('readerHome.unknownAuthor'),
-        level: idx === 0 ? 'Diamond' : idx === 1 ? 'Platinum' : idx <= 3 ? 'Gold' : 'Silver',
-        color: idx === 0 ? '#38bdf8' : idx === 1 ? '#a855f7' : idx <= 3 ? '#f59e0b' : '#94a3b8',
+        rank: s.rank || idx + 1,
+        name: s.username || t('readerHome.unknownReader'),
+        completedChapters: s.completedChapters || 0,
+        score: s.score || 0,
+        ...getReaderTier(s.score || 0),
       })),
     [rankings, t]
   );
@@ -229,13 +245,8 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      {/* Premium glowing background */}
-      <LinearGradient
-        colors={isDark ? ['#0e051d', '#130e2c', '#07020e'] : ['#fff1fb', '#f4ecff', '#fff7f2']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.backgroundGlow}
-      />
+      {/* Quiet paper background shared with the web shell */}
+      <View style={[styles.backgroundGlow, { backgroundColor: theme.background }]} />
       <View pointerEvents="none" style={styles.atmosphereLayer}>
         <View style={[styles.atmosphereOrb, styles.orbOne]} />
         <View style={[styles.atmosphereOrb, styles.orbTwo]} />
@@ -254,7 +265,7 @@ export default function HomeScreen() {
           <View style={styles.headerRow}>
             <View>
               <View style={styles.badgeRow}>
-                <Sparkles size={13} color="#f43f5e" />
+                <Sparkles size={13} color="#59615b" />
                 <ThemedText style={styles.headerSubtitle}>{t('readerHome.brand')}</ThemedText>
               </View>
               <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>{t('readerHome.title')}</ThemedText>
@@ -268,37 +279,37 @@ export default function HomeScreen() {
                 style={[
                   styles.refreshBtn,
                   {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.78)',
-                    borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(236,72,153,0.16)',
+                    backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(255,250,240,0.78)',
+                    borderColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(185,66,52,0.16)',
                     opacity: refreshing ? 0.65 : 1,
                   },
                 ]}
               >
                 {refreshing ? (
-                  <ActivityIndicator size="small" color={isDark ? '#c4b5fd' : '#7c3aed'} />
+                  <ActivityIndicator size="small" color={isDark ? '#d7cbb0' : '#6b4d3a'} />
                 ) : (
-                  <RefreshCw size={19} color={isDark ? '#c4b5fd' : '#7c3aed'} />
+                  <RefreshCw size={19} color={isDark ? '#d7cbb0' : '#6b4d3a'} />
                 )}
               </Pressable>
               <Pressable
                 style={[
                   styles.logoutBtn,
                   {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.78)',
-                    borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(236,72,153,0.16)'
+                    backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(255,250,240,0.78)',
+                    borderColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(185,66,52,0.16)'
                   }
                 ]}
                 onPress={logout}
               >
-                <LogOut size={20} color={isDark ? '#c4b5fd' : '#7c3aed'} />
+                <LogOut size={20} color={isDark ? '#d7cbb0' : '#6b4d3a'} />
               </Pressable>
               <Pressable style={styles.profileAvatar} onPress={() => router.push('/settings')}>
                 {user?.avatar ? (
                   <Image source={{ uri: getImageUrl(user.avatar) }} style={StyleSheet.absoluteFillObject} />
                 ) : (
                   <>
-                    <LinearGradient colors={['#fb7185', '#8b5cf6']} style={StyleSheet.absoluteFillObject} />
-                    <User size={20} color="#fff" />
+                    <View style={StyleSheet.absoluteFillObject} />
+                    <User size={20} color="#fffaf0" />
                   </>
                 )}
                 <View style={styles.activeIndicator} />
@@ -308,7 +319,7 @@ export default function HomeScreen() {
 
           {error && (
             <View style={styles.errorBanner}>
-              <Sparkles size={16} color="#fb7185" />
+              <Sparkles size={16} color="#c85745" />
               <ThemedText style={styles.errorBannerText}>{error}</ThemedText>
               <Pressable onPress={loadData} style={styles.retryBtn}>
                 <ThemedText style={styles.retryText}>{t('readerHome.retry')}</ThemedText>
@@ -325,17 +336,17 @@ export default function HomeScreen() {
           )}
 
           {/* Featured Carousel */}
-          <View style={styles.featuredWrap}>
+          {!!currentFeatured.id && <View style={styles.featuredWrap}>
             <ImageBackground source={{ uri: currentFeatured.cover }} style={styles.featuredCover} imageStyle={styles.featuredBgImage}>
-              <LinearGradient colors={['transparent', 'rgba(10,5,22,0.92)']} style={styles.featuredOverlay} />
+              <View style={styles.featuredOverlay} />
               <View style={styles.featuredContent}>
                 <View style={styles.badgeWrap}>
                   <View style={styles.glassBadge}>
-                    <Flame size={12} color="#fb7185" />
+                    <Flame size={12} color="#c85745" />
                     <ThemedText style={styles.badgeText}>{t('readerHome.trending')}</ThemedText>
                   </View>
-                  <View style={[styles.glassBadge, { borderColor: '#8b5cf6' }]}>
-                    <Sparkles size={12} color="#c084fc" />
+                  <View style={[styles.glassBadge, { borderColor: '#7a5a43' }]}>
+                    <Sparkles size={12} color="#b99977" />
                     <ThemedText style={styles.badgeText}>{currentFeatured.genre}</ThemedText>
                   </View>
                 </View>
@@ -343,8 +354,8 @@ export default function HomeScreen() {
                 <ThemedText style={styles.featuredSubtitle} numberOfLines={2}>{currentFeatured.subtitle}</ThemedText>
                 
                 <View style={styles.metaWrap}>
-                  <ThemedText style={styles.metaPill}><BookOpen size={11} color="#a5b4fc" /> {currentFeatured.readers}</ThemedText>
-                  <ThemedText style={styles.metaPill}><Star size={11} color="#fbbf24" /> {currentFeatured.rating}</ThemedText>
+                  <ThemedText style={styles.metaPill}><BookOpen size={11} color="#b9b59e" /> {currentFeatured.readers}</ThemedText>
+                  <ThemedText style={styles.metaPill}><Star size={11} color="#c6942d" /> {currentFeatured.rating}</ThemedText>
                 </View>
 
                 <View style={styles.carouselActionRow}>
@@ -355,25 +366,17 @@ export default function HomeScreen() {
                       pressed && { opacity: 0.9 }
                     ]}
                   >
-                    <LinearGradient
-                      colors={['#f43f5e', '#ec4899']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
+                    <View
                       style={styles.playBtn}
                     >
-                      <Play size={14} color="#fff" />
+                      <Play size={14} color="#fffaf0" />
                       <ThemedText style={styles.playBtnText}>{t('readerHome.readNow')}</ThemedText>
-                    </LinearGradient>
+                    </View>
                   </Pressable>
-                  <View style={styles.dotIndicatorRow}>
-                    {featuredSeries.map((_, i) => (
-                      <Pressable key={i} onPress={() => setFeaturedIndex(i)} style={[styles.dot, featuredIndex === i && styles.dotActive]} />
-                    ))}
-                  </View>
                 </View>
               </View>
             </ImageBackground>
-          </View>
+          </View>}
 
           {/* Search Row */}
           <View style={styles.searchRow}>
@@ -381,17 +384,17 @@ export default function HomeScreen() {
               style={[
                 styles.searchBox,
                 {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.84)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(168,85,247,0.16)',
+                  backgroundColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(255,250,240,0.84)',
+                  borderColor: isDark ? 'rgba(255,250,240,0.04)' : 'rgba(122,90,67,0.16)',
                 }
               ]}
             >
-              <Search size={16} color={isDark ? '#c4b5fd' : '#8b5cf6'} />
+              <Search size={16} color={isDark ? '#d7cbb0' : '#7a5a43'} />
               <TextInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder={t('readerHome.searchPlaceholder')}
-                placeholderTextColor={isDark ? '#a5b4fc' : '#8b7ba7'}
+                placeholderTextColor={isDark ? '#b9b59e' : '#8b7e68'}
                 style={[styles.searchInput, { color: theme.text }]}
                 returnKeyType="search"
               />
@@ -400,12 +403,12 @@ export default function HomeScreen() {
               style={[
                 styles.iconPill,
                 {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.84)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(168,85,247,0.16)',
+                  backgroundColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(255,250,240,0.84)',
+                  borderColor: isDark ? 'rgba(255,250,240,0.04)' : 'rgba(122,90,67,0.16)',
                 }
               ]}
             >
-              <LayoutGrid size={18} color={isDark ? '#fff' : '#8b5cf6'} />
+              <LayoutGrid size={18} color={isDark ? '#fffaf0' : '#7a5a43'} />
             </View>
           </View>
 
@@ -418,17 +421,14 @@ export default function HomeScreen() {
                 style={[
                   styles.moodChip,
                   {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)',
-                    borderColor: activeMood === mood.key ? '#ec4899' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(236,72,153,0.12)'),
+                    backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(255,250,240,0.82)',
+                    borderColor: activeMood === mood.key ? '#c85745' : (isDark ? 'rgba(255,250,240,0.08)' : 'rgba(185,66,52,0.12)'),
                   },
                 ]}
               >
                 {activeMood === mood.key && (
-                  <LinearGradient
-                    colors={['rgba(244,63,94,0.18)', 'rgba(124,58,237,0.16)']}
+                  <View
                     style={StyleSheet.absoluteFillObject}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
                   />
                 )}
                 <ThemedText style={[styles.moodText, activeMood === mood.key && styles.moodTextActive]}>
@@ -442,7 +442,7 @@ export default function HomeScreen() {
           {/* Continue Reading Section */}
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <TrendingUp size={16} color="#38bdf8" />
+              <TrendingUp size={16} color="#4e8190" />
               <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]}>{t('readerHome.continueReading')}</ThemedText>
             </View>
           </View>
@@ -452,11 +452,11 @@ export default function HomeScreen() {
                 <View
                   style={[
                     styles.resumeCoverWrap,
-                    { borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)' }
+                    { borderColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.08)' }
                   ]}
                 >
                   <Image source={{ uri: item.cover }} style={styles.resumeCover} contentFit="cover" />
-                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={styles.resumeOverlay} />
+                  <View style={styles.resumeOverlay} />
                   <View style={styles.progressWrap}>
                     <ThemedText style={styles.progressText}>{item.progress}</ThemedText>
                     <View style={styles.progressBarBg}>
@@ -473,7 +473,7 @@ export default function HomeScreen() {
           {/* Hot this week grid */}
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Flame size={16} color="#f43f5e" />
+              <Flame size={16} color="#59615b" />
               <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]}>{t('readerHome.hotThisWeek')}</ThemedText>
             </View>
             <View style={styles.shelfTabs}>
@@ -485,12 +485,12 @@ export default function HomeScreen() {
                     styles.shelfTab,
                     activeShelfTab === tab && styles.shelfTabActive,
                     {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.04)',
-                      borderColor: activeShelfTab === tab ? '#fb7185' : 'transparent',
+                      backgroundColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.04)',
+                      borderColor: activeShelfTab === tab ? '#1c2928' : 'transparent',
                     }
                   ]}
                 >
-                  <ThemedText style={[styles.shelfTabText, activeShelfTab === tab && styles.shelfTabTextActive, { color: activeShelfTab === tab ? '#fb7185' : theme.textSecondary }]}>
+                  <ThemedText style={[styles.shelfTabText, activeShelfTab === tab && styles.shelfTabTextActive, { color: activeShelfTab === tab ? '#1c2928' : theme.textSecondary }]}>
                     {tab === 'all' ? t('readerHome.all') : t('readerHome.shared')}
                   </ThemedText>
                 </Pressable>
@@ -501,10 +501,10 @@ export default function HomeScreen() {
             {visibleHotSeries.map((item) => (
               <Pressable key={item.id} onPress={() => handleOpenSeries(item.id)} style={styles.gridCard}>
                 <Image source={{ uri: item.cover }} style={styles.gridCover} contentFit="cover" />
-                <LinearGradient colors={['transparent', 'rgba(10,5,22,0.95)']} style={styles.gridCardOverlay} />
+                <View style={styles.gridCardOverlay} />
                 {item.hot && (
                   <View style={styles.hotBadge}>
-                    <Flame size={10} color="#fff" />
+                    <Flame size={10} color="#fffaf0" />
                     <ThemedText style={styles.hotBadgeText}>{t('readerHome.hot')}</ThemedText>
                   </View>
                 )}
@@ -522,11 +522,11 @@ export default function HomeScreen() {
                       width: 28,
                       height: 28,
                       borderRadius: 14,
-                      backgroundColor: 'rgba(10,5,22,0.85)',
+                      backgroundColor: 'rgba(28,41,40,0.85)',
                       alignItems: 'center',
                       justifyContent: 'center',
                       borderWidth: 1,
-                      borderColor: 'rgba(255,255,255,0.12)',
+                      borderColor: 'rgba(255,250,240,0.12)',
                       zIndex: 30,
                     }}
                   >
@@ -534,12 +534,12 @@ export default function HomeScreen() {
                       size={12}
                       color={
                         item.subscribers?.includes(user._id)
-                          ? '#fb7185'
-                          : '#cbd5e1'
+                          ? '#c85745'
+                          : '#c9c8b8'
                       }
                       fill={
                         item.subscribers?.includes(user._id)
-                          ? '#fb7185'
+                          ? '#c85745'
                           : 'none'
                       }
                     />
@@ -551,7 +551,7 @@ export default function HomeScreen() {
                   <ThemedText style={styles.gridCardAuthor} numberOfLines={1}>{t('readerHome.author', { name: item.author })}</ThemedText>
                   <View style={styles.gridMeta}>
                   <ThemedText style={styles.gridMetaText}>{t('readerHome.chapter', { count: item.chapters })}</ThemedText>
-                    <ThemedText style={styles.gridMetaText}><Star size={10} color="#fbbf24" fill="#fbbf24" /> {item.rating}</ThemedText>
+                    <ThemedText style={styles.gridMetaText}><Star size={10} color="#c6942d" fill="#c6942d" /> {item.rating}</ThemedText>
                   </View>
                 </View>
               </Pressable>
@@ -561,28 +561,32 @@ export default function HomeScreen() {
           {/* Reader Leaderboard Section */}
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Trophy size={16} color="#fbbf24" />
-              <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]}>{t('readerHome.readerLeaderboard')}</ThemedText>
+              <Trophy size={16} color="#c6942d" />
+              <ThemedText type="smallBold" style={[styles.sectionTitle, { color: theme.text }]} numberOfLines={1}>{t('readerHome.readerLeaderboard')}</ThemedText>
             </View>
-            <ThemedText style={styles.sectionActionText}>{t('readerHome.thisMonth')}</ThemedText>
+            <ThemedText style={styles.sectionActionText} numberOfLines={1}>{t('readerHome.thisWeek')}</ThemedText>
           </View>
 
-          <LinearGradient
-            colors={isDark ? ['rgba(22,17,41,0.85)', 'rgba(39,29,74,0.45)'] : ['rgba(255,255,255,0.95)', 'rgba(240,240,243,0.7)']}
+          <View
             style={[
               styles.leaderboardCard,
-              { borderColor: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(15, 23, 42, 0.08)' }
+              {
+                backgroundColor: isDark ? '#35433e' : '#fffaf0',
+                borderColor: isDark ? '#4b5a52' : '#cbbda5',
+              }
             ]}
           >
-            {leaderboard.map((row, idx) => (
+            {leaderboard.length === 0 ? (
+              <ThemedText themeColor="textSecondary" style={styles.leaderboardEmpty}>{t('readerHome.noReadingActivity')}</ThemedText>
+            ) : leaderboard.map((row, idx) => (
               <View key={row.rank} style={[styles.leaderboardRow, idx === leaderboard.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={styles.rankCol}>
                   {row.rank === 1 ? (
-                    <View style={[styles.rankCup, { backgroundColor: '#fbbf24' }]}><Trophy size={12} color="#0a051d" /></View>
+                    <View style={[styles.rankCup, { backgroundColor: '#c6942d' }]}><Trophy size={12} color="#1c2928" /></View>
                   ) : row.rank === 2 ? (
-                    <View style={[styles.rankCup, { backgroundColor: '#e2e8f0' }]}><Award size={12} color="#0a051d" /></View>
+                    <View style={[styles.rankCup, { backgroundColor: '#d9cdb8' }]}><Award size={12} color="#1c2928" /></View>
                   ) : row.rank === 3 ? (
-                    <View style={[styles.rankCup, { backgroundColor: '#b45309' }]}><Medal size={12} color="#0a051d" /></View>
+                    <View style={[styles.rankCup, { backgroundColor: '#97691e' }]}><Medal size={12} color="#1c2928" /></View>
                   ) : (
                     <ThemedText style={styles.rankNum}>#{row.rank}</ThemedText>
                   )}
@@ -590,34 +594,35 @@ export default function HomeScreen() {
 
                 <View style={styles.userCol}>
                   <View style={styles.leaderboardAvatar}>
-                    <LinearGradient colors={['#a855f7', '#38bdf8']} style={StyleSheet.absoluteFillObject} />
-                    <User size={13} color="#fff" />
+                    <View style={StyleSheet.absoluteFillObject} />
+                    <User size={13} color="#fffaf0" />
                   </View>
                   <View>
                     <ThemedText style={[styles.leaderboardUsername, { color: theme.text }]}>{row.name}</ThemedText>
-                    <ThemedText themeColor="textSecondary" style={styles.leaderboardBadge}>{row.badge}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.leaderboardBadge}>
+                      {row.badge} · {t('readerHome.completedChapters', { count: row.completedChapters })}
+                    </ThemedText>
                   </View>
                 </View>
 
                 <View style={styles.statsCol}>
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']}
+                  <View
                     style={[
                       styles.levelWrap,
-                      { borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.06)' }
+                      { borderColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(28,41,40,0.06)' }
                     ]}
                   >
                     <View style={[styles.levelDot, { backgroundColor: row.color }]} />
                     <ThemedText style={[styles.levelText, { color: row.color }]}>{row.level}</ThemedText>
-                  </LinearGradient>
+                  </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
-                    <ThemedText themeColor="textSecondary" style={styles.ratingText}>{row.rating}</ThemedText>
-                    <Star size={10} color="#fbbf24" fill="#fbbf24" />
+                    <ThemedText themeColor="textSecondary" style={styles.ratingText}>{row.score}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.scoreLabel}>{t('readerHome.points')}</ThemedText>
                   </View>
                 </View>
               </View>
             ))}
-          </LinearGradient>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -634,47 +639,47 @@ const styles = StyleSheet.create({
     height: 260,
     top: -90,
     right: -110,
-    backgroundColor: 'rgba(236,72,153,0.10)',
+    backgroundColor: 'rgba(95,91,84,0.035)',
   },
   orbTwo: {
     width: 220,
     height: 220,
     top: 300,
     left: -150,
-    backgroundColor: 'rgba(139,92,246,0.08)',
+    backgroundColor: 'rgba(95,91,84,0.025)',
   },
   atmosphereSparkle: {
     position: 'absolute',
-    color: '#ec4899',
+    color: '#918f83',
     fontSize: 28,
     fontWeight: '800',
     opacity: 0.34,
   },
   sparkleOne: { top: 112, right: 28 },
-  sparkleTwo: { top: 420, left: 20, color: '#8b5cf6', fontSize: 22 },
+  sparkleTwo: { top: 420, left: 20, color: '#b7b2a4', fontSize: 22 },
   safeArea: { flex: 1 },
   content: { maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: Spacing.three, gap: Spacing.four },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerSubtitle: { color: '#ec4899', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2 },
-  headerTitle: { fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  headerSubtitle: { color: '#59615b', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
+  headerTitle: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.7 },
   refreshBtn: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  profileAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)' },
-  activeIndicator: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e', position: 'absolute', right: 0, bottom: 0, borderWidth: 1.5, borderColor: '#0a051d' },
+  profileAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,250,240,0.2)', backgroundColor: '#b94234' },
+  activeIndicator: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#357053', position: 'absolute', right: 0, bottom: 0, borderWidth: 1.5, borderColor: '#1c2928' },
   featuredWrap: {
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.15)',
+    borderColor: 'rgba(185,66,52, 0.15)',
     elevation: 8,
-    shadowColor: '#fb7185',
+    shadowColor: '#c85745',
     shadowOpacity: 0.15,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
   },
   featuredCover: { minHeight: 280, justifyContent: 'flex-end' },
   featuredBgImage: { borderRadius: 24 },
-  featuredOverlay: { ...StyleSheet.absoluteFillObject },
+  featuredOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,41,40,0.42)' },
   featuredContent: { padding: Spacing.four, gap: 10 },
   badgeWrap: { flexDirection: 'row', gap: 8 },
   glassBadge: {
@@ -684,26 +689,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(22, 17, 41, 0.6)',
+    backgroundColor: 'rgba(39,52,49, 0.6)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255,250,240, 0.08)',
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  badgeText: { color: '#fffaf0', fontSize: 11, fontWeight: '800' },
   featuredTitle: {
-    color: '#fff',
+    color: '#fffaf0',
     fontSize: 26,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(28,41,40,0.6)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
-  featuredSubtitle: { color: '#cbd5e1', fontSize: 13, lineHeight: 18, opacity: 0.9 },
+  featuredSubtitle: { color: '#c9c8b8', fontSize: 13, lineHeight: 18, opacity: 0.9 },
   metaWrap: { flexDirection: 'row', gap: 12 },
   metaPill: {
-    color: '#fff',
+    color: '#fffaf0',
     fontSize: 11,
     fontWeight: '700',
-    backgroundColor: 'rgba(22, 17, 41, 0.5)',
+    backgroundColor: 'rgba(39,52,49, 0.5)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
@@ -711,28 +716,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,250,240,0.05)',
   },
   carouselActionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   playBtnWrap: { borderRadius: 999, overflow: 'hidden' },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 10 },
-  playBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 10, backgroundColor: '#b94234' },
+  playBtnText: { color: '#fffaf0', fontWeight: '800', fontSize: 13 },
   dotIndicatorRow: { flexDirection: 'row', gap: 6 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
-  dotActive: { width: 16, height: 6, borderRadius: 3, backgroundColor: '#fb7185' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,250,240,0.3)' },
+  dotActive: { width: 16, height: 6, borderRadius: 3, backgroundColor: '#1c2928' },
   searchRow: { flexDirection: 'row', gap: 10 },
   searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1 },
   searchText: { fontSize: 13 },
   searchInput: { flex: 1, fontSize: 13, paddingVertical: 0 },
   iconPill: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   moodRow: { gap: 8, paddingVertical: 2 },
-  moodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(236,72,153,0.12)', overflow: 'hidden' },
-  moodText: { color: '#756b92', fontSize: 13, fontWeight: '800' },
-  moodTextActive: { color: '#be185d' },
+  moodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: '#fffaf0', borderWidth: 1, borderColor: '#d9cdb8', overflow: 'hidden' },
+  moodText: { color: '#59615b', fontSize: 13, fontWeight: '600' },
+  moodTextActive: { color: '#1c2928' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 13, letterSpacing: 1.5, fontWeight: '800' },
-  sectionActionText: { color: '#6366f1', fontSize: 12, fontWeight: '700' },
+  sectionTitleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { flexShrink: 1, fontSize: 13, letterSpacing: 0.4, fontWeight: '700' },
+  sectionActionText: { flexShrink: 0, marginLeft: Spacing.two, color: '#59615b', fontSize: 12, fontWeight: '700' },
   horizontalList: { gap: 12, paddingRight: Spacing.three },
   resumeCard: { width: 132, gap: 8 },
   resumeCoverWrap: {
@@ -741,19 +746,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    shadowColor: '#000',
+    borderColor: 'rgba(255,250,240,0.06)',
+    shadowColor: '#1c2928',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 3,
   },
   resumeCover: { width: '100%', height: '100%' },
-  resumeOverlay: { ...StyleSheet.absoluteFillObject },
+  resumeOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,41,40,0.32)' },
   progressWrap: { position: 'absolute', bottom: 10, left: 10, right: 10, gap: 4 },
-  progressText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  progressBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: '#fb7185', borderRadius: 2 },
+  progressText: { color: '#fffaf0', fontSize: 11, fontWeight: '800' },
+  progressBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,250,240,0.2)', overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: '#1c2928', borderRadius: 2 },
   resumeTitle: { fontWeight: '800', fontSize: 13 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   gridCard: {
@@ -762,16 +767,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,250,240,0.06)',
     position: 'relative',
-    shadowColor: '#000',
+    shadowColor: '#1c2928',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
   gridCover: { width: '100%', height: '100%' },
-  gridCardOverlay: { ...StyleSheet.absoluteFillObject },
+  gridCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,41,40,0.42)' },
   hotBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -779,52 +784,54 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: '#f43f5e',
+    backgroundColor: '#b94234',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     zIndex: 20,
   },
-  hotBadgeText: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  hotBadgeText: { color: '#fffaf0', fontSize: 9, fontWeight: '900' },
   gridTextWrap: { position: 'absolute', bottom: 12, left: 12, right: 12, gap: 2, zIndex: 10 },
-  gridCardGenre: { color: '#a5b4fc', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  gridCardGenre: { color: '#b9b59e', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   gridCardTitle: {
-    color: '#fff',
+    color: '#fffaf0',
     fontWeight: '800',
     fontSize: 14,
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(28,41,40,0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
-  gridCardAuthor: { color: '#cbd5e1', fontSize: 10, fontWeight: '600', opacity: 0.9 },
+  gridCardAuthor: { color: '#c9c8b8', fontSize: 10, fontWeight: '600', opacity: 0.9 },
   gridMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  gridMetaText: { color: '#cbd5e1', fontSize: 11, fontWeight: '700', flexDirection: 'row', alignItems: 'center', gap: 3 },
+  gridMetaText: { color: '#c9c8b8', fontSize: 11, fontWeight: '700', flexDirection: 'row', alignItems: 'center', gap: 3 },
   leaderboardCard: {
     borderRadius: 24,
     padding: Spacing.three,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.1)',
-    backgroundColor: 'rgba(22, 17, 41, 0.45)',
+    borderColor: '#cbbda5',
+    backgroundColor: '#fffaf0',
     gap: 10,
   },
   shelfTabs: { flexDirection: 'row', gap: 8 },
-  shelfTab: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)' },
-  shelfTabActive: { backgroundColor: 'rgba(251,113,133,0.18)', borderWidth: 1, borderColor: '#fb7185' },
-  shelfTabText: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
-  shelfTabTextActive: { color: '#fff' },
-  leaderboardRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 10 },
+  shelfTab: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,250,240,0.06)' },
+  shelfTabActive: { backgroundColor: 'rgba(200,87,69,0.18)', borderWidth: 1, borderColor: '#c85745' },
+  shelfTabText: { color: '#9aa39a', fontSize: 11, fontWeight: '700' },
+  shelfTabTextActive: { color: '#fffaf0' },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#e9ddc7', paddingBottom: 10 },
   rankCol: { width: 30, alignItems: 'center' },
   rankCup: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  rankNum: { color: '#64748b', fontSize: 13, fontWeight: '800' },
+  rankNum: { color: '#6f7b74', fontSize: 13, fontWeight: '800' },
   userCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  leaderboardAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  leaderboardAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#52707b' },
   leaderboardUsername: { fontSize: 13, fontWeight: '800' },
   leaderboardBadge: { fontSize: 10 },
+  leaderboardEmpty: { textAlign: 'center', paddingVertical: 12, fontSize: 12 },
   statsCol: { alignItems: 'flex-end', gap: 2 },
   levelWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
   levelDot: { width: 5, height: 5, borderRadius: 2.5 },
   levelText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
   ratingText: { fontSize: 10, fontWeight: '700' },
+  scoreLabel: { fontSize: 10, fontWeight: '700' },
   logoutBtn: {
     width: 40,
     height: 40,
@@ -836,9 +843,9 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(244,63,94,0.15)',
+    backgroundColor: 'rgba(185,66,52,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(244,63,94,0.3)',
+    borderColor: 'rgba(185,66,52,0.3)',
     borderRadius: 16,
     padding: 12,
     marginTop: 10,
@@ -846,18 +853,18 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     flex: 1,
-    color: '#fb7185',
+    color: '#c85745',
     fontSize: 12,
     fontWeight: '700',
   },
   retryBtn: {
-    backgroundColor: '#fb7185',
+    backgroundColor: '#c85745',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   retryText: {
-    color: '#fff',
+    color: '#fffaf0',
     fontSize: 11,
     fontWeight: 'bold',
   },

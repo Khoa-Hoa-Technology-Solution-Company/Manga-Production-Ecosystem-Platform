@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { CheckCircle, FileSearch, ChevronRight, Activity, Star, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 
@@ -35,14 +34,14 @@ function EditorScreen() {
       ]);
 
       const reviewingData = workflowRes.workflow?.Reviewing;
-      const reviewingItems = Array.isArray(reviewingData) ? reviewingData : (reviewingData?.items || []);
+      const reviewingItems = Array.isArray(reviewingData) ? reviewingData : (Array.isArray(reviewingData?.items) ? reviewingData.items : []);
       const pendingCount = Array.isArray(reviewingData) ? reviewingData.length : (reviewingData?.count || reviewingItems.length || 0);
 
       setPendingReviews(reviewingItems);
-      setInvites(portfolioRes.invites || []);
-      setPendingSeries((portfolioRes.portfolio || []).filter((item: any) => item.series?.status === 'Pending_Editor'));
+      setInvites(Array.isArray(portfolioRes?.invites) ? portfolioRes.invites : []);
+      setPendingSeries((Array.isArray(portfolioRes?.portfolio) ? portfolioRes.portfolio : []).filter((item: any) => item.series?.status === 'Pending_Editor'));
       setAnalytics({
-        activeSeries: portfolioRes.portfolio?.length || 0,
+        activeSeries: Array.isArray(portfolioRes?.portfolio) ? portfolioRes.portfolio.length : 0,
         pendingCount: pendingCount,
         // These values are not returned by the current API; do not present fabricated analytics.
         approvedCount: 0,
@@ -85,12 +84,12 @@ function EditorScreen() {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={['#0e051d', '#130e2c', '#07020e']} style={StyleSheet.absoluteFillObject} />
+      <View style={StyleSheet.absoluteFillObject} />
       
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
-            <ThemedText style={styles.headerSubtitle}>{t('mobile.editor.eyebrow')}</ThemedText>
+            <ThemedText style={[styles.headerSubtitle, { color: theme.textSecondary }]}>{t('mobile.editor.eyebrow')}</ThemedText>
             <ThemedText type="title" style={styles.headerTitle}>{t('mobile.editor.title')}</ThemedText>
           </View>
         </View>
@@ -107,31 +106,31 @@ function EditorScreen() {
         >
           {/* Analytics Cards */}
           <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Activity size={20} color="#a855f7" />
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
+              <Activity size={20} color="#7a5a43" />
               <ThemedText style={styles.statValue}>{analytics?.activeSeries || 0}</ThemedText>
-              <ThemedText style={styles.statLabel}>{t('mobile.editor.works')}</ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.statLabel}>{t('mobile.editor.works')}</ThemedText>
             </View>
-            <View style={styles.statCard}>
-              <Clock size={20} color="#f59e0b" />
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
+              <Clock size={20} color="#a97822" />
               <ThemedText style={styles.statValue}>{analytics?.pendingCount || 0}</ThemedText>
-              <ThemedText style={styles.statLabel}>{t('mobile.editor.pending')}</ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.statLabel}>{t('mobile.editor.pending')}</ThemedText>
             </View>
-            <View style={styles.statCard}>
-              <Star size={20} color="#eab308" />
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
+              <Star size={20} color="#a97822" />
               <ThemedText style={styles.statValue}>{analytics?.rating || 0}</ThemedText>
-              <ThemedText style={styles.statLabel}>{t('mobile.editor.rating')}</ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.statLabel}>{t('mobile.editor.rating')}</ThemedText>
             </View>
           </View>
 
           {invites.length > 0 && (
             <View style={styles.invitesSection}>
-              <ThemedText style={styles.sectionTitle}>{t('mobile.editor.invitations')}</ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.sectionTitle}>{t('mobile.editor.invitations')}</ThemedText>
               {invites.map(series => (
-                <View key={series._id} style={styles.reviewCard}>
+                <View key={series._id} style={[styles.reviewCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
                   <View style={styles.cardInfo}>
                     <ThemedText style={styles.chapterTitle}>{series.title}</ThemedText>
-                    <ThemedText style={styles.timeText}>
+                    <ThemedText themeColor="textSecondary" style={styles.timeText}>
                       Mangaka: {series.mangakaId?.displayName || t('mobile.editor.unknownAuthor')}
                     </ThemedText>
                   </View>
@@ -150,12 +149,12 @@ function EditorScreen() {
 
           {pendingSeries.length > 0 && (
             <View style={styles.invitesSection}>
-              <ThemedText style={styles.sectionTitle}>{t('mobile.editor.pendingTransfer')}</ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.sectionTitle}>{t('mobile.editor.pendingTransfer')}</ThemedText>
               {pendingSeries.map(item => (
-                <View key={item.series._id} style={styles.reviewCard}>
+                <View key={item.series._id} style={[styles.reviewCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
                   <View style={styles.cardInfo}>
                     <ThemedText style={styles.chapterTitle}>{item.series.title}</ThemedText>
-                    <ThemedText style={styles.timeText}>{t('mobile.editor.transferHint')}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.timeText}>{t('mobile.editor.transferHint')}</ThemedText>
                   </View>
                   <Pressable style={[styles.inviteAction, styles.acceptAction]} onPress={() => handleForwardToEb(item.series._id)}>
                     <ThemedText style={styles.inviteActionText}>{t('mobile.editor.transfer')}</ThemedText>
@@ -165,33 +164,33 @@ function EditorScreen() {
             </View>
           )}
 
-          <ThemedText style={styles.sectionTitle}>{t('mobile.editor.drafts')}</ThemedText>
+          <ThemedText themeColor="textSecondary" style={styles.sectionTitle}>{t('mobile.editor.drafts')}</ThemedText>
 
           {loading ? (
-            <ActivityIndicator size="large" color="#a855f7" style={{ marginTop: 50 }} />
+            <ActivityIndicator size="large" color="#7a5a43" style={{ marginTop: 50 }} />
           ) : pendingReviews.length === 0 ? (
             <View style={styles.emptyState}>
-              <CheckCircle size={48} color="#64748b" />
-              <ThemedText style={styles.emptyText}>{t('mobile.editor.emptyDrafts')}</ThemedText>
+              <CheckCircle size={48} color={theme.textSecondary} />
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>{t('mobile.editor.emptyDrafts')}</ThemedText>
             </View>
           ) : (
             pendingReviews.map(chapter => (
-              <Pressable key={chapter._id} style={styles.reviewCard} onPress={() => handleReview(chapter._id)}>
+              <Pressable key={chapter._id} style={[styles.reviewCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]} onPress={() => handleReview(chapter._id)}>
                 <View style={styles.iconBox}>
-                  <FileSearch size={20} color="#a855f7" />
+                  <FileSearch size={20} color="#7a5a43" />
                 </View>
                 <View style={styles.cardInfo}>
-                  <ThemedText style={styles.seriesTitle} numberOfLines={1}>
+                  <ThemedText themeColor="textSecondary" style={styles.seriesTitle} numberOfLines={1}>
                     {chapter.seriesId?.title || t('mobile.editor.unknownSeries')}
                   </ThemedText>
                   <ThemedText style={styles.chapterTitle} numberOfLines={1}>
                     {chapter.title || `Chapter ${chapter.chapterNumber}`}
                   </ThemedText>
-                  <ThemedText style={styles.timeText}>
+                  <ThemedText themeColor="textSecondary" style={styles.timeText}>
                     Cập nhật: {new Date(chapter.updatedAt || Date.now()).toLocaleDateString('vi-VN')}
                   </ThemedText>
                 </View>
-                <ChevronRight size={20} color="#64748b" />
+                <ChevronRight size={20} color={theme.textSecondary} />
               </Pressable>
             ))
           )}
@@ -205,34 +204,34 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
-  headerSubtitle: { color: '#a855f7', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  headerTitle: { color: '#fff', fontSize: 28, lineHeight: 32, fontWeight: '800' },
-  errorBanner: { backgroundColor: 'rgba(244,63,94,0.15)', padding: 12, marginHorizontal: Spacing.three, borderRadius: 8, marginBottom: Spacing.three },
-  errorText: { color: '#fb7185', fontSize: 13, fontWeight: 'bold' },
+  headerSubtitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  headerTitle: { fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  errorBanner: { backgroundColor: 'rgba(185,66,52,0.15)', padding: 12, marginHorizontal: Spacing.three, borderRadius: 8, marginBottom: Spacing.three },
+  errorText: { color: '#c85745', fontSize: 13, fontWeight: 'bold' },
   content: { maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: Spacing.three, gap: Spacing.three },
   
   statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  statCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  statValue: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 8 },
-  statLabel: { color: '#94a3b8', fontSize: 12, marginTop: 4 },
+  statCard: { flex: 1, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1 },
+  statValue: { fontSize: 24, fontWeight: 'bold', marginTop: 8 },
+  statLabel: { fontSize: 12, marginTop: 4 },
 
-  sectionTitle: { color: '#94a3b8', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 10 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 10 },
   
   emptyState: { alignItems: 'center', marginTop: 40, gap: 10 },
-  emptyText: { color: '#94a3b8', fontSize: 14 },
+  emptyText: { fontSize: 14 },
   
-  reviewCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', marginBottom: 10 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(168,85,247,0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  reviewCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 10 },
+  iconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(122,90,67,0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   cardInfo: { flex: 1 },
-  seriesTitle: { color: '#cbd5e1', fontSize: 12, fontWeight: '600', marginBottom: 2 },
-  chapterTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  timeText: { color: '#94a3b8', fontSize: 11 },
+  seriesTitle: { fontSize: 12, fontWeight: '600', marginBottom: 2 },
+  chapterTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  timeText: { fontSize: 11 },
   invitesSection: { gap: 10, marginBottom: 8 },
   inviteActions: { flexDirection: 'row', gap: 8 },
   inviteAction: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
-  declineAction: { backgroundColor: '#475569' },
-  acceptAction: { backgroundColor: '#7c3aed' },
-  inviteActionText: { color: '#fff', fontSize: 12, fontWeight: '700' }
+  declineAction: { backgroundColor: '#59615b' },
+  acceptAction: { backgroundColor: '#6b4d3a' },
+  inviteActionText: { color: '#fffaf0', fontSize: 12, fontWeight: '700' }
 });
 
 export default withProtectedEditorRoute(EditorScreen);
