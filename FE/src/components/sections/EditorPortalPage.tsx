@@ -39,13 +39,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
-
-const getMinDateTimeLocal = () => {
-  const now = new Date()
-  now.setSeconds(0, 0)
-  const timezoneOffset = now.getTimezoneOffset()
-  return new Date(now.getTime() - timezoneOffset * 60_000).toISOString().slice(0, 16)
-}
+import { getMinDateTimeLocal } from '../../lib/date-time'
 
 interface SeriesData {
   _id: string

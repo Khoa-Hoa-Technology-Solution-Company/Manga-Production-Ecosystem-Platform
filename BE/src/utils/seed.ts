@@ -311,10 +311,10 @@ async function seed() {
       readerCount: 800,
       averageRating: 4.6,
       ratingCount: 8,
-      publicationMode: 'scheduled',
-      publicationSchedule: 'monthly',
-      publicationStartAt: new Date(Date.now() + 3 * 86400000),
-      nextPublicationAt: new Date(Date.now() + 3 * 86400000),
+      // The launch chapter below is already Published, so this demo series
+      // must use immediate publication and have a started publication window.
+      publicationMode: 'immediate',
+      publicationStartedAt: new Date('2026-04-02'),
       script: 'Chapter 1: First Petal',
       characterDesigns: [
         { name: 'Sakura', role: 'Protagonist', description: 'A cheerful schoolgirl who loves photography.', image: '/manga/char-leo.png' }

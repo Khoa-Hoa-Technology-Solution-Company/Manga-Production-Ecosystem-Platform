@@ -42,6 +42,7 @@ import { Avatar, AvatarFallback, Badge, Button, Card, Input, Progress, Tabs } fr
 import { useAuth } from '../../lib/auth'
 import { authAPI, pagesAPI, zonesAPI, tasksAPI, seriesAPI, chaptersAPI, annotationsAPI } from '../../lib/api'
 import { socketService } from '../../lib/socket'
+import { getLocalDateAfterDays } from '../../lib/date-time'
 import { SERIES_TAG_OPTIONS, formatSeriesTag } from '../../constants/seriesTags'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -275,7 +276,7 @@ function StudioWorkspacePageContent() {
   const [createTaskForm, setCreateTaskForm] = useState({
     title: '',
     description: '',
-    deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
+    deadline: getLocalDateAfterDays(2), // 2 local calendar days from now
     type: 'background',
     assignedTo: '',
     assistantType: 'freelance',
@@ -2097,7 +2098,7 @@ function StudioWorkspacePageContent() {
       description: level === 'chapter'
         ? `Thực hiện gia công toàn bộ Chapter ${currentChapter?.chapterNumber || 1}.`
         : `Thực hiện gia công Trang ${currentPage?.pageNumber || 1}.`,
-      deadline: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      deadline: getLocalDateAfterDays(2),
       type: 'background',
       assignedTo: '',
       assistantType: 'freelance',
@@ -2114,7 +2115,7 @@ function StudioWorkspacePageContent() {
     setCreateTaskForm({
       title: task.title,
       description: task.description || '',
-      deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : getLocalDateAfterDays(2),
       type: task.type,
       assignedTo: task.assignedTo?._id || task.assignedTo || '',
       assistantType: astType,

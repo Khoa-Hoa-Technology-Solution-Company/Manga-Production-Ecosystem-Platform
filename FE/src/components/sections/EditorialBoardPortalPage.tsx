@@ -14,6 +14,7 @@ import { CancellationVotePanel } from './editorial-board/CancellationVotePanel'
 import { Badge, Button, Card, CardContent, Input, Tabs, Textarea } from '../ui'
 import { ebAPI, chaptersAPI, meetingAPI, authAPI, rubricTemplateAPI, seriesAPI } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
+import { getDefaultPublicationStart, getMinDateTimeLocal } from '../../lib/date-time'
 
 const DEFAULT_CRITERIA = [
   { key: 'artStyle', label: 'Art Style' },
@@ -22,12 +23,6 @@ const DEFAULT_CRITERIA = [
   { key: 'pacing', label: 'Pacing & Layout' },
   { key: 'commercialPotential', label: 'Commercial Potential' }
 ]
-
-const getDefaultPublicationStart = () => {
-  const date = new Date(Date.now() + 24 * 60 * 60 * 1000)
-  date.setSeconds(0, 0)
-  return date.toISOString().slice(0, 16)
-}
 
 /* ────────────────────────────────────── types ── */
 type SeriesItem = {
@@ -1566,7 +1561,7 @@ export function EditorialBoardPortalPage() {
                                     <Input
                                       type="datetime-local"
                                       value={decisionStartAt}
-                                      min={getDefaultPublicationStart()}
+                                      min={getMinDateTimeLocal()}
                                       onChange={(e) => setDecisionStartAt(e.target.value)}
                                       className="h-9 rounded-lg text-xs"
                                     />
@@ -1816,7 +1811,7 @@ export function EditorialBoardPortalPage() {
                       type="datetime-local"
                       required
                       value={meetingDateTime}
-                      min={getDefaultPublicationStart()}
+                      min={getMinDateTimeLocal()}
                       onChange={(e) => setMeetingDateTime(e.target.value)}
                       className="rounded-xl text-xs bg-white"
                     />
