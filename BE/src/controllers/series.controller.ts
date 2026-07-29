@@ -130,6 +130,32 @@ export async function create(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    let parsedChapters: Array<{ chapterNumber: number; title: string }> = [];
+    if (req.body.chapters !== undefined) {
+      try {
+        const rawChapters = typeof req.body.chapters === 'string'
+          ? JSON.parse(req.body.chapters)
+          : req.body.chapters;
+        if (!Array.isArray(rawChapters)) throw new Error('chapters must be an array.');
+        if (rawChapters.length > 100) throw new Error('A series can include at most 100 initial chapters.');
+
+        parsedChapters = rawChapters.map((chapter, index) => {
+          const chapterNumber = Number(chapter?.chapterNumber ?? index + 1);
+          const chapterTitle = typeof chapter?.title === 'string' ? chapter.title.trim() : '';
+          if (!Number.isInteger(chapterNumber) || chapterNumber !== index + 1) {
+            throw new Error('Initial chapters must be numbered sequentially starting from 1.');
+          }
+          if (chapterTitle.length < 1 || chapterTitle.length > 120) {
+            throw new Error(`Initial chapter ${index + 1} must have a title between 1 and 120 characters.`);
+          }
+          return { chapterNumber, title: chapterTitle };
+        });
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'chapters must be valid JSON.' });
+        return;
+      }
+    }
+
     let coverImage = typeof req.body.coverImage === 'string' ? req.body.coverImage : undefined;
 
     if (req.file) {
@@ -162,7 +188,35 @@ export async function create(req: Request, res: Response): Promise<void> {
       characterDesigns: parsedCharacterDesigns,
     });
 
-    res.status(201).json({ series });
+    let chapters: any[] = [];
+    try {
+      if (parsedChapters.length > 0) {
+        chapters = await Chapter.insertMany(parsedChapters.map((chapter) => ({
+          seriesId: series._id,
+          chapterNumber: chapter.chapterNumber,
+          title: chapter.title,
+          mangakaId: req.user?._id,
+          collaborators: [
+            {
+              userId: req.user?._id,
+              role: req.user?.role,
+              canEdit: true,
+              canComment: true,
+              canInvite: true,
+              acceptedAt: new Date(),
+            },
+          ],
+        })));
+        series.totalChapters = chapters.length;
+        await series.save();
+      }
+    } catch (error) {
+      await Chapter.deleteMany({ seriesId: series._id });
+      await Series.findByIdAndDelete(series._id);
+      throw error;
+    }
+
+    res.status(201).json({ series, chapters });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

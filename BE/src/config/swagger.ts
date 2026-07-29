@@ -92,6 +92,18 @@ const options: swaggerJsdoc.Options = {
             genre: { type: 'array', items: { type: 'string' }, example: ['Action', 'Fantasy'] },
             tags: { type: 'array', items: { type: 'string' }, example: ['action', 'fantasy'] },
             coverImage: { type: 'string' },
+            chapters: {
+              type: 'array',
+              description: 'Optional initial chapters, created with the series in the same request.',
+              items: {
+                type: 'object',
+                required: ['chapterNumber', 'title'],
+                properties: {
+                  chapterNumber: { type: 'number', example: 1 },
+                  title: { type: 'string', example: 'The Beginning' },
+                },
+              },
+            },
           },
         },
 
