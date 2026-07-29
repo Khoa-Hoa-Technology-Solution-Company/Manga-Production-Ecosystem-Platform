@@ -11,7 +11,10 @@ export interface IMeeting extends Document {
   finalizedAt?: Date;
   finalizedBy?: mongoose.Types.ObjectId;
   seriesIds: mongoose.Types.ObjectId[];
+  /** Editorial Board members who may cast a vote. */
   participants: mongoose.Types.ObjectId[];
+  /** Editors invited to attend the meeting without voting rights. */
+  attendees: mongoose.Types.ObjectId[];
   createdBy: mongoose.Types.ObjectId;
   rubricTemplateId?: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -39,6 +42,7 @@ const meetingSchema = new Schema<IMeeting>(
     finalizedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     seriesIds: [{ type: Schema.Types.ObjectId, ref: 'Series' }],
     participants: [{ type: Schema.Types.ObjectId, ref: 'User', required: true }],
+    attendees: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     rubricTemplateId: { type: Schema.Types.ObjectId, ref: 'RubricTemplate' },
   },
