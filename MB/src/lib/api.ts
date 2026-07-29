@@ -438,6 +438,8 @@ export const editorAPI = {
 export const ebAPI = {
   getPending: () => apiFetch<{ series: any[] }>('/eb/pending'),
   getDashboard: () => apiFetch<{ dashboard: any }>('/eb/dashboard'),
+  getPerformanceRankings: (period: 'weekly' | 'monthly', order: 'asc' | 'desc' = 'desc') =>
+    apiFetch<{ rankings: any[]; thresholds?: any }>('/eb/performance/rankings?' + new URLSearchParams({ period, order }).toString()),
   castVote: (seriesId: string, data: { decision: string; comments?: string; rubric?: Record<string, number> }) =>
     apiFetch(`/eb/vote/${seriesId}`, { method: 'POST', body: data }),
   makeFinalDecision: (seriesId: string, data: {
@@ -448,8 +450,12 @@ export const ebAPI = {
     comments?: string;
   }) =>
     apiFetch(`/eb/decision/${seriesId}`, { method: 'PATCH', body: data }),
+  updatePublicationSchedule: (seriesId: string, publicationSchedule: 'weekly' | 'monthly') =>
+    apiFetch(`/eb/schedule/${seriesId}`, { method: 'PATCH', body: { publicationSchedule } }),
   inputReaderVotes: (seriesId: string, data: { weeklyVotes: number }) =>
     apiFetch(`/eb/reader-votes/${seriesId}`, { method: 'POST', body: data }),
+  castCancellationVote: (seriesId: string, data: { decision: 'cancel' | 'continue'; comments?: string }) =>
+    apiFetch(`/eb/cancellation-vote/${seriesId}`, { method: 'POST', body: data }),
   cancelSeries: (seriesId: string, data: { reason: string }) =>
     apiFetch(`/eb/cancel/${seriesId}`, { method: 'PATCH', body: data }),
 };
@@ -461,10 +467,21 @@ export const meetingAPI = {
     description?: string;
     dateTime: string;
     location?: string;
-    seriesId: string;
+    seriesId?: string;
+    seriesIds?: string[];
     participants: string[];
-    purpose?: 'proposal_review';
+    rubricTemplateId?: string;
+    purpose?: 'proposal_review' | 'cancellation_review';
   }) => apiFetch<{ meeting: any; message: string }>('/meetings', { method: 'POST', body: data }),
+  delete: (id: string) => apiFetch<{ message: string }>(`/meetings/${id}`, { method: 'DELETE' }),
+};
+
+export const rubricTemplateAPI = {
+  getAll: () => apiFetch<{ templates: any[] }>('/rubric-templates'),
+  getActive: () => apiFetch<{ template: any }>('/rubric-templates/active'),
+  create: (data: { name: string; criteria: { key: string; label: string; weight?: number }[] }) =>
+    apiFetch<{ template: any; message: string }>('/rubric-templates', { method: 'POST', body: data }),
+  activate: (id: string) => apiFetch<{ template: any; message: string }>(`/rubric-templates/${id}/activate`, { method: 'PATCH' }),
 };
 
 // ── Helpers ─────────────────────────────────────────

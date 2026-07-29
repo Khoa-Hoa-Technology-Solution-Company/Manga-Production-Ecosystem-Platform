@@ -297,28 +297,18 @@ export default function NotificationsScreen() {
         {
           backgroundColor: item.read
             ? (isDark ? 'rgba(39,52,49, 0.45)' : '#fffaf0')
-            : (isDark ? 'rgba(185,66,52, 0.06)' : 'rgba(185,66,52, 0.04)'),
+            : (isDark ? 'rgba(185,66,52, 0.06)' : '#fff7f0'),
           borderColor: item.read
             ? (isDark ? 'rgba(255,250,240, 0.05)' : 'rgba(28,41,40, 0.06)')
-            : (isDark ? 'rgba(185,66,52, 0.25)' : 'rgba(185,66,52, 0.2)'),
-          shadowColor: item.read ? '#1c2928' : '#c85745',
-          shadowOpacity: isDark ? 0 : (item.read ? 0.02 : 0.12),
+            : 'transparent',
+          shadowColor: '#1c2928',
+          shadowOpacity: isDark ? 0 : (item.read ? 0.02 : 0),
           shadowOffset: { width: 0, height: 4 },
-          shadowRadius: item.read ? 8 : 12,
-          elevation: isDark ? 0 : (item.read ? 2 : 4),
+          shadowRadius: item.read ? 8 : 0,
+          elevation: isDark ? 0 : (item.read ? 2 : 0),
         },
       ]}
     >
-      {!item.read && (
-        <>
-          <View
-            style={styles.unreadCardGlow}
-            pointerEvents="none"
-          />
-          <View style={styles.unreadDot} />
-        </>
-      )}
-
       <View style={[styles.cardIconWrap, { backgroundColor: item.read ? (isDark ? 'rgba(255,250,240,0.04)' : 'rgba(28,41,40, 0.04)') : 'rgba(185,66,52, 0.12)' }]}>
         <Bell size={18} color={item.read ? theme.textSecondary : '#c85745'} />
       </View>
@@ -492,17 +482,6 @@ const styles = StyleSheet.create({
     gap: 12,
     position: 'relative',
     overflow: 'hidden',
-  },
-  unreadCardGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(185,66,52,0.08)' },
-  unreadDot: {
-    position: 'absolute',
-    top: 13,
-    bottom: 13,
-    left: 0,
-    width: 4,
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-    backgroundColor: '#c85745',
   },
   cardIconWrap: {
     width: 42,
