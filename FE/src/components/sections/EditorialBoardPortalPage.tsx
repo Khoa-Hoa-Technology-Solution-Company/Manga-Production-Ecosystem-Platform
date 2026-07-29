@@ -538,8 +538,10 @@ export function EditorialBoardPortalPage() {
 
   const handleFinalDecision = async (seriesId: string, decision: 'approved' | 'rejected') => {
     const startDate = decisionStartAt ? new Date(decisionStartAt) : null
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is safe in an event handler, not during render
+    const now = Date.now()
     if (decision === 'approved' && decisionPublicationMode === 'scheduled'
-      && (!startDate || Number.isNaN(startDate.getTime()) || startDate.getTime() <= Date.now())) {
+      && (!startDate || Number.isNaN(startDate.getTime()) || startDate.getTime() <= now)) {
       alert('Choose a future date and time for scheduled publication.')
       return
     }
