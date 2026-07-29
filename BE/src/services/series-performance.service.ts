@@ -59,6 +59,7 @@ export async function computeSeriesPerformance(
   const { start, end } = getPeriodBounds(periodType, referenceDate);
   const activeSeries = await Series.find({ status: 'Active' })
     .select('_id title description genre coverImage status mangakaId averageRating ratingCount totalVotes weeklyVotes readerCount subscribers createdAt publicationStartedAt publicationSchedule publicationMode nextPublicationAt')
+    .populate('mangakaId', 'displayName avatar')
     .lean();
   if (activeSeries.length === 0) return [];
 
