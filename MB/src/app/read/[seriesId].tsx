@@ -189,15 +189,21 @@ export default function ReaderScreen() {
       seriesAPI.getById(seriesId),
       chaptersAPI.getBySeries(seriesId),
       seriesAPI.getRating(seriesId).catch(() => ({ averageRating: 0, ratingCount: 0, userRating: 0 }))
-    ])
+      ])
       .then(([sData, cData, ratingData]) => {
         const baseSeries = sData.series ?? sData;
+        if (!baseSeries || typeof baseSeries !== 'object') {
+          throw new Error(t('mobile.reader.serverError'));
+        }
+        const safeRating = (
+          ratingData && typeof ratingData === 'object' ? ratingData : {}
+        ) as { averageRating?: unknown; ratingCount?: unknown; userRating?: unknown };
         setSeriesData({
           ...baseSeries,
-          averageRating: ratingData.averageRating,
-          ratingCount: ratingData.ratingCount,
+          averageRating: Number.isFinite(Number(safeRating.averageRating)) ? Number(safeRating.averageRating) : 0,
+          ratingCount: Number.isFinite(Number(safeRating.ratingCount)) ? Number(safeRating.ratingCount) : 0,
         });
-        setUserRating(ratingData.userRating || 0);
+        setUserRating(Number.isFinite(Number(safeRating.userRating)) ? Number(safeRating.userRating) : 0);
         const chs = (Array.isArray(cData?.chapters) ? cData.chapters : [])
           .filter((c: any) => c.status === 'Published')
           .sort((a: any, b: any) => a.chapterNumber - b.chapterNumber);
@@ -205,7 +211,7 @@ export default function ReaderScreen() {
         if (chs.length > 0) {
           // Honor chapterIndex URL param (from Series Detail screen)
           const requestedIndex = parseInt(chapterIndexParam || '0', 10);
-          const safeIndex = isNaN(requestedIndex) ? 0 : Math.min(requestedIndex, chs.length - 1);
+          const safeIndex = isNaN(requestedIndex) ? 0 : Math.max(0, Math.min(requestedIndex, chs.length - 1));
           setActiveChapterIndex(safeIndex);
         }
       })
@@ -224,7 +230,7 @@ export default function ReaderScreen() {
   useEffect(() => {
     if (chapters.length > 0) {
       const requestedIndex = parseInt(chapterIndexParam || '0', 10);
-      const safeIndex = isNaN(requestedIndex) ? 0 : Math.min(requestedIndex, chapters.length - 1);
+      const safeIndex = isNaN(requestedIndex) ? 0 : Math.max(0, Math.min(requestedIndex, chapters.length - 1));
       setActiveChapterIndex(safeIndex);
       setCurrentPage(Math.max(0, Number.parseInt(pageIndexParam || '0', 10) || 0));
       setScrollProgress(Math.min(100, Math.max(0, Number(progressParam) || 0)));
@@ -459,11 +465,16 @@ export default function ReaderScreen() {
 
 
   const handleAddComment = () => {
-    if (!newCommentText.trim()) return;
+    const content = newCommentText.trim();
+    if (!content) return;
+    if (content.length > 2000) {
+      Alert.alert(t('common.error'), t('mobile.reader.commentError'));
+      return;
+    }
     const currentChapter = chapters[activeChapterIndex];
     if (!currentChapter) return;
     commentsAPI
-      .create(currentChapter._id, { text: newCommentText })
+      .create(currentChapter._id, { text: content })
       .then((data) => {
         const comment = data.comment || {};
         const newComment = {
@@ -471,7 +482,7 @@ export default function ReaderScreen() {
           user: comment.userId?.displayName || t('mobile.reader.readerUser'),
           initials: (comment.userId?.displayName || 'YO').slice(0, 2).toUpperCase(),
           time: t('mobile.reader.justNow'),
-          text: comment.text || newCommentText,
+          text: comment.text || content,
           likes: 0,
           liked: false,
           color: ['#c85745', '#b94234'],
@@ -487,20 +498,21 @@ export default function ReaderScreen() {
   };
 
   const handleAddReply = (commentId: string) => {
-    if (!replyText.trim()) return;
+    const content = replyText.trim();
+    if (!content || content.length > 2000) return;
     setComments((prev) =>
       prev.map((c) => {
         if (c.id === commentId) {
           return {
             ...c,
             replies: [
-              ...c.replies,
+              ...(Array.isArray(c.replies) ? c.replies : []),
               {
                 id: Date.now().toString(),
                 user: t('mobile.reader.readerUser'),
                 initials: 'YO',
                 time: t('mobile.reader.justNow'),
-                text: replyText,
+                text: content,
                 likes: 0,
                 liked: false,
                 color: ['#c85745', '#b94234'],
@@ -528,7 +540,7 @@ export default function ReaderScreen() {
         if (replyId && c.id === commentId) {
           return {
             ...c,
-            replies: c.replies.map((r: any) =>
+            replies: (Array.isArray(c.replies) ? c.replies : []).map((r: any) =>
               r.id === replyId ? { ...r, liked: !r.liked, likes: r.liked ? r.likes - 1 : r.likes + 1 } : r
             ),
           };
@@ -968,6 +980,7 @@ export default function ReaderScreen() {
                           <View style={styles.replyBoxForm}>
                             <TextInput
                               placeholder={t('mobile.reader.replyPlaceholder', { name: comment.user })}
+                              maxLength={2000}
                               placeholderTextColor="#9aa39a"
                               style={[styles.trayWebInput, { backgroundColor: currentTheme.inputBg, color: currentTheme.text }]}
                               value={replyText}
@@ -1014,6 +1027,7 @@ export default function ReaderScreen() {
                 <View style={[styles.inputWrap, { borderColor: currentTheme.cardBorder }]}>
                   <TextInput
                     placeholder={t('mobile.reader.commentPlaceholder')}
+                    maxLength={2000}
                     placeholderTextColor="#b9b59e"
                     style={[styles.commentWebInput, { color: currentTheme.text }]}
                     value={newCommentText}

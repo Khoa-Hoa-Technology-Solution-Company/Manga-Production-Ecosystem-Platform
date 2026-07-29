@@ -11,7 +11,13 @@ class SocketService {
   connect() {
     if (this.socket) return;
     
-    const token = localStorage.getItem('mangaflow-token');
+    const token = (() => {
+      try {
+        return localStorage.getItem('mangaflow-token');
+      } catch {
+        return null;
+      }
+    })();
     if (!token) return;
 
     this.socket = io(SOCKET_URL, {

@@ -133,10 +133,15 @@ export function CancellationVotePanel({
 
   const submitVote = async () => {
     if (!selectedSeries || !draftDecision) return
+    const comment = comments[selectedSeries._id]?.trim() || ''
+    if (comment.length > 2000 || (draftDecision === 'cancel' && !comment)) {
+      alert('A change/cancellation request needs a reason of at most 2,000 characters.')
+      return
+    }
     const actionKey = `vote:${selectedSeries._id}`
     setWorkingAction(actionKey)
     try {
-      await onVote(selectedSeries._id, draftDecision, comments[selectedSeries._id]?.trim())
+      await onVote(selectedSeries._id, draftDecision, comment)
     } finally {
       setWorkingAction(null)
     }
@@ -146,6 +151,10 @@ export function CancellationVotePanel({
     if (!selectedSeries || !majorityDecision) return
     const reason = finalReasons[selectedSeries._id]?.trim() || ''
     if (majorityDecision === 'cancel' && !reason) return
+    if (reason.length > 2000) {
+      alert('The decision reason cannot exceed 2,000 characters.')
+      return
+    }
     const actionKey = `finalize:${selectedSeries._id}`
     setWorkingAction(actionKey)
     try {

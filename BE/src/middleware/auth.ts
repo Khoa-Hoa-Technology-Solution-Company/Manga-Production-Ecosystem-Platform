@@ -50,7 +50,11 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     };
 
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token.' });
+  } catch (error: any) {
+    const expired = error?.name === 'TokenExpiredError';
+    res.status(401).json({
+      error: expired ? 'Token expired. Please sign in again.' : 'Invalid authentication token.',
+      code: expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
+    });
   }
 }

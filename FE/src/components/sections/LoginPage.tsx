@@ -1,9 +1,9 @@
-/* eslint-disable */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BookMarked, Eye, EyeOff, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
+import { getErrorMessage, isValidEmail, normalizeEmail } from '../../lib/validation';
 import { Button, Input } from '../ui';
 
 const roleOptions = [
@@ -14,7 +14,7 @@ const roleOptions = [
 
 export function LoginPage() {
   const { t, i18n } = useTranslation();
-  const { login, register, isAuthenticated, user } = useAuth();
+  const { login, register, isAuthenticated, user, authNotice, clearAuthNotice } = useAuth();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -44,17 +44,33 @@ export function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+    const normalizedEmail = normalizeEmail(email);
+    const validationText = (vi: string, en: string) => i18n.language.startsWith('vi') ? vi : en;
+    if (!isValidEmail(normalizedEmail)) {
+      setError(validationText('Email không đúng định dạng.', 'Enter a valid email address.'));
+      return;
+    }
+    if (password.length < 6 || password.length > 128) {
+      setError(validationText('Mật khẩu phải có từ 6 đến 128 ký tự.', 'Password must contain 6 to 128 characters.'));
+      return;
+    }
+    if (!isLogin && (displayName.trim().length < 2 || displayName.trim().length > 80)) {
+      setError(validationText('Tên hiển thị phải có từ 2 đến 80 ký tự.', 'Display name must contain 2 to 80 characters.'));
+      return;
+    }
     setError('');
+    clearAuthNotice();
     setLoading(true);
 
     try {
       if (isLogin) {
-        await login(email, password);
+        await login(normalizedEmail, password);
       } else {
-        await register({ email, password, displayName, role });
+        await register({ email: normalizedEmail, password, displayName: displayName.trim(), role });
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Something went wrong.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Something went wrong.'));
     } finally {
       setLoading(false);
     }
@@ -124,9 +140,9 @@ export function LoginPage() {
           </div>
 
           {/* Error */}
-          {error && (
+          {(error || authNotice) && (
             <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
-              {error}
+              {error || authNotice}
             </div>
           )}
 
@@ -142,6 +158,8 @@ export function LoginPage() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Yuki Mori"
                   required
+                  minLength={2}
+                  maxLength={80}
                 />
               </div>
             )}
@@ -156,6 +174,7 @@ export function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
+                maxLength={254}
               />
             </div>
 
@@ -171,6 +190,7 @@ export function LoginPage() {
                   placeholder="••••••••"
                   required
                   minLength={6}
+                  maxLength={128}
                   className="pr-9"
                 />
                 <button

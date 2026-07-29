@@ -23,6 +23,8 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/lib/auth';
+import { getApiErrorMessage } from '@/lib/errors';
+import { hasLengthBetween, isValidEmail, normalizeEmail } from '@/lib/validation';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from 'react-i18next';
 
@@ -33,9 +35,9 @@ const roleOptions = [
 ];
 
 export default function LoginScreen() {
-  const { login, register } = useAuth();
+  const { login, register, authNotice, clearAuthNotice } = useAuth();
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
 
@@ -54,26 +56,43 @@ export default function LoginScreen() {
   const [nameFocused, setNameFocused] = useState(false);
 
   const handleSubmit = async () => {
-    if (!email || !password) {
+    if (loading) return;
+    const normalizedEmail = normalizeEmail(email);
+    const validationText = (vi: string, en: string) => i18n.language.startsWith('vi') ? vi : en;
+
+    if (!normalizedEmail || !password) {
       setError(t('mobile.login.requiredCredentials'));
       return;
     }
+    if (!isValidEmail(normalizedEmail)) {
+      setError(validationText('Email không đúng định dạng.', 'Enter a valid email address.'));
+      return;
+    }
+    if (password.length < 6 || password.length > 128) {
+      setError(validationText('Mật khẩu phải có từ 6 đến 128 ký tự.', 'Password must contain 6 to 128 characters.'));
+      return;
+    }
+    if (!isLogin && !hasLengthBetween(displayName, 2, 80)) {
+      setError(validationText('Tên hiển thị phải có từ 2 đến 80 ký tự.', 'Display name must contain 2 to 80 characters.'));
+      return;
+    }
     setError('');
+    clearAuthNotice();
     setLoading(true);
 
     try {
       if (isLogin) {
-        await login(email, password);
+        await login(normalizedEmail, password);
       } else {
-        if (!displayName) {
-          setError(t('mobile.login.requiredDisplayName'));
-          setLoading(false);
-          return;
-        }
-        await register({ email, password, displayName, role });
+        await register({
+          email: normalizedEmail,
+          password,
+          displayName: displayName.trim(),
+          role,
+        });
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || t('mobile.login.genericError'));
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, t('mobile.login.genericError')));
     } finally {
       setLoading(false);
     }
@@ -130,9 +149,9 @@ export default function LoginScreen() {
               </View>
 
               {/* Error */}
-              {error !== '' && (
+              {(error !== '' || authNotice) && (
                 <View style={styles.errorBox}>
-                  <ThemedText style={styles.errorText}>{error}</ThemedText>
+                  <ThemedText style={styles.errorText}>{error || authNotice}</ThemedText>
                 </View>
               )}
 
@@ -158,6 +177,8 @@ export default function LoginScreen() {
                       placeholder={t('mobile.login.displayNamePlaceholder')}
                       placeholderTextColor={isDark ? '#59615b' : '#9aa39a'}
                       autoCapitalize="words"
+                      autoComplete="name"
+                      maxLength={80}
                       onFocus={() => setNameFocused(true)}
                       onBlur={() => setNameFocused(false)}
                     />
@@ -187,7 +208,10 @@ export default function LoginScreen() {
                     placeholderTextColor={isDark ? '#59615b' : '#9aa39a'}
                     autoCapitalize="none"
                     keyboardType="email-address"
-                    autoCorrect={false}
+                      autoCorrect={false}
+                      autoComplete="email"
+                      textContentType="emailAddress"
+                      maxLength={254}
                     onFocus={() => setEmailFocused(true)}
                     onBlur={() => setEmailFocused(false)}
                   />
@@ -215,7 +239,12 @@ export default function LoginScreen() {
                     placeholder="••••••••"
                     placeholderTextColor={isDark ? '#59615b' : '#9aa39a'}
                     secureTextEntry={!showPassword}
-                    autoCapitalize="none"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete={isLogin ? 'current-password' : 'new-password'}
+                      textContentType={isLogin ? 'password' : 'newPassword'}
+                      maxLength={128}
+                      onSubmitEditing={() => void handleSubmit()}
                     onFocus={() => setPasswordFocused(true)}
                     onBlur={() => setPasswordFocused(false)}
                   />

@@ -17,16 +17,16 @@ export interface IRubricTemplate extends Document {
 
 const rubricCriterionSchema = new Schema<IRubricCriterion>(
   {
-    key: { type: String, required: true, trim: true },
-    label: { type: String, required: true, trim: true },
-    weight: { type: Number, default: 1 },
+    key: { type: String, required: true, trim: true, maxlength: 100 },
+    label: { type: String, required: true, trim: true, maxlength: 100 },
+    weight: { type: Number, default: 1, min: 0.01, max: 100 },
   },
   { _id: false }
 );
 
 const rubricTemplateSchema = new Schema<IRubricTemplate>(
   {
-    name: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true, minlength: 2, maxlength: 100 },
     criteria: [rubricCriterionSchema],
     isActive: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

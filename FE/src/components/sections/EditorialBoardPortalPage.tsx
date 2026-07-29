@@ -408,11 +408,25 @@ export function EditorialBoardPortalPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0 || meetingSeriesIds.length === 0) return
+    const selectedReviewers = meetingParticipants.filter((id) => id !== user?._id)
+    const scheduledAt = new Date(meetingDateTime)
+    if (
+      meetingTitle.trim().length < 2
+      || meetingTitle.trim().length > 120
+      || !Number.isFinite(scheduledAt.getTime())
+      || scheduledAt.getTime() <= Date.now()
+      || meetingDesc.trim().length > 2000
+      || meetingLoc.trim().length > 200
+      || selectedReviewers.length === 0
+      || meetingSeriesIds.length === 0
+    ) {
+      alert('Enter a 2-120 character title, a future date/time, at least one series and participant, and keep optional fields within their limits.')
+      return
+    }
     const createdPurpose = meetingPurpose
     const primarySeriesId = meetingSeriesIds[0]
 
-    const uniqueCount = new Set([...meetingParticipants, user?._id]).size
+    const uniqueCount = new Set([...selectedReviewers, user?._id]).size
     if (uniqueCount % 2 === 0) {
       alert(t('editorialBoard.evenParticipantsError', 'The total number of participants (including yourself as the organizer) must be an odd number to avoid voting ties. Current count: ' + uniqueCount + '.'))
       return
@@ -421,12 +435,12 @@ export function EditorialBoardPortalPage() {
     setSubmittingMeeting(true)
     try {
       await meetingAPI.create({
-        title: meetingTitle,
-        description: meetingDesc,
-        dateTime: meetingDateTime,
-        location: meetingLoc,
+        title: meetingTitle.trim(),
+        description: meetingDesc.trim(),
+        dateTime: scheduledAt.toISOString(),
+        location: meetingLoc.trim(),
         seriesIds: meetingSeriesIds,
-        participants: meetingParticipants,
+        participants: selectedReviewers,
         rubricTemplateId: meetingPurpose === 'proposal_review' ? meetingRubricTemplateId || undefined : undefined,
         purpose: meetingPurpose,
       })
@@ -466,6 +480,7 @@ export function EditorialBoardPortalPage() {
   const handleOpenMeetingForm = async () => {
     setMeetingPurpose('proposal_review')
     setMeetingSeriesIds([])
+    setMeetingParticipants([])
     setMeetingTitle('')
     setMeetingDesc('')
     setShowMeetingForm(true)
@@ -486,6 +501,7 @@ export function EditorialBoardPortalPage() {
     if (!user?.isEbHead) return
     setMeetingPurpose('cancellation_review')
     setMeetingSeriesIds([series._id])
+    setMeetingParticipants([])
     setMeetingTitle(`Cancellation review: ${series.title}`)
     setMeetingDesc(`Review the performance evidence and vote on whether "${series.title}" should continue publication.`)
     setMeetingRubricTemplateId('')
@@ -500,6 +516,7 @@ export function EditorialBoardPortalPage() {
   }
 
   const handleToggleParticipant = (id: string) => {
+    if (id === user?._id) return
     setMeetingParticipants((prev) =>
       prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
     )
@@ -522,7 +539,7 @@ export function EditorialBoardPortalPage() {
   const handleFinalDecision = async (seriesId: string, decision: 'approved' | 'rejected') => {
     const startDate = decisionStartAt ? new Date(decisionStartAt) : null
     if (decision === 'approved' && decisionPublicationMode === 'scheduled'
-      && (!startDate || Number.isNaN(startDate.getTime()))) {
+      && (!startDate || Number.isNaN(startDate.getTime()) || startDate.getTime() <= Date.now())) {
       alert('Choose a future date and time for scheduled publication.')
       return
     }
@@ -642,12 +659,27 @@ export function EditorialBoardPortalPage() {
 
   const handleCreateTemplate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTemplateName.trim() || newTemplateCriteria.length === 0) return
+    const normalizedCriteria = newTemplateCriteria.map((criterion) => ({
+      key: criterion.key.trim(),
+      label: criterion.label.trim(),
+    }))
+    const uniqueKeys = new Set(normalizedCriteria.map((criterion) => criterion.key))
+    if (
+      newTemplateName.trim().length < 2
+      || newTemplateName.trim().length > 100
+      || normalizedCriteria.length < 1
+      || normalizedCriteria.length > 20
+      || normalizedCriteria.some((criterion) => !criterion.key || !criterion.label || criterion.key.length > 100 || criterion.label.length > 100)
+      || uniqueKeys.size !== normalizedCriteria.length
+    ) {
+      alert('Use a 2-100 character rubric name and 1-20 unique, non-empty criteria.')
+      return
+    }
     setSubmittingTemplate(true)
     try {
       await rubricTemplateAPI.create({
-        name: newTemplateName,
-        criteria: newTemplateCriteria
+        name: newTemplateName.trim(),
+        criteria: normalizedCriteria
       })
       setNewTemplateName('')
       setNewTemplateCriteria([
@@ -1129,6 +1161,7 @@ export function EditorialBoardPortalPage() {
                               <div className="space-y-3">
                                 {criteria.map((c: any) => {
                                   const score = rubricScores[c.key] ?? 5
+                                  const progress = ((score - 1) / 9) * 100
                                   return (
                                     <div key={c.key} className="space-y-1">
                                       <div className="flex justify-between text-xs font-bold">
@@ -1139,14 +1172,17 @@ export function EditorialBoardPortalPage() {
                                         type="range"
                                         min="1"
                                         max="10"
+                                        step="1"
+                                        aria-label={`${c.label} score`}
+                                        aria-valuetext={`${score} out of 10`}
                                         value={score}
                                         onChange={(e) => {
                                           const val = parseInt(e.target.value)
                                           setRubricScores((prev) => ({ ...prev, [c.key]: val }))
                                         }}
-                                        className="w-full cursor-pointer h-2 bg-neutral-250 rounded-lg appearance-none accent-indigo-600 focus:outline-none"
+                                        className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-neutral-250 accent-indigo-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                                         style={{
-                                          background: `linear-gradient(to right, var(--color-indigo-500) 0%, var(--color-indigo-500) ${score * 10}%, var(--color-neutral-200) ${score * 10}%, var(--color-neutral-200) 100%)`
+                                          background: `linear-gradient(to right, var(--color-indigo-500) 0%, var(--color-indigo-500) ${progress}%, var(--color-neutral-200) ${progress}%, var(--color-neutral-200) 100%)`
                                         }}
                                       />
                                     </div>
@@ -1761,6 +1797,7 @@ export function EditorialBoardPortalPage() {
                       type="datetime-local"
                       required
                       value={meetingDateTime}
+                      min={getDefaultPublicationStart()}
                       onChange={(e) => setMeetingDateTime(e.target.value)}
                       className="rounded-xl text-xs bg-white"
                     />
@@ -1850,6 +1887,7 @@ export function EditorialBoardPortalPage() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-neutral-700 block">
                     {t('editorialBoard.selectParticipants')} <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
+                    <span className="ml-1 font-normal text-neutral-500">Organizer included automatically</span>
                   </label>
                   {/* Odd number participant validation feedback */}
                   {new Set([...meetingParticipants, user?._id]).size % 2 === 0 && (
@@ -1858,10 +1896,12 @@ export function EditorialBoardPortalPage() {
                     </p>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 bg-white border border-neutral-200 rounded-xl">
-                    {availableReviewers.length === 0 ? (
-                      <div className="col-span-full py-4 text-center text-xs text-neutral-400">Loading reviewers...</div>
+                    {availableReviewers.filter((rev) => rev._id !== user?._id).length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-xs text-neutral-400">
+                        {availableReviewers.length === 0 ? 'Loading reviewers...' : 'No other reviewers available.'}
+                      </div>
                     ) : (
-                      availableReviewers.map((rev) => {
+                      availableReviewers.filter((rev) => rev._id !== user?._id).map((rev) => {
                         const isSelected = meetingParticipants.includes(rev._id)
                         return (
                           <div

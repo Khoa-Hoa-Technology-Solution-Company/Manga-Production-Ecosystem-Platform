@@ -434,11 +434,12 @@ export function ReadingViewPage() {
   }, [readingMode, chapterInfo.totalPages])
 
   const handlePostComment = async () => {
-    if (!commentText.trim()) return
+    const content = commentText.trim()
+    if (isSubmitting || !content || content.length > 2000) return
     setIsSubmitting(true)
     try {
       if (activeChapterId && activeChapterId !== 'fallback') {
-        await commentsAPI.create(activeChapterId, { text: commentText })
+        await commentsAPI.create(activeChapterId, { text: content })
       }
       setCommentText('')
     } catch (error) {
@@ -450,11 +451,12 @@ export function ReadingViewPage() {
   }
 
   const handlePostReply = async (parentId: string) => {
-    if (!replyText.trim()) return
+    const content = replyText.trim()
+    if (isSubmitting || !content || content.length > 2000) return
     setIsSubmitting(true)
     try {
       if (activeChapterId && activeChapterId !== 'fallback') {
-        await commentsAPI.create(activeChapterId, { text: replyText, parentId })
+        await commentsAPI.create(activeChapterId, { text: content, parentId })
       }
       setReplyText('')
       setReplyingToId(null)

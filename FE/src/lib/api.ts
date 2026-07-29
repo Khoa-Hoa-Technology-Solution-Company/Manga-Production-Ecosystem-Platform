@@ -1,6 +1,16 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const TOKEN_KEY = 'mangaflow-token';
+const USER_KEY = 'mangaflow-user';
+
+function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -9,7 +19,7 @@ const api = axios.create({
 
 // ── Request interceptor: attach JWT ─────────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('mangaflow-token');
+  const token = getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,11 +30,17 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('mangaflow-token');
-      localStorage.removeItem('mangaflow-user');
-      // Optionally redirect to login
-      window.dispatchEvent(new CustomEvent('auth:logout'));
+    const hadSession = Boolean(error.config?.headers?.Authorization || getStoredToken());
+    if (error.response?.status === 401 && hadSession) {
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      } catch {
+        // Auth state is still cleared by the event listener below.
+      }
+      window.dispatchEvent(new CustomEvent('auth:logout', {
+        detail: error.response?.data?.error || 'Your session has expired. Please sign in again.',
+      }));
     }
     return Promise.reject(error);
   }

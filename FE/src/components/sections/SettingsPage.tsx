@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../lib/auth'
 import { authAPI } from '../../lib/api'
 import { Button, Card, Input, Textarea } from '../ui'
 import { Bell, Save, User as UserIcon, CheckCircle, AlertCircle } from 'lucide-react'
+import { getErrorMessage, isValidHttpOrRelativeUrl } from '../../lib/validation'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -14,17 +15,22 @@ export function SettingsPage() {
   const [avatar, setAvatar] = useState(user?.avatar || '')
   const [subscribedToNewSeries, setSubscribedToNewSeries] = useState(user?.subscribedToNewSeries || false)
   const [notificationSoundEnabled, setNotificationSoundEnabled] = useState(() => {
-    return localStorage.getItem('mangaflow-notification-sound') !== 'false'
+    try {
+      return localStorage.getItem('mangaflow-notification-sound') !== 'false'
+    } catch {
+      return true
+    }
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useState(() => {
+  useEffect(() => {
+    let active = true
     authAPI.getMe()
       .then((res) => {
         const u = res.data.user
-        if (u) {
+        if (active && u) {
           setDisplayName(u.displayName || '')
           setBio(u.bio || '')
           setAvatar(u.avatar || '')
@@ -36,33 +42,51 @@ export function SettingsPage() {
         console.error('Failed to fetch user settings:', err)
       })
       .finally(() => {
-        setLoading(false)
+        if (active) setLoading(false)
       })
-  })
+    return () => {
+      active = false
+    }
+  }, [updateUser])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+    const normalizedName = displayName.trim()
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      setMessage({ type: 'error', text: 'Display name must contain 2 to 80 characters.' })
+      return
+    }
+    if (bio.trim().length > 500) {
+      setMessage({ type: 'error', text: 'Bio cannot exceed 500 characters.' })
+      return
+    }
+    if (avatar.trim().length > 2048 || !isValidHttpOrRelativeUrl(avatar)) {
+      setMessage({ type: 'error', text: 'Enter a valid avatar URL or relative path.' })
+      return
+    }
     setSaving(true)
     setMessage(null)
     try {
       const res = await authAPI.updateProfile({
-        displayName,
-        bio,
-        avatar,
+        displayName: normalizedName,
+        bio: bio.trim(),
+        avatar: avatar.trim(),
         subscribedToNewSeries,
       })
       
       const updatedUser = res.data.user
       if (updatedUser) {
         updateUser(updatedUser)
-        localStorage.setItem('mangaflow-notification-sound', notificationSoundEnabled ? 'true' : 'false')
+        try {
+          localStorage.setItem('mangaflow-notification-sound', notificationSoundEnabled ? 'true' : 'false')
+        } catch {
+          // Settings remain active for this browser session.
+        }
         setMessage({ type: 'success', text: t('settingsPage.saveSuccess') })
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to update settings:', err)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const errorMsg = (err as any).response?.data?.error || t('settingsPage.saveError')
-      setMessage({ type: 'error', text: errorMsg })
+      setMessage({ type: 'error', text: getErrorMessage(err, t('settingsPage.saveError')) })
     } finally {
       setSaving(false)
     }
@@ -121,6 +145,8 @@ export function SettingsPage() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t('settingsPage.displayNamePlaceholder')}
                 required
+                minLength={2}
+                maxLength={80}
                 className="h-10 text-sm"
               />
             </div>
@@ -132,6 +158,7 @@ export function SettingsPage() {
                 value={avatar}
                 onChange={(e) => setAvatar(e.target.value)}
                 placeholder={t('settingsPage.avatarUrlPlaceholder')}
+                maxLength={2048}
                 className="h-10 text-sm"
               />
             </div>
@@ -144,6 +171,7 @@ export function SettingsPage() {
                 onChange={(e) => setBio(e.target.value)}
                 placeholder={t('settingsPage.bioPlaceholder')}
                 rows={3}
+                maxLength={500}
                 className="text-sm"
               />
             </div>

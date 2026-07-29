@@ -96,7 +96,11 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 export async function updateProfile(req: Request, res: Response): Promise<void> {
   try {
     const { displayName, bio, avatar, skills, subscribedToNewSeries } = req.body;
-    const updateData: any = { displayName, bio, avatar, skills };
+    const updateData: Record<string, unknown> = {};
+    if (displayName !== undefined) updateData.displayName = displayName;
+    if (bio !== undefined) updateData.bio = bio;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (skills !== undefined) updateData.skills = skills;
     if (subscribedToNewSeries !== undefined) {
       updateData.subscribedToNewSeries = subscribedToNewSeries;
     }
@@ -111,7 +115,9 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
     }
     res.json({ user });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error?.name === 'ValidationError' ? 400 : 500).json({
+      error: error?.name === 'ValidationError' ? error.message : 'Unable to update profile.',
+    });
   }
 }
 

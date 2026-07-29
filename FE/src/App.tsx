@@ -36,7 +36,10 @@ function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
   
-  const hideFooter = location.pathname.startsWith('/read') || location.pathname === '/studio'
+  const hideFooter =
+    location.pathname.startsWith('/read') ||
+    location.pathname === '/studio' ||
+    location.pathname.startsWith('/editor/review/')
 
   return (
     <Shell

@@ -24,7 +24,13 @@ class SocketService {
   }
 
   private async createConnection() {
-    const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
+    let token: string | null = null;
+    try {
+      token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
+    } catch (error) {
+      console.warn('Unable to read the realtime authentication token:', error);
+      return;
+    }
     if (!token || !this.connectionRequested || this.socket) return;
 
     this.socket = io(SOCKET_URL, {

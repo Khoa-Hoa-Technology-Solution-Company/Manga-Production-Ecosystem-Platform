@@ -72,6 +72,7 @@ export default function NotificationsScreen() {
   // Listen to realtime notifications via Socket
   useEffect(() => {
     const handleNewNotification = (n: any) => {
+      if (!n || typeof n !== 'object' || typeof n._id !== 'string') return;
       setNotifications((prev) => prev.some((item) => item._id === n._id) ? prev : [n, ...prev]);
     };
     const handleReadNotification = (data: any) => {
