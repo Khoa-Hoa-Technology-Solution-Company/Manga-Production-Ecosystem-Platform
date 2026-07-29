@@ -130,7 +130,7 @@ export const ebAPI = {
 // ── Meeting API ─────────────────────────────────────
 export const meetingAPI = {
   getAll: () => api.get('/meetings'),
-  create: (data: { title: string; description?: string; dateTime: string; location?: string; seriesId?: string; seriesIds?: string[]; participants: string[]; rubricTemplateId?: string; purpose?: 'proposal_review' | 'cancellation_review' }) =>
+  create: (data: { title: string; description?: string; dateTime: string; location?: string; seriesId?: string; seriesIds?: string[]; participants: string[]; attendees?: string[]; rubricTemplateId?: string; purpose?: 'proposal_review' | 'cancellation_review' }) =>
     api.post('/meetings', data),
   delete: (id: string) => api.delete(`/meetings/${id}`),
 };

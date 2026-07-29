@@ -183,6 +183,7 @@ interface MeetingItem {
   seriesId?: MeetingSeries
   seriesIds?: MeetingSeries[]
   participants: MeetingParticipant[]
+  attendees?: MeetingParticipant[]
   createdBy: {
     _id: string
     displayName: string
@@ -306,9 +307,11 @@ export function EditorialBoardPortalPage() {
   const [meetingLoc, setMeetingLoc] = useState('')
   const [meetingSeriesIds, setMeetingSeriesIds] = useState<string[]>([])
   const [meetingParticipants, setMeetingParticipants] = useState<string[]>([])
+  const [meetingAttendees, setMeetingAttendees] = useState<string[]>([])
   const [meetingRubricTemplateId, setMeetingRubricTemplateId] = useState('')
   const [meetingPurpose, setMeetingPurpose] = useState<'proposal_review' | 'cancellation_review'>('proposal_review')
   const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([])
+  const [availableEditorAttendees, setAvailableEditorAttendees] = useState<ReviewerItem[]>([])
   const [submittingMeeting, setSubmittingMeeting] = useState(false)
 
   // Rubrics template management states
@@ -441,6 +444,7 @@ export function EditorialBoardPortalPage() {
         location: meetingLoc.trim(),
         seriesIds: meetingSeriesIds,
         participants: selectedReviewers,
+        attendees: meetingAttendees,
         rubricTemplateId: meetingPurpose === 'proposal_review' ? meetingRubricTemplateId || undefined : undefined,
         purpose: meetingPurpose,
       })
@@ -452,6 +456,7 @@ export function EditorialBoardPortalPage() {
       setMeetingLoc('')
       setMeetingSeriesIds([])
       setMeetingParticipants([])
+      setMeetingAttendees([])
       setMeetingRubricTemplateId('')
       setMeetingPurpose('proposal_review')
       await fetchData()
@@ -481,12 +486,15 @@ export function EditorialBoardPortalPage() {
     setMeetingPurpose('proposal_review')
     setMeetingSeriesIds([])
     setMeetingParticipants([])
+    setMeetingAttendees([])
     setMeetingTitle('')
     setMeetingDesc('')
     setShowMeetingForm(true)
     try {
-      const res = await authAPI.search('', { roles: 'editorial_board' })
-      setAvailableReviewers(res.data.users || [])
+      const res = await authAPI.search('', { roles: 'editorial_board,editor' })
+      const users = res.data.users || []
+      setAvailableReviewers(users.filter((member: ReviewerItem) => member.role === 'editorial_board'))
+      setAvailableEditorAttendees(users.filter((member: ReviewerItem) => member.role === 'editor'))
     } catch (err) {
       console.error('Failed to load reviewers:', err)
     }
@@ -502,14 +510,17 @@ export function EditorialBoardPortalPage() {
     setMeetingPurpose('cancellation_review')
     setMeetingSeriesIds([series._id])
     setMeetingParticipants([])
+    setMeetingAttendees([])
     setMeetingTitle(`Cancellation review: ${series.title}`)
     setMeetingDesc(`Review the performance evidence and vote on whether "${series.title}" should continue publication.`)
     setMeetingRubricTemplateId('')
     setShowMeetingForm(true)
     setActiveTab('meetings')
     try {
-      const res = await authAPI.search('', { roles: 'editorial_board' })
-      setAvailableReviewers(res.data.users || [])
+      const res = await authAPI.search('', { roles: 'editorial_board,editor' })
+      const users = res.data.users || []
+      setAvailableReviewers(users.filter((member: ReviewerItem) => member.role === 'editorial_board'))
+      setAvailableEditorAttendees(users.filter((member: ReviewerItem) => member.role === 'editor'))
     } catch (err) {
       console.error('Failed to load reviewers:', err)
     }
@@ -519,6 +530,12 @@ export function EditorialBoardPortalPage() {
     if (id === user?._id) return
     setMeetingParticipants((prev) =>
       prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
+    )
+  }
+
+  const handleToggleAttendee = (id: string) => {
+    setMeetingAttendees((prev) =>
+      prev.includes(id) ? prev.filter((attendeeId) => attendeeId !== id) : [...prev, id]
     )
   }
 
@@ -1888,7 +1905,7 @@ export function EditorialBoardPortalPage() {
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-neutral-700 block">
-                    {t('editorialBoard.selectParticipants')} <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
+                    Voting Editorial Board members <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
                     <span className="ml-1 font-normal text-neutral-500">Organizer included automatically</span>
                   </label>
                   {/* Odd number participant validation feedback */}
@@ -1920,6 +1937,42 @@ export function EditorialBoardPortalPage() {
                             <div className="min-w-0 flex-1">
                               <p className="truncate">{rev.displayName}</p>
                               <p className="text-[8px] text-neutral-400 capitalize">{rev.role.replace('_', ' ')}</p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-neutral-700 block">
+                    Editor attendees <span className="text-indigo-600">({meetingAttendees.length} selected)</span>
+                    <span className="ml-1 font-normal text-neutral-500">Can attend and review, but cannot vote</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 bg-white border border-neutral-200 rounded-xl">
+                    {availableEditorAttendees.length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-xs text-neutral-400">
+                        No active editors available.
+                      </div>
+                    ) : (
+                      availableEditorAttendees.map((editor) => {
+                        const isSelected = meetingAttendees.includes(editor._id)
+                        return (
+                          <div
+                            key={editor._id}
+                            onClick={() => handleToggleAttendee(editor._id)}
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer select-none transition-all text-xs ${isSelected
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-900 font-semibold'
+                              : 'border-neutral-100 hover:bg-neutral-50 text-neutral-700'
+                            }`}
+                          >
+                            <div className="grid size-5 shrink-0 place-items-center rounded-full bg-neutral-100 text-[9px] font-bold">
+                              {editor.displayName?.[0] || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate">{editor.displayName}</p>
+                              <p className="text-[8px] text-neutral-400">Editor · attendee only</p>
                             </div>
                           </div>
                         )
@@ -2035,7 +2088,7 @@ export function EditorialBoardPortalPage() {
 
                       <div className="space-y-2 border-t border-neutral-100 pt-3 text-left">
                         <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-wider block">
-                          Invited Participants ({m.participants?.length || 0})
+                          Voting Board Members ({m.participants?.length || 0})
                         </span>
                         <div className="flex items-center gap-3">
                           {/* Avatar stack */}
@@ -2060,6 +2113,17 @@ export function EditorialBoardPortalPage() {
                           </p>
                         </div>
                       </div>
+
+                      {(m.attendees?.length || 0) > 0 && (
+                        <div className="space-y-2 border-t border-neutral-100 pt-3 text-left">
+                          <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-wider block">
+                            Editor Attendees ({m.attendees?.length || 0})
+                          </span>
+                          <p className="text-[11px] text-neutral-500 font-semibold truncate max-w-[200px]">
+                            {m.attendees?.map((attendee) => attendee.displayName).join(', ')}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-between items-center mt-5 pt-3 border-t border-neutral-100 text-[10px] text-neutral-400 font-medium">

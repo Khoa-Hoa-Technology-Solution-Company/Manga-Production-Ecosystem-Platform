@@ -23,6 +23,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       seriesId,
       seriesIds,
       participants,
+      attendees = [],
       rubricTemplateId,
       purpose = 'proposal_review',
     } = req.body;
@@ -46,8 +47,10 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Ensure the creator is also listed as a participant, or at least has view access.
+    // The organizer and selected Editorial Board members are the voting group.
     const uniqueParticipants = Array.from(new Set([...participants, req.user!._id.toString()]));
+    const uniqueAttendees = Array.from(new Set(attendees))
+      .filter((attendeeId) => !uniqueParticipants.includes(attendeeId));
 
     // Validation: Number of participants must be odd
     if (uniqueParticipants.length % 2 === 0) {
@@ -69,10 +72,15 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     }
 
     const requiredSeriesStatus = purpose === 'cancellation_review' ? 'Active' : 'Pending_EB';
-    const [eligibleParticipants, eligibleSeries, existingCancellationMeeting] = await Promise.all([
+    const [eligibleParticipants, eligibleAttendees, eligibleSeries, existingCancellationMeeting] = await Promise.all([
       User.countDocuments({
         _id: { $in: uniqueParticipants },
         role: 'editorial_board',
+        isActive: true,
+      }),
+      User.countDocuments({
+        _id: { $in: uniqueAttendees },
+        role: 'editor',
         isActive: true,
       }),
       Series.countDocuments({ _id: { $in: finalSeriesIds }, status: requiredSeriesStatus }),
@@ -86,6 +94,10 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     ]);
     if (eligibleParticipants !== uniqueParticipants.length) {
       res.status(400).json({ error: 'All voting participants must be active Editorial Board members.' });
+      return;
+    }
+    if (eligibleAttendees !== uniqueAttendees.length) {
+      res.status(400).json({ error: 'Meeting attendees must be active editors.' });
       return;
     }
     if (eligibleSeries !== finalSeriesIds.length) {
@@ -108,6 +120,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       location,
       seriesIds: finalSeriesIds,
       participants: uniqueParticipants,
+      attendees: uniqueAttendees,
       createdBy: req.user!._id,
       purpose,
       rubricTemplateId: purpose === 'proposal_review' && rubricTemplateId ? rubricTemplateId : undefined,
@@ -116,6 +129,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     const populatedMeeting = await Meeting.findById(meeting._id)
       .populate('createdBy', 'displayName avatar role')
       .populate('participants', 'displayName email avatar role')
+      .populate('attendees', 'displayName email avatar role')
       .populate('seriesIds', 'title coverImage')
       .populate('rubricTemplateId');
 
@@ -128,15 +142,18 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     const seriesTitleMsg = seriesTitles ? ` for series ${seriesTitles}` : '';
     const meetingKind = purpose === 'cancellation_review' ? 'cancellation review meeting' : 'review meeting';
 
-    // Notify all participants (excluding the creator themselves)
-    for (const participantId of uniqueParticipants) {
+    // Notify voting participants and editor attendees (excluding the creator).
+    for (const participantId of [...new Set([...uniqueParticipants, ...uniqueAttendees])]) {
       if (participantId.toString() === req.user!._id.toString()) continue;
+      const isEditorAttendee = uniqueAttendees.includes(participantId);
 
       // Meeting schedule notification
       await createNotification({
         userId: participantId,
         type: 'system',
-        title: purpose === 'cancellation_review' ? 'Cancellation Vote Meeting Scheduled' : 'New Review Meeting Scheduled',
+        title: isEditorAttendee
+          ? 'Review Meeting Attendance Invitation'
+          : purpose === 'cancellation_review' ? 'Cancellation Vote Meeting Scheduled' : 'New Review Meeting Scheduled',
         message: `${creatorName} scheduled a ${meetingKind} "${title}"${seriesTitleMsg} on ${formattedDate}.`,
         relatedId: meeting._id.toString(),
         relatedType: 'Meeting',
@@ -148,8 +165,10 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
         await createNotification({
           userId: participantId,
           type: 'system',
-          title: purpose === 'cancellation_review' ? 'Series Cancellation Vote Invitation' : 'Series Review Invitation',
-          message: purpose === 'cancellation_review'
+          title: isEditorAttendee ? 'Series Review Attendance Invitation' : purpose === 'cancellation_review' ? 'Series Cancellation Vote Invitation' : 'Series Review Invitation',
+          message: isEditorAttendee
+            ? `You are invited to attend the review for series "${seriesObj.title}" in meeting "${title}" on ${formattedDate}. Editorial Board members will cast the vote.`
+            : purpose === 'cancellation_review'
             ? `You are invited to vote on whether series "${seriesObj.title}" should be cancelled in meeting "${title}" on ${formattedDate}.`
             : `You are invited to review the series "${seriesObj.title}" in the meeting "${title}" on ${formattedDate}.`,
           relatedId: seriesObj._id.toString(),
@@ -189,10 +208,11 @@ export async function getMeetings(req: Request, res: Response): Promise<void> {
     const userId = req.user!._id;
 
     const meetings = await Meeting.find({
-      $or: [{ createdBy: userId }, { participants: userId }],
+      $or: [{ createdBy: userId }, { participants: userId }, { attendees: userId }],
     })
       .populate('createdBy', 'displayName avatar role')
       .populate('participants', 'displayName email avatar role')
+      .populate('attendees', 'displayName email avatar role')
       .populate('seriesIds', 'title coverImage')
       .populate('rubricTemplateId')
       .sort({ dateTime: 1 });
@@ -235,7 +255,10 @@ export async function deleteMeeting(req: Request, res: Response): Promise<void> 
 
     const seriesObjects = await Series.find({ _id: { $in: meeting.seriesIds } });
 
-    for (const participantId of meeting.participants) {
+    for (const participantId of [...new Set([
+      ...meeting.participants.map((id) => id.toString()),
+      ...meeting.attendees.map((id) => id.toString()),
+    ])]) {
       if (participantId.toString() === userId.toString()) continue;
 
       await createNotification({

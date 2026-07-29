@@ -23,6 +23,8 @@ router.post(
     body('purpose').optional().isIn(['proposal_review', 'cancellation_review']),
     body('participants').isArray({ min: 1, max: 51 }),
     body('participants.*').isMongoId(),
+    body('attendees').optional().isArray({ max: 50 }),
+    body('attendees.*').optional().isMongoId(),
     body('seriesId').optional().isMongoId(),
     body('seriesIds').optional().isArray({ min: 1, max: 50 }),
     body('seriesIds.*').optional().isMongoId(),
