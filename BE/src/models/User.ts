@@ -23,18 +23,18 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true, minlength: 6, select: false },
-    displayName: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
+    password: { type: String, required: true, minlength: 6, maxlength: 128, select: false },
+    displayName: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
     role: {
       type: String,
       enum: ['mangaka', 'assistant', 'editor', 'editorial_board', 'reader'],
       required: true,
       default: 'reader',
     },
-    avatar: { type: String },
+    avatar: { type: String, maxlength: 2048 },
     bio: { type: String, maxlength: 500 },
-    skills: [{ type: String }],
+    skills: [{ type: String, trim: true, maxlength: 50 }],
     rating: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 },
     subscribedToNewSeries: { type: Boolean, default: false },

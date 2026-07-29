@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* Hallmark · component: manuscript-review toolbar · audience: editor · use: review decisions · tone: technical
+ * pre-emit critique: P5 H5 E5 S5 R5 V4
+ */
 import { useEffect, useState, useRef, type MouseEvent, } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -454,11 +457,13 @@ export function ManuscriptReviewPage() {
   )
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] bg-[#0B0D16] text-[#E2E8F0] antialiased">
+    <div className="flex h-[calc(100dvh-53px)] min-w-0 flex-col overflow-hidden bg-[#0B0D16] text-[#E2E8F0] antialiased lg:h-dvh">
       {/* ── Top Audit Toolbar ────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#0E111E]/90 backdrop-blur-md px-6 py-3.5 shrink-0 z-10 shadow-sm">
-        <div className="flex items-center gap-4">
+      <div className="z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-white/[0.06] bg-[#0E111E]/95 px-4 py-2 shadow-sm backdrop-blur-md xl:px-5">
+        <div className="flex min-w-0 items-center gap-3">
           <button
+            type="button"
+            aria-label="Back to editor portal"
             onClick={() => {
               if (user?.role?.toLowerCase() === 'editorial_board') {
                 navigate('/editorial-board')
@@ -466,15 +471,15 @@ export function ManuscriptReviewPage() {
                 navigate('/editor')
               }
             }}
-            className="size-9 p-0 rounded-xl flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/[0.06] hover:scale-105 active:scale-95 transition-all border border-white/[0.04] bg-transparent cursor-pointer"
+            className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-white/[0.06] bg-transparent p-0 text-neutral-400 transition-[background-color,color,transform] duration-150 hover:bg-white/[0.06] hover:text-white active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             <ArrowLeft className="size-4" />
           </button>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded-md">Manuscript Review</span>
+              <span className="whitespace-nowrap rounded-md bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-indigo-400">Manuscript Review</span>
               {chapter && (
-                <Badge className="bg-white/10 text-white border-none py-0 px-2 h-4 text-[9px] font-semibold uppercase rounded-md">
+                <Badge className="h-4 shrink-0 whitespace-nowrap rounded-md border-none bg-white/10 px-2 py-0 text-[9px] font-semibold uppercase text-white">
                   Ch. {chapter.chapterNumber}
                 </Badge>
               )}
@@ -486,11 +491,13 @@ export function ManuscriptReviewPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2.5">
+        <div className="col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto border-t border-white/[0.05] pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {series && (
             <button
+              type="button"
+              aria-pressed={showSeriesDetails}
               onClick={() => setShowSeriesDetails(!showSeriesDetails)}
-              className={`h-8 px-3.5 text-xs font-semibold border rounded-xl flex items-center gap-2 transition-all duration-300 hover:scale-102 active:scale-98 cursor-pointer bg-transparent ${showSeriesDetails
+              className={`flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border px-3.5 text-xs font-semibold transition-[background-color,border-color,color,transform,box-shadow] duration-150 active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${showSeriesDetails
                   ? 'border-indigo-500/50 text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 shadow-[0_0_12px_rgba(99,102,241,0.2)]'
                   : 'border-white/[0.08] text-neutral-300 hover:text-white hover:bg-white/[0.06]'
                 }`}
@@ -502,17 +509,19 @@ export function ManuscriptReviewPage() {
           {user?.role?.toLowerCase() === 'editor' && chapter && chapter.status === 'Reviewing' && (
             <>
               <button
+                type="button"
                 onClick={handleApproveChapter}
                 disabled={submittingAction}
-                className="h-8 px-3.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+                className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border-none bg-emerald-600 px-4 text-xs font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-emerald-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
               >
                 <CheckCircle className="size-3.5" />
                 <span>{t('editor.approve', 'Approve')}</span>
               </button>
               <button
+                type="button"
                 onClick={handleRejectChapter}
                 disabled={submittingAction}
-                className="h-8 px-3.5 text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+                className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border-none bg-rose-600 px-4 text-xs font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-rose-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
               >
                 <Trash2 className="size-3.5" />
                 <span>{t('editor.reject', 'Reject')}</span>
@@ -521,9 +530,10 @@ export function ManuscriptReviewPage() {
           )}
           {user?.role?.toLowerCase() === 'editor' && chapter?.status === 'Approved' && (
             <button
+              type="button"
               onClick={handlePublishChapter}
               disabled={submittingAction}
-              className="h-8 px-3.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+              className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border-none bg-emerald-600 px-4 text-xs font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-emerald-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
             >
               <CheckCircle className="size-3.5" />
               <span>{t('studio.publish', 'Publish')}</span>
@@ -531,31 +541,34 @@ export function ManuscriptReviewPage() {
           )}
           {chapter?.status === 'Published' && (user?.role?.toLowerCase() === 'editor' || user?.isEbHead) && (
             <button
+              type="button"
               onClick={handleUnpublishChapter}
               disabled={submittingAction}
-              className="h-8 px-3.5 text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white hover:scale-102 active:scale-98 rounded-xl flex items-center gap-1.5 transition-all border-none cursor-pointer disabled:opacity-50"
+              className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border-none bg-amber-600 px-4 text-xs font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-amber-500 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
             >
               <AlertTriangle className="size-3.5" />
               <span>{t('studio.unpublish', 'Unpublish')}</span>
             </button>
           )}
           <button
+            type="button"
             onClick={() => setShowCanvas(true)}
-            className="h-8 px-3.5 text-xs font-semibold border border-white/[0.08] text-neutral-300 hover:text-white hover:bg-white/[0.06] hover:scale-102 active:scale-98 rounded-xl flex items-center gap-2 transition-all bg-transparent cursor-pointer"
+            className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border border-white/[0.08] bg-transparent px-3.5 text-xs font-semibold text-neutral-300 transition-[background-color,color,transform] duration-150 hover:bg-white/[0.06] hover:text-white active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             <PenTool className="size-3.5" />
             <span>Draw on Canvas</span>
           </button>
 
           {currentPage?.compositeImage && (
-            <div className="flex items-center gap-1 bg-[#131627] border border-white/[0.05] p-0.5 rounded-xl ml-2">
+            <div className="ml-1 flex shrink-0 items-center gap-1 rounded-xl border border-white/[0.05] bg-[#131627] p-0.5">
               <button
                 type="button"
                 onClick={() => setShowOriginal(false)}
-                className={`h-7 px-3 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
+                aria-pressed={!showOriginal}
+                className={`min-h-10 whitespace-nowrap rounded-lg border-none px-3 text-[10px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-400 ${
                   !showOriginal
-                    ? 'bg-indigo-600 text-white shadow'
-                    : 'text-neutral-400 hover:text-white bg-transparent'
+                    ? 'cursor-default bg-indigo-600 text-white shadow'
+                    : 'cursor-pointer bg-transparent text-neutral-400 hover:text-white'
                 }`}
               >
                 Composite
@@ -563,10 +576,11 @@ export function ManuscriptReviewPage() {
               <button
                 type="button"
                 onClick={() => setShowOriginal(true)}
-                className={`h-7 px-3 text-[10px] font-bold rounded-lg border-none cursor-pointer transition-colors ${
+                aria-pressed={showOriginal}
+                className={`min-h-10 whitespace-nowrap rounded-lg border-none px-3 text-[10px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-400 ${
                   showOriginal
-                    ? 'bg-indigo-600 text-white shadow'
-                    : 'text-neutral-400 hover:text-white bg-transparent'
+                    ? 'cursor-default bg-indigo-600 text-white shadow'
+                    : 'cursor-pointer bg-transparent text-neutral-400 hover:text-white'
                 }`}
               >
                 Original
@@ -575,21 +589,25 @@ export function ManuscriptReviewPage() {
           )}
 
           {/* Page navigation */}
-          <div className="flex items-center gap-1 bg-[#131627] border border-white/[0.05] p-0.5 rounded-xl ml-2">
+          <div className="ml-1 flex shrink-0 items-center gap-1 rounded-xl border border-white/[0.05] bg-[#131627] p-0.5">
             <button
+              type="button"
+              aria-label="Previous manuscript page"
               onClick={() => setCurrentPageIdx(Math.max(0, currentPageIdx - 1))}
               disabled={currentPageIdx === 0}
-              className="size-7 p-0 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/[0.08] disabled:opacity-25 disabled:pointer-events-none transition-all border-none bg-transparent cursor-pointer"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-0 text-neutral-400 transition-[background-color,color,transform] duration-150 hover:bg-white/[0.08] hover:text-white active:translate-y-px disabled:pointer-events-none disabled:opacity-25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-400"
             >
               <ChevronLeft className="size-4" />
             </button>
-            <span className="text-xs font-semibold select-none text-neutral-300 px-2 min-w-20 text-center">
+            <span className="min-w-24 select-none whitespace-nowrap px-2 text-center text-xs font-semibold text-neutral-300">
               {pages.length > 0 ? `Page ${currentPageIdx + 1} / ${pages.length}` : 'No Pages'}
             </span>
             <button
+              type="button"
+              aria-label="Next manuscript page"
               onClick={() => setCurrentPageIdx(Math.min(pages.length - 1, currentPageIdx + 1))}
               disabled={currentPageIdx >= pages.length - 1}
-              className="size-7 p-0 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/[0.08] disabled:opacity-25 disabled:pointer-events-none transition-all border-none bg-transparent cursor-pointer"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-0 text-neutral-400 transition-[background-color,color,transform] duration-150 hover:bg-white/[0.08] hover:text-white active:translate-y-px disabled:pointer-events-none disabled:opacity-25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-400"
             >
               <ChevronRight className="size-4" />
             </button>
@@ -597,9 +615,9 @@ export function ManuscriptReviewPage() {
         </div>
 
         {/* Legend */}
-        <div className="hidden lg:flex items-center gap-1.5 text-[10px] text-neutral-400">
+        <div className="col-start-2 row-start-1 hidden shrink-0 items-center gap-1.5 text-[10px] text-neutral-400 xl:flex">
           <HelpCircle className="size-3.5 text-indigo-400" />
-          <span>Click anywhere on manuscript to place correction pin.</span>
+          <span className="whitespace-nowrap">Click anywhere on manuscript to place correction pin.</span>
         </div>
       </div>
 

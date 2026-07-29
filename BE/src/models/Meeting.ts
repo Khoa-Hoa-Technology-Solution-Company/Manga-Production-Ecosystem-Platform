@@ -20,10 +20,10 @@ export interface IMeeting extends Document {
 
 const meetingSchema = new Schema<IMeeting>(
   {
-    title: { type: String, required: true, trim: true },
-    description: { type: String, trim: true },
+    title: { type: String, required: true, trim: true, minlength: 2, maxlength: 120 },
+    description: { type: String, trim: true, maxlength: 2000 },
     dateTime: { type: Date, required: true },
-    location: { type: String, trim: true },
+    location: { type: String, trim: true, maxlength: 200 },
     purpose: {
       type: String,
       enum: ['proposal_review', 'cancellation_review'],
@@ -34,7 +34,7 @@ const meetingSchema = new Schema<IMeeting>(
       enum: ['open', 'cancelled', 'continued'],
       default: 'open',
     },
-    decisionReason: { type: String, trim: true },
+    decisionReason: { type: String, trim: true, maxlength: 2000 },
     finalizedAt: { type: Date },
     finalizedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     seriesIds: [{ type: Schema.Types.ObjectId, ref: 'Series' }],

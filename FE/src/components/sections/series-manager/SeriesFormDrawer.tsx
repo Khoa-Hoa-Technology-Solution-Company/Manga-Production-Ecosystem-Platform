@@ -5,6 +5,9 @@ import { Button, Input } from '../../ui'
 import { seriesCoverUrl, type SeriesData } from './utils'
 import { uploadAPI } from '../../../lib/api'
 import { SERIES_TAG_OPTIONS, formatSeriesTag, toTagArray } from '../../../constants/seriesTags'
+import { isValidHttpOrRelativeUrl } from '../../../lib/validation'
+
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 interface SeriesFormDrawerProps {
   isOpen: boolean
@@ -56,10 +59,12 @@ export function SeriesFormDrawer({
   const [newCharDesc, setNewCharDesc] = useState('')
   const [newCharImage, setNewCharImage] = useState('')
   const [uploadingSketch, setUploadingSketch] = useState(false)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     if (initialSeries) {
       Promise.resolve().then(() => {
+        setFormError('')
         setTitle(initialSeries.title || '')
         setDescription(initialSeries.description || '')
         setTags(toTagArray(initialSeries.tags?.length ? initialSeries.tags : initialSeries.genre))
@@ -73,6 +78,7 @@ export function SeriesFormDrawer({
       })
     } else {
       Promise.resolve().then(() => {
+        setFormError('')
         setTitle('')
         setDescription('')
         setTags(['action', 'fantasy'])
@@ -91,6 +97,12 @@ export function SeriesFormDrawer({
     }
   }, [initialSeries, isOpen])
 
+  useEffect(() => {
+    return () => {
+      if (coverPreview.startsWith('blob:')) URL.revokeObjectURL(coverPreview)
+    }
+  }, [coverPreview])
+
   // ESC key listener to close drawer
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -104,6 +116,12 @@ export function SeriesFormDrawer({
 
   const handleCoverFileChange = (file?: File) => {
     if (!file) return
+    if (!file.type.startsWith('image/') || file.size > MAX_UPLOAD_BYTES) {
+      setFormError('Cover must be an image smaller than 50 MB.')
+      return
+    }
+    if (coverPreview.startsWith('blob:')) URL.revokeObjectURL(coverPreview)
+    setFormError('')
     setCoverFile(file)
     setCoverPreview(URL.createObjectURL(file))
   }
@@ -111,6 +129,12 @@ export function SeriesFormDrawer({
   const handleScriptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.type !== 'application/pdf' || file.size > MAX_UPLOAD_BYTES) {
+      setFormError('Script document must be a PDF smaller than 50 MB.')
+      e.target.value = ''
+      return
+    }
+    setFormError('')
     setUploadingScript(true)
     try {
       const res = await uploadAPI.uploadFile(file, 'scripts')
@@ -127,6 +151,12 @@ export function SeriesFormDrawer({
   const handleSketchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!file.type.startsWith('image/') || file.size > MAX_UPLOAD_BYTES) {
+      setFormError('Character sketch must be an image smaller than 50 MB.')
+      e.target.value = ''
+      return
+    }
+    setFormError('')
     setUploadingSketch(true)
     try {
       const res = await uploadAPI.uploadFile(file, 'characters')
@@ -140,7 +170,15 @@ export function SeriesFormDrawer({
   }
 
   const handleAddCharacter = () => {
-    if (!newCharName.trim()) return
+    if (newCharName.trim().length < 1 || newCharName.trim().length > 100) {
+      setFormError('Character name must contain 1 to 100 characters.')
+      return
+    }
+    if (newCharRole.trim().length > 100 || newCharDesc.trim().length > 1000) {
+      setFormError('Character role or description is too long.')
+      return
+    }
+    setFormError('')
     setCharacterDesigns((prev) => [
       ...prev,
       {
@@ -163,8 +201,27 @@ export function SeriesFormDrawer({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !description.trim()) return
-    if (tags.length === 0) return
+    if (title.trim().length < 1 || title.trim().length > 120) {
+      setFormError('Series title must contain 1 to 120 characters.')
+      return
+    }
+    if (description.trim().length < 1 || description.trim().length > 5000) {
+      setFormError('Description must contain 1 to 5000 characters.')
+      return
+    }
+    if (tags.length === 0) {
+      setFormError('Select at least one series tag.')
+      return
+    }
+    if (coverUrlInput.trim().length > 2048 || !isValidHttpOrRelativeUrl(coverUrlInput)) {
+      setFormError('Enter a valid cover URL or relative path.')
+      return
+    }
+    if (script.length > 100000) {
+      setFormError('Script text cannot exceed 100,000 characters.')
+      return
+    }
+    setFormError('')
     await onSave({
       title: title.trim(),
       description: description.trim(),
@@ -205,6 +262,11 @@ export function SeriesFormDrawer({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+          {formError && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {formError}
+            </p>
+          )}
           {/* Title */}
           <div className="space-y-1.5">
             <label htmlFor="series-title" className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
@@ -216,6 +278,7 @@ export function SeriesFormDrawer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t('seriesManager.seriesTitlePlaceholder', 'e.g. My Legendary Manga')}
               required
+              maxLength={120}
             />
           </div>
 
@@ -231,6 +294,7 @@ export function SeriesFormDrawer({
               placeholder={t('seriesManager.seriesDescPlaceholder', 'Provide an engaging summary of your series...')}
               className="min-h-28 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-950 placeholder:text-neutral-400 shadow-xs outline-hidden transition-all focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400/20"
               required
+              maxLength={5000}
             />
           </div>
 
@@ -303,6 +367,7 @@ export function SeriesFormDrawer({
                 value={coverUrlInput}
                 onChange={(e) => setCoverUrlInput(e.target.value)}
                 placeholder="https://example.com/cover.jpg"
+                maxLength={2048}
               />
             </div>
           </div>
@@ -323,6 +388,7 @@ export function SeriesFormDrawer({
                 value={script}
                 onChange={(e) => setScript(e.target.value)}
                 placeholder="Outline the story, theme, script breakdown, or plot beats..."
+                maxLength={100000}
                 className="min-h-32 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-950 placeholder:text-neutral-400 shadow-xs outline-hidden transition-all focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400/20"
               />
             </div>

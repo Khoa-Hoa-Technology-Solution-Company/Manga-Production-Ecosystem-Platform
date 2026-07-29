@@ -36,6 +36,16 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const scheduledDate = new Date(dateTime);
+    if (!Number.isFinite(scheduledDate.getTime())) {
+      res.status(400).json({ error: 'A valid meeting date/time is required.' });
+      return;
+    }
+    if (scheduledDate.getTime() <= Date.now()) {
+      res.status(400).json({ error: 'Meeting date/time must be in the future.' });
+      return;
+    }
+
     // Ensure the creator is also listed as a participant, or at least has view access.
     const uniqueParticipants = Array.from(new Set([...participants, req.user!._id.toString()]));
 
@@ -94,7 +104,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
     const meeting = await Meeting.create({
       title,
       description,
-      dateTime: new Date(dateTime),
+      dateTime: scheduledDate,
       location,
       seriesIds: finalSeriesIds,
       participants: uniqueParticipants,
@@ -109,7 +119,7 @@ export async function createMeeting(req: Request, res: Response): Promise<void> 
       .populate('seriesIds', 'title coverImage')
       .populate('rubricTemplateId');
 
-    const formattedDate = new Date(dateTime).toLocaleString();
+    const formattedDate = scheduledDate.toLocaleString();
     const creatorName = req.user!.displayName || 'The Editorial Board Head';
 
     // Fetch series details to generate notifications

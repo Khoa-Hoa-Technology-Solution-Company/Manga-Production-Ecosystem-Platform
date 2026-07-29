@@ -2024,9 +2024,20 @@ function StudioWorkspacePageContent() {
   // ── Create zone API call ──────────────────────────
   const handleCreateZone = async () => {
     if (!currentPage?._id || !pendingZoneRect) return
+    const normalizedZoneName = newZoneName.trim()
+    if (
+      normalizedZoneName.length < 1
+      || normalizedZoneName.length > 80
+      || ![pendingZoneRect.x, pendingZoneRect.y, pendingZoneRect.w, pendingZoneRect.h].every(Number.isFinite)
+      || pendingZoneRect.w <= 0
+      || pendingZoneRect.h <= 0
+    ) {
+      alert(t('studio.invalidZone', 'Enter a valid zone name and rectangle.'))
+      return
+    }
     try {
       await zonesAPI.create(currentPage._id, {
-        name: newZoneName,
+        name: normalizedZoneName,
         type: newZoneType,
         color: zoneTypeColors[newZoneType] || '#999',
         boundingBox: {
@@ -2117,16 +2128,29 @@ function StudioWorkspacePageContent() {
   const handleCreateTaskSubmit = async () => {
     if (!selectedSeriesId || !selectedChapterId) return
     if (createTaskForm.assignmentLevel === 'page' && !currentPage?._id) return
+    const normalizedTitle = createTaskForm.title.trim()
+    const normalizedDescription = createTaskForm.description.trim()
+    const deadline = new Date(createTaskForm.deadline)
+    if (
+      normalizedTitle.length < 1
+      || normalizedTitle.length > 120
+      || normalizedDescription.length > 2000
+      || !Number.isFinite(deadline.getTime())
+      || deadline.getTime() <= Date.now()
+    ) {
+      alert(t('studio.invalidTask', 'Enter a task title, a future deadline, and keep the description within 2,000 characters.'))
+      return
+    }
     try {
       if (activeTaskToAssign) {
         // Update existing task (assign assistant)
         await tasksAPI.update(activeTaskToAssign._id, {
           assignedTo: createTaskForm.assignedTo || null,
           status: createTaskForm.assignedTo ? 'assigned' : 'open',
-          title: createTaskForm.title,
-          description: createTaskForm.description,
+          title: normalizedTitle,
+          description: normalizedDescription,
           wage: 0,
-          deadline: new Date(createTaskForm.deadline),
+          deadline,
           assistantType: createTaskForm.assistantType,
         })
       } else {
@@ -2134,10 +2158,10 @@ function StudioWorkspacePageContent() {
         const payload: any = {
           seriesId: selectedSeriesId,
           chapterId: selectedChapterId,
-          title: createTaskForm.title,
-          description: createTaskForm.description,
+          title: normalizedTitle,
+          description: normalizedDescription,
           wage: 0,
-          deadline: new Date(createTaskForm.deadline),
+          deadline,
           type: createTaskForm.type,
           assignedTo: createTaskForm.assignedTo || undefined,
           status: createTaskForm.assignedTo ? 'assigned' : 'open',
@@ -2290,13 +2314,23 @@ function StudioWorkspacePageContent() {
 
   const handleAddLayer = async (e: React.FormEvent) => {
     e.preventDefault()
+    const normalizedLayerName = newLayerName.trim()
     if (!currentPage?._id || !newLayerFile) return
+    if (
+      normalizedLayerName.length < 1
+      || normalizedLayerName.length > 100
+      || !newLayerFile.type.startsWith('image/')
+      || newLayerFile.size > 50 * 1024 * 1024
+    ) {
+      alert(t('studio.invalidLayer', 'Choose an image smaller than 50 MB and enter a layer name of 1-100 characters.'))
+      return
+    }
 
     setAddingLayer(true)
     try {
       const formData = new FormData()
       formData.append('image', newLayerFile)
-      formData.append('name', newLayerName.trim())
+       formData.append('name', normalizedLayerName)
 
       await pagesAPI.addLayer(currentPage._id, formData)
       
@@ -2382,7 +2416,17 @@ function StudioWorkspacePageContent() {
   }, [shareUserQuery])
 
   const handleCreateSeries = async () => {
-    if (!newSeriesTitle.trim() || !newSeriesDescription.trim() || newSeriesTags.length === 0) return
+    if (
+      newSeriesTitle.trim().length < 1
+      || newSeriesTitle.trim().length > 120
+      || newSeriesDescription.trim().length < 1
+      || newSeriesDescription.trim().length > 5000
+      || newSeriesTags.length === 0
+      || newSeriesCoverImage.trim().length > 2048
+    ) {
+      alert(t('studio.invalidSeries', 'Enter a valid series title, description, tags, and cover URL.'))
+      return
+    }
     try {
       const res = await seriesAPI.create({
         title: newSeriesTitle.trim(),
@@ -2403,12 +2447,24 @@ function StudioWorkspacePageContent() {
   }
 
   const handleCreateChapter = async () => {
-    if (!selectedSeriesId || !newChapterNumber.trim() || !newChapterTitle.trim()) return
+    const chapterNumber = Number(newChapterNumber)
+    const deadline = newChapterDeadline ? new Date(newChapterDeadline) : undefined
+    if (
+      !selectedSeriesId
+      || !Number.isInteger(chapterNumber)
+      || chapterNumber < 1
+      || newChapterTitle.trim().length < 1
+      || newChapterTitle.trim().length > 120
+      || (deadline && !Number.isFinite(deadline.getTime()))
+    ) {
+      alert(t('studio.invalidChapter', 'Enter a valid chapter number, title, and deadline.'))
+      return
+    }
     try {
       await chaptersAPI.create(selectedSeriesId, {
-        chapterNumber: Number(newChapterNumber),
+        chapterNumber,
         title: newChapterTitle.trim(),
-        publicationDeadline: newChapterDeadline ? new Date(newChapterDeadline) : undefined,
+        publicationDeadline: deadline,
       })
       setShowCreateChapterDialog(false)
       setNewChapterDeadline('')
@@ -2421,6 +2477,10 @@ function StudioWorkspacePageContent() {
 
   const handleShareAccess = async () => {
     if (!selectedChapterId || !shareUserId.trim()) return
+    if (!/^[a-f\d]{24}$/i.test(shareUserId.trim())) {
+      setShareError(t('studio.invalidUserId', 'Select a valid user from the search results.'))
+      return
+    }
     setShareError('')
     try {
       await chaptersAPI.shareAccess(selectedChapterId, {
@@ -3206,45 +3266,45 @@ function StudioWorkspacePageContent() {
                     .map((task) => {
                       const isTaskForCurrentPage = task.assignmentLevel === 'chapter' || (task.pageId?._id === currentPage?._id || task.pageId === currentPage?._id);
                       return (
-                        <Card key={task._id} className={`rounded-xl p-2.5 border transition-all ${isTaskForCurrentPage ? 'border-neutral-300' : 'border-neutral-100 opacity-60'}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-neutral-800 truncate">{task.title}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-neutral-100 text-neutral-600 border-none font-medium flex items-center gap-0.5">
+                        <Card key={task._id} className={`rounded-2xl border p-3 ${isTaskForCurrentPage ? 'border-neutral-300' : 'border-neutral-100 opacity-60'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold leading-5 text-neutral-900">{task.title}</p>
+                              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                <Badge variant="secondary" className="flex h-5 items-center gap-1 border-none bg-neutral-100 px-2 text-[10px] font-medium text-neutral-700">
                                   {task.assignmentLevel === 'chapter' ? (
                                     <>
-                                      <BookOpen className="size-2.5" />
+                                      <BookOpen className="size-3" />
                                       Chapter
                                     </>
                                   ) : (
                                     <>
-                                      <FileText className="size-2.5" />
+                                      <FileText className="size-3" />
                                       Page {task.pageId?.pageNumber || ''}
                                     </>
                                   )}
                                 </Badge>
-                                <span className="text-[10px] text-neutral-500 capitalize">{task.type}</span>
+                                <span className="truncate text-[11px] capitalize text-neutral-500">{task.type}</span>
                               </div>
                             </div>
                             {task.assignedTo && (
-                              <Avatar className="size-6 bg-neutral-200 shrink-0">
-                                <AvatarFallback className="text-[8px] font-semibold">{task.assignedTo.displayName?.[0]}</AvatarFallback>
+                              <Avatar className="size-8 shrink-0 bg-neutral-200">
+                                <AvatarFallback className="text-[10px] font-semibold">{task.assignedTo.displayName?.[0]}</AvatarFallback>
                               </Avatar>
                             )}
                           </div>
-                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-neutral-50">
+                          <div className="mt-3 flex min-h-7 items-center justify-between gap-3 border-t border-neutral-100 pt-2">
                             <Badge
                               variant="secondary"
-                              className={`text-[9px] px-1.5 py-0 h-4 font-semibold capitalize ${task.status === 'done' ? 'text-emerald-600 bg-emerald-50' :
-                                task.status === 'review' ? 'text-amber-600 bg-amber-50' :
-                                  task.status === 'in_progress' ? 'text-blue-600 bg-blue-50' : 'text-neutral-500 bg-neutral-50'
+                              className={`h-5 min-w-14 justify-center px-2 text-[10px] font-semibold capitalize ${task.status === 'done' ? 'text-emerald-700 bg-emerald-50' :
+                                task.status === 'review' ? 'text-amber-700 bg-amber-50' :
+                                  task.status === 'in_progress' ? 'text-blue-700 bg-blue-50' : 'text-neutral-700 bg-neutral-50'
                                 }`}
                             >
                               {task.status.replace('_', ' ')}
                             </Badge>
                             {task.deadline && (
-                              <span className="text-[9px] text-neutral-400">
+                              <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-500">
                                 {new Date(task.deadline).toLocaleDateString()}
                               </span>
                             )}
@@ -3254,32 +3314,31 @@ function StudioWorkspacePageContent() {
                             <Button
                               size="sm"
                               onClick={() => handleOpenReview(task)}
-                              className="w-full text-[10px] font-semibold flex items-center justify-center gap-1 bg-neutral-900 text-white rounded-lg h-7 hover:bg-neutral-800 transition-colors mt-2"
+                              className="mt-3 h-11 w-full gap-1.5 bg-neutral-900 px-3 text-white shadow-none hover:bg-neutral-800 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 active:bg-neutral-700"
                             >
-                              <CheckSquare className="size-3" />
-                              {t('studio.reviewSubmission', 'Review Submission')}
+                              <CheckSquare className="size-3.5" />
+                              <span className="text-xs font-semibold">{t('studio.reviewSubmission', 'Review Submission')}</span>
                             </Button>
                           )}
 
                           {task.status === 'open' && isMangaka && !isStudioLocked && (
-                            <div className="flex gap-1.5 mt-2">
+                            <div className="mt-3 flex items-center gap-2">
                               <Button
-                                size="sm"
                                 onClick={() => handleOpenAssignExistingTask(task)}
-                                className="flex-1 text-[10px] font-semibold flex items-center justify-center gap-1 bg-neutral-900 text-white rounded-lg h-7 hover:bg-neutral-800 transition-colors"
+                                className="h-11 min-w-0 flex-1 gap-1.5 bg-neutral-900 px-3 text-white shadow-none hover:bg-neutral-800 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 active:bg-neutral-700"
                               >
-                                <Sparkles className="size-3 text-amber-400" />
-                                {t('studio.designateNewAssistant', 'Designate Assistant')}
+                                <Sparkles className="size-3.5 shrink-0 text-amber-400" />
+                                <span className="truncate text-xs font-semibold">{t('studio.designateNewAssistant', 'Designate Assistant')}</span>
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
+                              <button
+                                type="button"
                                 onClick={() => handleOpenCancelTask(task)}
-                                className="text-[10px] font-semibold flex items-center justify-center gap-1 border-neutral-200 text-neutral-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg h-7 shrink-0 px-2.5 transition-colors"
+                                className="grid size-11 shrink-0 place-items-center rounded-full border border-neutral-200 bg-white text-neutral-500 transition-[background-color,border-color,color] duration-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 active:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                aria-label={t('studio.cancelTask', 'Cancel Task')}
                                 title={t('studio.cancelTask', 'Cancel Task')}
                               >
-                                <Trash2 className="size-3.5" />
-                              </Button>
+                                <Trash2 className="size-4" />
+                              </button>
                             </div>
                           )}
 
@@ -3288,10 +3347,10 @@ function StudioWorkspacePageContent() {
                               size="sm"
                               variant="outline"
                               onClick={() => handleOpenCancelTask(task)}
-                              className="w-full text-[10px] font-semibold flex items-center justify-center gap-1 border-neutral-200 text-neutral-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-lg h-7 mt-2 transition-colors"
+                              className="mt-3 h-11 w-full gap-1.5 border-neutral-200 px-3 text-neutral-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 active:bg-rose-100"
                             >
-                              <Trash2 className="size-3" />
-                              {t('studio.cancelTask', 'Cancel Task')}
+                              <Trash2 className="size-3.5" />
+                              <span className="text-xs font-semibold">{t('studio.cancelTask', 'Cancel Task')}</span>
                             </Button>
                           )}
                         </Card>
@@ -3960,35 +4019,42 @@ function StudioWorkspacePageContent() {
 
       {/* ── New Zone Dialog ────────────────────────────── */}
       {showNewZoneDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-80 rounded-2xl bg-white p-5 shadow-xl space-y-4">
-            <h3 className="text-sm font-semibold">{t('studio.createZone', 'Create Zone')}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-5 rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold tracking-tight text-neutral-900">{t('studio.createZone', 'Create Zone')}</h3>
             <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">{t('studio.zoneName', 'Name')}</label>
-              <Input value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="Zone name" />
+              <label className="mb-2 block text-xs font-semibold text-neutral-700">{t('studio.zoneName', 'Name')}</label>
+              <Input className="h-11" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} placeholder="Zone name" />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-700 mb-1 block">{t('studio.zoneType', 'Type')}</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {Object.entries(zoneTypeColors).map(([type, color]) => (
-                  <button
-                    key={type}
-                    type="button"
-                    className={`rounded-lg border px-2 py-1.5 text-[10px] font-medium capitalize transition-all ${newZoneType === type ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 hover:border-neutral-400'
-                      }`}
-                    onClick={() => { setNewZoneType(type); setNewZoneName(type.charAt(0).toUpperCase() + type.slice(1)) }}
-                  >
-                    <span className="inline-block size-1.5 rounded-full mr-1" style={{ backgroundColor: color }} />
-                    {type}
-                  </button>
-                ))}
+              <label className="mb-2 block text-xs font-semibold text-neutral-700">{t('studio.zoneType', 'Type')}</label>
+              <div className="grid grid-cols-6 gap-2">
+                {Object.entries(zoneTypeColors).map(([type, color], index) => {
+                  const gridPosition = ['col-start-1', 'col-start-3', 'col-start-5', 'col-start-2', 'col-start-4'][index]
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={newZoneType === type}
+                      className={`col-span-2 ${gridPosition} flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-1.5 py-2 text-xs font-semibold capitalize transition-[background-color,border-color,color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${newZoneType === type
+                        ? 'border-neutral-900 bg-neutral-900 text-white active:bg-neutral-800'
+                        : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50 active:bg-neutral-100'
+                        }`}
+                      onClick={() => { setNewZoneType(type); setNewZoneName(type.charAt(0).toUpperCase() + type.slice(1)) }}
+                    >
+                      <span className="size-2 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+                      <span>{type}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setShowNewZoneDialog(false); setPendingZoneRect(null) }}>
+            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4">
+              <Button className="min-h-11 min-w-24" variant="outline" size="sm" onClick={() => { setShowNewZoneDialog(false); setPendingZoneRect(null) }}>
                 {t('common.cancel', 'Cancel')}
               </Button>
-              <Button size="sm" onClick={handleCreateZone}>
+              <Button className="min-h-11 min-w-24" size="sm" onClick={handleCreateZone}>
                 {t('common.create', 'Create')}
               </Button>
             </div>

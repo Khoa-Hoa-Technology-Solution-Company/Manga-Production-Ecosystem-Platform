@@ -8,6 +8,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI, setToken as setApiToken, clearToken, setUnauthorizedCallback } from './api';
 import { socketService } from './socket';
+import { isApiError } from './errors';
 
 // ── Types ───────────────────────────────────────────
 export type User = {
@@ -35,6 +36,8 @@ type AuthContextType = {
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => Promise<void>;
   isAuthenticated: boolean;
+  authNotice: string | null;
+  clearAuthNotice: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -64,19 +67,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   // Register unauthorized callback to redirect to login
   useEffect(() => {
-    setUnauthorizedCallback(() => {
+    setUnauthorizedCallback((reason) => {
       setUser(null);
       setToken(null);
+      setAuthNotice(reason || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     });
+    return () => setUnauthorizedCallback(null);
   }, []);
 
   // Connect/disconnect socket based on auth status
   useEffect(() => {
     if (token) {
-      socketService.connect();
+      void socketService.connect().catch((error) => {
+        console.warn('Unable to connect the mobile realtime channel:', error);
+      });
     } else {
       socketService.disconnect();
     }
@@ -112,8 +120,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         await setApiToken(savedToken);
+        let verifiedUser = parsedUser;
+        try {
+          const session = await authAPI.getMe();
+          if (isStoredUser(session?.user)) verifiedUser = session.user;
+          else throw new Error('Invalid user response');
+        } catch (error) {
+          if (isApiError(error) && [401, 403, 404].includes(error.status)) {
+            await clearPersistedSession();
+            return;
+          }
+          // Keep a valid cached session during temporary network/server outages.
+          console.warn('Unable to verify the saved session; using cached profile:', error);
+        }
         if (mounted) {
-          setUser(parsedUser);
+          setUser(verifiedUser);
           setToken(savedToken);
         }
       } catch {
@@ -134,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Invalid login response');
     }
     await setApiToken(data.token);
+    setAuthNotice(null);
     setUser(data.user);
     setToken(data.token);
     await Promise.all([
@@ -153,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Invalid registration response');
     }
     await setApiToken(data.token);
+    setAuthNotice(null);
     setUser(data.user);
     setToken(data.token);
     await Promise.all([
@@ -164,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     setUser(null);
     setToken(null);
+    setAuthNotice(null);
     await clearPersistedSession();
   };
 
@@ -187,6 +211,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         updateUser,
         isAuthenticated: !!token,
+        authNotice,
+        clearAuthNotice: () => setAuthNotice(null),
       }}
     >
       {children}

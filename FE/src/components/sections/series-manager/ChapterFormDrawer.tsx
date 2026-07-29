@@ -24,6 +24,7 @@ export function ChapterFormDrawer({
   const { t } = useTranslation()
   const [chapterNum, setChapterNum] = useState(String(nextChapterNumber))
   const [title, setTitle] = useState(`Chapter ${nextChapterNumber}`)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     if (initialChapter) {
@@ -52,10 +53,20 @@ export function ChapterFormDrawer({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!chapterNum.trim() || !title.trim()) return
+    const parsedChapterNumber = Number(chapterNum)
+    const normalizedTitle = title.trim()
+    if (!Number.isInteger(parsedChapterNumber) || parsedChapterNumber < 1) {
+      setFormError(t('seriesManager.invalidChapterNumber', 'Chapter number must be a positive integer.'))
+      return
+    }
+    if (normalizedTitle.length < 1 || normalizedTitle.length > 120) {
+      setFormError(t('seriesManager.invalidChapterTitle', 'Chapter title must contain 1 to 120 characters.'))
+      return
+    }
+    setFormError('')
     await onSave({
-      chapterNumber: Number(chapterNum),
-      title: title.trim(),
+      chapterNumber: parsedChapterNumber,
+      title: normalizedTitle,
     })
   }
 
@@ -87,6 +98,11 @@ export function ChapterFormDrawer({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+          {formError && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {formError}
+            </p>
+          )}
           {/* Chapter Number (read-only/disabled for consistency, or editable) */}
           <div className="space-y-1.5">
             <label htmlFor="chapter-number" className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
@@ -112,6 +128,7 @@ export function ChapterFormDrawer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t('seriesManager.chapterTitlePlaceholder', 'e.g. The Beginning of a Journey')}
               required
+              maxLength={120}
             />
           </div>
         </form>

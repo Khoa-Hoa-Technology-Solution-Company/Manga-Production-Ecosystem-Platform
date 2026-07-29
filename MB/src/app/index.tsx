@@ -63,6 +63,22 @@ const uniqueById = <T extends { _id?: string }>(items: T[]): T[] => {
   });
 };
 
+const normalizeReaderHome = (value: unknown): ReaderHome | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<ReaderHome>;
+  if (
+    !candidate.assistant
+    || typeof candidate.assistant.name !== 'string'
+    || typeof candidate.assistant.greeting !== 'string'
+  ) return null;
+
+  return {
+    assistant: candidate.assistant,
+    continueReading: Array.isArray(candidate.continueReading) ? candidate.continueReading : [],
+    recommendations: Array.isArray(candidate.recommendations) ? candidate.recommendations : [],
+  };
+};
+
 export default function HomeScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -135,7 +151,7 @@ export default function HomeScreen() {
     if (user?.role === 'reader') {
       refreshRequests.push(readerAPI
         .getHome()
-        .then(setReaderHome)
+        .then((data) => setReaderHome(normalizeReaderHome(data)))
         .catch((err) => console.error('Reader assistant home error:', err)));
     }
 

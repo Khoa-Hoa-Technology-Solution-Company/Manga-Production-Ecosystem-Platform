@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiError, type ApiErrorPayload } from './errors';
 
 // ── Base URL ────────────────────────────────────────
 // On physical devices, set EXPO_PUBLIC_API_BASE_URL in .env to your machine's local IP
@@ -10,27 +11,62 @@ const STORAGE_TOKEN_KEY = 'mangaflow-token';
 
 // ── Token helpers ───────────────────────────────────
 let cachedToken: string | null = null;
+let unauthorizedNotified = false;
 
 export async function getToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
-  cachedToken = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
+  try {
+    cachedToken = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
+  } catch (error) {
+    console.warn('Unable to read the cached authentication token:', error);
+    cachedToken = null;
+  }
   return cachedToken;
 }
 
 export async function setToken(token: string): Promise<void> {
   cachedToken = token;
-  await AsyncStorage.setItem(STORAGE_TOKEN_KEY, token);
+  unauthorizedNotified = false;
+  try {
+    await AsyncStorage.setItem(STORAGE_TOKEN_KEY, token);
+  } catch (error) {
+    // Keep the in-memory session usable even if device storage is temporarily unavailable.
+    console.warn('Unable to persist the authentication token:', error);
+  }
 }
 
 export async function clearToken(): Promise<void> {
   cachedToken = null;
-  await AsyncStorage.removeItem(STORAGE_TOKEN_KEY);
+  try {
+    await AsyncStorage.removeItem(STORAGE_TOKEN_KEY);
+  } catch (error) {
+    console.warn('Unable to remove the cached authentication token:', error);
+  }
 }
 
-let unauthorizedCallback: (() => void) | null = null;
+let unauthorizedCallback: ((reason?: string) => void) | null = null;
 
-export function setUnauthorizedCallback(cb: () => void) {
+export function setUnauthorizedCallback(cb: ((reason?: string) => void) | null) {
   unauthorizedCallback = cb;
+}
+
+function extractResponseMessage(data: ApiErrorPayload, fallback: string): string {
+  if (typeof data.error === 'string' && data.error.trim()) return data.error;
+  const validationMessage = Array.isArray(data.errors) ? data.errors.find(
+    (item) => typeof item?.msg === 'string' && item.msg.trim()
+  )?.msg : undefined;
+  return validationMessage || fallback;
+}
+
+async function invalidateSession(reason?: string): Promise<void> {
+  await Promise.allSettled([
+    clearToken(),
+    AsyncStorage.removeItem('mangaflow-user'),
+  ]);
+  if (!unauthorizedNotified) {
+    unauthorizedNotified = true;
+    unauthorizedCallback?.(reason);
+  }
 }
 
 // ── Core fetch wrapper ──────────────────────────────
@@ -56,7 +92,7 @@ async function apiFetch<T = any>(
     reqHeaders['Authorization'] = `Bearer ${token}`;
   }
 
-  if (!isFormData) {
+  if (!isFormData && body !== undefined) {
     reqHeaders['Content-Type'] = 'application/json';
   }
 
@@ -69,56 +105,81 @@ async function apiFetch<T = any>(
     signal: controller.signal,
   };
 
-  if (body) {
-    config.body = isFormData ? body : JSON.stringify(body);
+  if (body !== undefined) {
+    try {
+      config.body = isFormData ? body : JSON.stringify(body);
+    } catch {
+      clearTimeout(timeoutId);
+      throw new ApiError(0, 'Dữ liệu gửi lên không hợp lệ.', {}, 'INVALID_REQUEST_BODY');
+    }
   }
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api${path}`, config);
-    clearTimeout(timeoutId);
-  } catch (error: any) {
-    clearTimeout(timeoutId);
+  } catch (error: unknown) {
     console.error('Fetch network error:', error);
-    throw {
-      status: 0,
-      message: `Không thể kết nối đến máy chủ (${API_BASE_URL}). Vui lòng kiểm tra địa chỉ EXPO_PUBLIC_API_BASE_URL trong file MB/.env hoặc kết nối mạng của bạn.`,
-      response: { data: { error: 'Lỗi kết nối mạng nội bộ' }, status: 0 },
-    };
+    const timedOut = error instanceof Error && error.name === 'AbortError';
+    throw new ApiError(
+      0,
+      timedOut
+        ? 'Yêu cầu mất quá nhiều thời gian. Vui lòng kiểm tra kết nối và thử lại.'
+        : `Không thể kết nối đến máy chủ (${API_BASE_URL}). Vui lòng kiểm tra kết nối mạng hoặc EXPO_PUBLIC_API_BASE_URL.`,
+      { error: timedOut ? 'Yêu cầu đã hết thời gian chờ.' : 'Lỗi kết nối mạng.' },
+      timedOut ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR'
+    );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   let text = '';
   try {
     text = await response.text();
   } catch {
-    // Ignore stream reading errors
+    throw new ApiError(
+      response.status,
+      'Không thể đọc phản hồi từ máy chủ.',
+      {},
+      'RESPONSE_READ_ERROR'
+    );
   }
 
-  let responseData: any = {};
+  let responseData: ApiErrorPayload = {};
   if (text) {
     try {
-      responseData = JSON.parse(text);
+      const parsed: unknown = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Expected a JSON object response.');
+      }
+      responseData = parsed as ApiErrorPayload;
     } catch {
-      // Not valid JSON
+      if (response.ok) {
+        throw new ApiError(
+          response.status,
+          'Máy chủ trả về dữ liệu không đúng định dạng.',
+          {},
+          'INVALID_RESPONSE'
+        );
+      }
     }
   }
 
-  if (response.status === 401) {
-    // Token expired or invalid — clear cached auth
-    await clearToken();
-    await AsyncStorage.removeItem('mangaflow-user');
-    unauthorizedCallback?.();
+  if (response.status === 401 && token) {
+    await invalidateSession(extractResponseMessage(responseData, 'Phiên đăng nhập đã hết hạn.'));
   }
 
   if (!response.ok) {
-    throw {
-      status: response.status,
-      message: responseData.error || `Yêu cầu thất bại với mã trạng thái ${response.status}`,
-      response: { data: responseData, status: response.status },
-    };
+    throw new ApiError(
+      response.status,
+      extractResponseMessage(
+        responseData,
+        `Yêu cầu thất bại với mã trạng thái ${response.status}.`
+      ),
+      responseData
+    );
   }
 
-  return responseData;
+  return responseData as T;
 }
 
 // ── Auth API ────────────────────────────────────────

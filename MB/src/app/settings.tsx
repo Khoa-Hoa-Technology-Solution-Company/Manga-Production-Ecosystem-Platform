@@ -14,6 +14,8 @@ import { MaxContentWidth, Spacing, BottomTabInset } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { authAPI, getImageUrl } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/errors';
+import { hasLengthBetween, isValidHttpOrRelativeUrl } from '@/lib/validation';
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -36,8 +38,18 @@ export default function SettingsScreen() {
   }, [user]);
 
   const handleSave = async () => {
-    if (!displayName.trim()) {
+    if (saving) return;
+    const validationText = (vi: string, en: string) => i18n.language.startsWith('vi') ? vi : en;
+    if (!hasLengthBetween(displayName, 2, 80)) {
       Alert.alert(t('common.error'), t('settings.displayNameRequired'));
+      return;
+    }
+    if (bio.trim().length > 500) {
+      Alert.alert(t('common.error'), validationText('Tiểu sử không được vượt quá 500 ký tự.', 'Bio cannot exceed 500 characters.'));
+      return;
+    }
+    if (avatar.trim().length > 2048 || !isValidHttpOrRelativeUrl(avatar)) {
+      Alert.alert(t('common.error'), validationText('Đường dẫn ảnh đại diện không hợp lệ.', 'Enter a valid avatar URL or relative path.'));
       return;
     }
     setSaving(true);
@@ -54,9 +66,11 @@ export default function SettingsScreen() {
           avatar: res.user.avatar,
         });
         Alert.alert(t('common.success'), t('settings.profileUpdated'));
+      } else {
+        throw new Error(validationText('Máy chủ trả về hồ sơ không hợp lệ.', 'The server returned an invalid profile.'));
       }
-    } catch (err: any) {
-      Alert.alert(t('common.error'), err.message || t('settings.updateError'));
+    } catch (err: unknown) {
+      Alert.alert(t('common.error'), getApiErrorMessage(err, t('settings.updateError')));
     } finally {
       setSaving(false);
     }
@@ -68,7 +82,7 @@ export default function SettingsScreen() {
       t('settings.logoutConfirmMessage'),
       [
         { text: t('common.cancel'), style: 'cancel' },
-        { text: t('settings.logout'), style: 'destructive', onPress: logout },
+        { text: t('settings.logout'), style: 'destructive', onPress: () => { void logout(); } },
       ]
     );
   };
@@ -145,6 +159,7 @@ export default function SettingsScreen() {
                 onChangeText={setDisplayName}
                 placeholder={t('settings.displayNamePlaceholder')}
                 placeholderTextColor={theme.textSecondary}
+                maxLength={80}
               />
             </View>
 
@@ -158,6 +173,7 @@ export default function SettingsScreen() {
                 onChangeText={setBio}
                 placeholder={t('settings.bioPlaceholder')}
                 placeholderTextColor={theme.textSecondary}
+                maxLength={500}
                 multiline
                 numberOfLines={3}
               />
@@ -174,6 +190,9 @@ export default function SettingsScreen() {
                 placeholder="https://example.com/avatar.jpg"
                 placeholderTextColor={theme.textSecondary}
                 autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                maxLength={2048}
               />
             </View>
 

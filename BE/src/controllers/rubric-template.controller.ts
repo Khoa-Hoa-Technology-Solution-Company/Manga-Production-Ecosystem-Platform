@@ -90,6 +90,11 @@ export async function createTemplate(req: Request, res: Response): Promise<void>
         return;
       }
     }
+    const normalizedKeys = criteria.map((criterion: any) => String(criterion.key).trim().toLowerCase());
+    if (new Set(normalizedKeys).size !== normalizedKeys.length) {
+      res.status(400).json({ error: 'Rubric criterion keys must be unique.' });
+      return;
+    }
 
     const template = await RubricTemplate.create({
       name,

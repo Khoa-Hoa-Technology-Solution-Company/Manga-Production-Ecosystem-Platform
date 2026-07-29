@@ -48,14 +48,24 @@ function cleanAssistantMarkdown(value: string): string {
 export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const assistant = {
+    name: typeof home?.assistant?.name === 'string' && home.assistant.name.trim()
+      ? home.assistant.name
+      : 'MangaFlow Assistant',
+    greeting: typeof home?.assistant?.greeting === 'string'
+      ? home.assistant.greeting
+      : t('assistantReader.error'),
+  };
+  const continueReading = Array.isArray(home?.continueReading) ? home.continueReading : [];
+  const recommendations = Array.isArray(home?.recommendations) ? home.recommendations : [];
   const messagesRef = useRef<ScrollView>(null);
   const [chatVisible, setChatVisible] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: home.assistant.greeting },
+    { role: 'assistant', content: assistant.greeting },
   ]);
-  const currentRead = home.continueReading[0];
+  const currentRead = continueReading[0];
   const spotlightPulse = useRef(new Animated.Value(0)).current;
   const quickPrompts = useMemo(
     () => [
@@ -87,6 +97,13 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
   const sendMessage = async (value?: string) => {
     const content = (value ?? draft).trim();
     if (!content || sending) return;
+    if (content.length > 1000) {
+      setMessages((previous) => [
+        ...previous,
+        { role: 'assistant', content: t('assistantReader.error') },
+      ]);
+      return;
+    }
     const nextMessages = [...messages, { role: 'user' as const, content }];
     setMessages(nextMessages);
     setDraft('');
@@ -95,7 +112,11 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
       const data = await readerAPI.chat(content, nextMessages.slice(-6));
       setMessages((previous) => [
         ...previous,
-        { role: 'assistant', content: data.reply, recommendations: data.recommendations },
+        {
+          role: 'assistant',
+          content: typeof data?.reply === 'string' ? data.reply : t('assistantReader.error'),
+          recommendations: Array.isArray(data?.recommendations) ? data.recommendations : [],
+        },
       ]);
     } catch (error: any) {
       setMessages((previous) => [
@@ -119,7 +140,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
           </View>
           <View style={styles.headingCopy}>
             <View style={styles.nameRow}>
-              <ThemedText style={styles.name}>{home.assistant.name}</ThemedText>
+              <ThemedText style={styles.name}>{assistant.name}</ThemedText>
               <ThemedText style={styles.waveText}>✦</ThemedText>
             </View>
             <ThemedText style={styles.label}>{t('assistantReader.companion')}</ThemedText>
@@ -131,7 +152,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
 
         <View style={styles.speechBubble}>
           <View style={styles.speechTail} />
-          <ThemedText style={styles.greeting}>{cleanAssistantMarkdown(home.assistant.greeting)}</ThemedText>
+          <ThemedText style={styles.greeting}>{cleanAssistantMarkdown(assistant.greeting)}</ThemedText>
         </View>
 
         {currentRead && (
@@ -176,14 +197,14 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
               <BookOpen size={14} color="#f5dfd2" />
               <ThemedText style={styles.actionBubbleText}>{t('assistantReader.continueAction')}</ThemedText>
             </Pressable>
-          ) : home.recommendations[0] ? (
-            <Pressable style={styles.actionBubble} onPress={() => onOpenSeries(home.recommendations[0])}>
+          ) : recommendations[0] ? (
+            <Pressable style={styles.actionBubble} onPress={() => onOpenSeries(recommendations[0])}>
               <Sparkles size={14} color="#f4dfa1" />
               <ThemedText style={styles.actionBubbleText}>{t('assistantReader.recommendAction')}</ThemedText>
             </Pressable>
           ) : null}
           <Pressable style={styles.actionBubbleSoft} onPress={() => setChatVisible(true)}>
-            <ThemedText style={styles.actionBubbleSoftText}>{t('assistantReader.chatAction', { name: home.assistant.name })}</ThemedText>
+            <ThemedText style={styles.actionBubbleSoftText}>{t('assistantReader.chatAction', { name: assistant.name })}</ThemedText>
             <ChevronRight size={14} color="#dc957d" />
           </Pressable>
         </View>
@@ -217,7 +238,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                 </View>
                 <View>
                   <View style={styles.nameRow}>
-                  <ThemedText style={styles.chatTitle}>{home.assistant.name}</ThemedText>
+                  <ThemedText style={styles.chatTitle}>{assistant.name}</ThemedText>
                     <Sparkles size={12} color="#dc957d" />
                   </View>
                   <ThemedText style={styles.chatStatus}>{t('assistantReader.status')}</ThemedText>
@@ -306,7 +327,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   <View style={styles.messageAvatar}><Image source={require('@/assets/miko-chibi.png')} style={styles.messageAvatarImage} contentFit="contain" /></View>
                   <View style={[styles.bubble, styles.assistantBubble, styles.typingBubble]}>
                     <ActivityIndicator color="#a88a6b" size="small" />
-                    <ThemedText style={styles.typingText}>{t('assistantReader.thinking', { name: home.assistant.name })}</ThemedText>
+                    <ThemedText style={styles.typingText}>{t('assistantReader.thinking', { name: assistant.name })}</ThemedText>
                   </View>
                 </View>
               )}
@@ -338,10 +359,10 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   value={draft}
                   onChangeText={setDraft}
                   onSubmitEditing={() => sendMessage()}
-                  placeholder={t('assistantReader.placeholder', { name: home.assistant.name })}
+                  placeholder={t('assistantReader.placeholder', { name: assistant.name })}
+                  maxLength={1000}
                   placeholderTextColor="#786f68"
                   style={styles.input}
-                  maxLength={1000}
                   returnKeyType="send"
                   multiline
                   blurOnSubmit
@@ -356,7 +377,7 @@ export function ReaderAssistantCard({ home, onContinue, onOpenSeries }: Props) {
                   </View>
                 </Pressable>
               </View>
-              <ThemedText style={styles.disclaimer}>{t('assistantReader.disclaimer', { name: home.assistant.name })}</ThemedText>
+              <ThemedText style={styles.disclaimer}>{t('assistantReader.disclaimer', { name: assistant.name })}</ThemedText>
             </View>
           </View>
         </KeyboardAvoidingView>

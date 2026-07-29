@@ -1,4 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* Hallmark · component: editor-portal-header · genre: modern-minimal · theme: MangaFlow graphite
+ * interaction: stable single-line tabs · responsive horizontal overflow · visible focus
+ * contrast: design-system tokens preserved
+ */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -34,6 +39,13 @@ import {
   Loader2
 } from 'lucide-react'
 import { ProposalDetailView } from './series-manager/ProposalDetailView'
+
+const getMinDateTimeLocal = () => {
+  const now = new Date()
+  now.setSeconds(0, 0)
+  const timezoneOffset = now.getTimezoneOffset()
+  return new Date(now.getTime() - timezoneOffset * 60_000).toISOString().slice(0, 16)
+}
 
 interface SeriesData {
   _id: string
@@ -455,10 +467,24 @@ export function EditorPortalPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!meetingTitle || !meetingDateTime || meetingParticipants.length === 0) return
+    const selectedReviewers = meetingParticipants.filter((id) => id !== user?._id)
+    const scheduledAt = new Date(meetingDateTime)
+    if (
+      meetingTitle.trim().length < 2
+      || meetingTitle.trim().length > 120
+      || !Number.isFinite(scheduledAt.getTime())
+      || scheduledAt.getTime() <= Date.now()
+      || meetingDesc.trim().length > 2000
+      || meetingLoc.trim().length > 200
+      || selectedReviewers.length === 0
+      || meetingSeriesIds.length === 0
+    ) {
+      alert('Enter a 2-120 character title, a future date/time, at least one series and participant, and keep optional fields within their limits.')
+      return
+    }
 
     // Enforce odd number of total participants (including the logged-in user as the scheduler)
-    const uniqueCount = new Set([...meetingParticipants, user?._id]).size
+    const uniqueCount = new Set([...selectedReviewers, user?._id]).size
     if (uniqueCount % 2 === 0) {
       alert(t('editorialBoard.evenParticipantsError', 'The total number of participants (including yourself as the organizer) must be an odd number to avoid voting ties. Current count: ' + uniqueCount + '.'))
       return
@@ -467,12 +493,12 @@ export function EditorPortalPage() {
     setSubmittingMeeting(true)
     try {
       await meetingAPI.create({
-        title: meetingTitle,
-        description: meetingDesc,
-        dateTime: meetingDateTime,
-        location: meetingLoc,
+        title: meetingTitle.trim(),
+        description: meetingDesc.trim(),
+        dateTime: scheduledAt.toISOString(),
+        location: meetingLoc.trim(),
         seriesIds: meetingSeriesIds,
-        participants: meetingParticipants,
+        participants: selectedReviewers,
         rubricTemplateId: meetingRubricTemplateId || undefined,
       })
       setShowMeetingForm(false)
@@ -504,6 +530,7 @@ export function EditorPortalPage() {
   }
 
   const handleOpenMeetingForm = async () => {
+    setMeetingParticipants([])
     setShowMeetingForm(true)
     try {
       const res = await authAPI.search('', { roles: 'editor,editorial_board' })
@@ -514,6 +541,7 @@ export function EditorPortalPage() {
   }
 
   const handleToggleParticipant = (id: string) => {
+    if (id === user?._id) return
     setMeetingParticipants((prev) =>
       prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
     )
@@ -662,103 +690,83 @@ export function EditorPortalPage() {
     return ''
   }
 
+  const editorTabs = [
+    { id: 'portfolio', label: t('editor.portfolioTab', 'Portfolio Dashboard') },
+    { id: 'milestones', label: t('editor.milestonesTab', 'Milestone Tracking') },
+    { id: 'warnings', label: t('editor.warningsTab', 'Early Warning System'), count: warnings.length },
+    { id: 'approvals', label: t('editor.approvalsTab', 'Submissions Review') },
+    { id: 'analytics', label: t('editor.analyticsTab', 'Insights & Logs') },
+    { id: 'meetings', label: t('editorialBoard.meetingsTab', 'Meetings') },
+  ] as const
+
+  const tabClassName = (tabId: string) => [
+    'inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-4 py-2.5 text-sm font-semibold',
+    'transition-colors duration-200 active:bg-[var(--color-paper-3)] disabled:cursor-not-allowed disabled:opacity-50',
+    activeTab === tabId
+      ? 'border-[var(--color-rule)] bg-[var(--color-paper)] text-[var(--color-ink)] shadow-sm'
+      : 'border-transparent text-[var(--color-ink-2)] hover:bg-[var(--color-paper-3)] hover:text-[var(--color-ink)]',
+  ].join(' ')
+
   return (
     <div className="p-4 sm:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Premium Elegant Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-neutral-200 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
-            <Sparkles className="size-4 animate-pulse text-indigo-500" />
+      {/* Editor workbench header */}
+      <header className="min-w-0 border-b border-[var(--color-rule)] pb-5" aria-labelledby="editor-portal-title">
+        <div className="min-w-0 max-w-3xl">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-2)]">
+            <Sparkles className="size-4 text-[var(--color-ink-2)]" aria-hidden="true" />
             {isEB ? 'Editorial Board Administration' : 'Tantou Editor Workbench'}
           </div>
-          <h1 className="mt-2 text-3xl font-extrabold text-neutral-950 tracking-tight">
+          <h1
+            id="editor-portal-title"
+            className="mt-2 min-w-0 text-3xl font-extrabold leading-tight tracking-tight text-[var(--color-ink)] sm:text-4xl"
+          >
             {isEB ? t('editor.ebDashboard', 'Editorial Board Hub') : t('editor.tantouDashboard', 'Tantou Editor Dashboard')}
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-ink-2)]">
             {isEB 
               ? t('editor.ebSubtitle', 'Manage submissions, publish series, and overview ecosystem status.')
               : t('editor.tantouSubtitle', 'Review manuscript drafts, place coordinate annotations, and track studio completion.')}
           </p>
         </div>
 
-        {/* Dynamic Premium Glassmorphic Tab Switcher */}
-        <div className="flex flex-wrap bg-neutral-100/80 backdrop-blur-md p-1.5 rounded-2xl shrink-0 self-start lg:self-center border border-neutral-200/50 shadow-inner gap-1">
-          {isEB ? (
-            <button
-              onClick={() => setActiveTab('approvals')}
-              className="px-4 py-2 text-xs font-bold rounded-xl transition-all bg-white text-neutral-950 shadow-sm border border-neutral-200/20"
-            >
-              {t('editor.approvalsTab', 'Submissions Review')}
-            </button>
-          ) : (
-            <>
+        <div className="-mx-1 mt-5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav
+            aria-label={isEB ? 'Editorial Board sections' : 'Editor portal sections'}
+            className={`min-w-max items-center gap-1 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper-2)] p-1 ${
+              isEB ? 'inline-flex' : 'flex xl:w-full'
+            }`}
+          >
+            {isEB ? (
               <button
-                onClick={() => setActiveTab('portfolio')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === 'portfolio'
-                    ? 'bg-white text-neutral-950 shadow-sm border border-neutral-200/20'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/30'
-                }`}
-              >
-                {t('editor.portfolioTab', 'Portfolio Dashboard')}
-              </button>
-              <button
-                onClick={() => setActiveTab('milestones')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === 'milestones'
-                    ? 'bg-white text-neutral-950 shadow-sm border border-neutral-200/20'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/30'
-                }`}
-              >
-                {t('editor.milestonesTab', 'Milestone Tracking')}
-              </button>
-              <button
-                onClick={() => setActiveTab('warnings')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
-                  activeTab === 'warnings'
-                    ? 'bg-white text-neutral-950 shadow-sm border border-neutral-200/20'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/30'
-                }`}
-              >
-                {t('editor.warningsTab', 'Early Warning System')}
-                {warnings.length > 0 && (
-                  <span className="size-2 rounded-full bg-rose-500 animate-ping" />
-                )}
-              </button>
-              <button
+                type="button"
+                aria-current="page"
                 onClick={() => setActiveTab('approvals')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === 'approvals'
-                    ? 'bg-white text-neutral-950 shadow-sm border border-neutral-200/20'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/30'
-                }`}
+                className={tabClassName('approvals')}
               >
                 {t('editor.approvalsTab', 'Submissions Review')}
               </button>
+            ) : editorTabs.map((tab) => (
               <button
-                onClick={() => setActiveTab('analytics')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === 'analytics'
-                    ? 'bg-white text-neutral-950 shadow-sm border border-neutral-200/20'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/30'
-                }`}
+                key={tab.id}
+                type="button"
+                aria-current={activeTab === tab.id ? 'page' : undefined}
+                onClick={() => setActiveTab(tab.id)}
+                className={`${tabClassName(tab.id)} xl:flex-1`}
               >
-                {t('editor.analyticsTab', 'Insights & Logs')}
+                <span>{tab.label}</span>
+                {'count' in tab && tab.count > 0 && (
+                  <span
+                    className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-ink)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[var(--color-paper)]"
+                    aria-label={`${tab.count} warnings`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
               </button>
-              <button
-                onClick={() => setActiveTab('meetings')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === 'meetings'
-                    ? 'bg-white text-neutral-950 shadow-sm border border-neutral-200/20'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/30'
-                }`}
-              >
-                {t('editorialBoard.meetingsTab', 'Meetings')}
-              </button>
-            </>
-          )}
+            ))}
+          </nav>
         </div>
-      </div>
+      </header>
         {/* ── Tab 1: Portfolio Dashboard ───────────────────────── */}
       {activeTab === 'portfolio' && !isEB && (
         <div className="space-y-6">
@@ -1942,6 +1950,7 @@ export function EditorPortalPage() {
                       type="datetime-local"
                       required
                       value={meetingDateTime}
+                      min={getMinDateTimeLocal()}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMeetingDateTime(e.target.value)}
                       className="rounded-xl text-xs bg-white"
                     />
@@ -2029,6 +2038,7 @@ export function EditorPortalPage() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-neutral-700 block">
                     {t('editorialBoard.selectParticipants')} <span className="text-indigo-600">({meetingParticipants.length} selected)</span>
+                    <span className="ml-1 font-normal text-neutral-500">Organizer included automatically</span>
                   </label>
                   {/* Odd number participant validation feedback */}
                   {new Set([...meetingParticipants, user?._id]).size % 2 === 0 && (
@@ -2037,10 +2047,12 @@ export function EditorPortalPage() {
                     </p>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 bg-white border border-neutral-200 rounded-xl">
-                    {availableReviewers.length === 0 ? (
-                      <div className="col-span-full py-4 text-center text-xs text-neutral-400">Loading reviewers...</div>
+                    {availableReviewers.filter((rev) => rev._id !== user?._id).length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-xs text-neutral-400">
+                        {availableReviewers.length === 0 ? 'Loading reviewers...' : 'No other reviewers available.'}
+                      </div>
                     ) : (
-                      availableReviewers.map((rev) => {
+                      availableReviewers.filter((rev) => rev._id !== user?._id).map((rev) => {
                         const isSelected = meetingParticipants.includes(rev._id)
                         return (
                           <div
