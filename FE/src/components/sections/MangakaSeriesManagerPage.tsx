@@ -227,6 +227,10 @@ export function MangakaSeriesManagerPage() {
     coverUrl: string
     script?: string
     scriptFile?: string
+    chapters?: {
+      chapterNumber: number
+      title: string
+    }[]
     characterDesigns?: {
       name: string
       role: string
@@ -246,6 +250,9 @@ export function MangakaSeriesManagerPage() {
       if (data.scriptFile !== undefined) formData.append('scriptFile', data.scriptFile)
       if (data.characterDesigns !== undefined) {
         formData.append('characterDesigns', JSON.stringify(data.characterDesigns))
+      }
+      if (!editingSeries && data.chapters !== undefined) {
+        formData.append('chapters', JSON.stringify(data.chapters))
       }
 
       if (editingSeries) {

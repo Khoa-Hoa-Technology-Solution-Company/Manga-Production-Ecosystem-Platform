@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Upload, X, Plus, Trash2, FileText, Sparkles } from 'lucide-react'
+import { Upload, X, Plus, Trash2, FileText, Sparkles, BookOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '../../ui'
 import { seriesCoverUrl, type SeriesData } from './utils'
@@ -20,6 +20,10 @@ interface SeriesFormDrawerProps {
     coverUrl: string
     script?: string
     scriptFile?: string
+    chapters?: {
+      chapterNumber: number
+      title: string
+    }[]
     characterDesigns?: {
       name: string
       role: string
@@ -52,6 +56,7 @@ export function SeriesFormDrawer({
   const [scriptFileName, setScriptFileName] = useState('')
   const [uploadingScript, setUploadingScript] = useState(false)
   const [characterDesigns, setCharacterDesigns] = useState<{ name: string; role: string; description?: string; image?: string }[]>([])
+  const [initialChapters, setInitialChapters] = useState<{ chapterNumber: number; title: string }[]>([])
   
   // New character form fields
   const [newCharName, setNewCharName] = useState('')
@@ -75,6 +80,7 @@ export function SeriesFormDrawer({
         setScriptFileUrl(initialSeries.scriptFile || '')
         setScriptFileName(initialSeries.scriptFile ? 'Uploaded Storyboard Document' : '')
         setCharacterDesigns(initialSeries.characterDesigns || [])
+        setInitialChapters([])
       })
     } else {
       Promise.resolve().then(() => {
@@ -89,6 +95,7 @@ export function SeriesFormDrawer({
         setScriptFileUrl('')
         setScriptFileName('')
         setCharacterDesigns([])
+        setInitialChapters([])
         setNewCharName('')
         setNewCharRole('')
         setNewCharDesc('')
@@ -199,6 +206,26 @@ export function SeriesFormDrawer({
     setCharacterDesigns((prev) => prev.filter((_, idx) => idx !== index))
   }
 
+  const handleAddInitialChapter = () => {
+    setInitialChapters((current) => [
+      ...current,
+      { chapterNumber: current.length + 1, title: `Chapter ${current.length + 1}` },
+    ])
+  }
+
+  const handleInitialChapterTitleChange = (index: number, value: string) => {
+    setInitialChapters((current) => current.map((chapter, chapterIndex) =>
+      chapterIndex === index ? { ...chapter, title: value } : chapter
+    ))
+  }
+
+  const handleRemoveInitialChapter = (index: number) => {
+    setInitialChapters((current) => current
+      .filter((_, chapterIndex) => chapterIndex !== index)
+      .map((chapter, chapterIndex) => ({ ...chapter, chapterNumber: chapterIndex + 1 }))
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (title.trim().length < 1 || title.trim().length > 120) {
@@ -221,6 +248,13 @@ export function SeriesFormDrawer({
       setFormError('Script text cannot exceed 100,000 characters.')
       return
     }
+    if (initialChapters.some((chapter) => {
+      const chapterTitle = chapter.title.trim()
+      return chapterTitle.length < 1 || chapterTitle.length > 120
+    })) {
+      setFormError('Each initial chapter title must contain 1 to 120 characters.')
+      return
+    }
     setFormError('')
     await onSave({
       title: title.trim(),
@@ -231,6 +265,10 @@ export function SeriesFormDrawer({
       script: script.trim(),
       scriptFile: scriptFileUrl,
       characterDesigns,
+      chapters: initialChapters.map((chapter, index) => ({
+        chapterNumber: index + 1,
+        title: chapter.title.trim(),
+      })),
     })
   }
 
@@ -540,6 +578,50 @@ export function SeriesFormDrawer({
               </Button>
             </div>
           </div>
+
+          {!initialSeries && (
+            <div className="border-t border-neutral-100 my-6 pt-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <BookOpen className="size-4 text-indigo-600" />
+                    Initial Chapters
+                  </h4>
+                  <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
+                    These chapters will be created together with the new series.
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddInitialChapter} className="shrink-0 h-8 rounded-xl text-xs">
+                  <Plus className="mr-1 size-3.5" /> Add chapter
+                </Button>
+              </div>
+
+              {initialChapters.length > 0 && (
+                <div className="space-y-2">
+                  {initialChapters.map((chapter, index) => (
+                    <div key={chapter.chapterNumber} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50/50 p-2.5">
+                      <span className="shrink-0 text-xs font-bold text-neutral-500">Ch. {chapter.chapterNumber}</span>
+                      <Input
+                        value={chapter.title}
+                        onChange={(event) => handleInitialChapterTitleChange(index, event.target.value)}
+                        aria-label={`Initial chapter ${chapter.chapterNumber} title`}
+                        maxLength={120}
+                        className="h-8 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveInitialChapter(index)}
+                        className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                        aria-label={`Remove chapter ${chapter.chapterNumber}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </form>
 
         {/* Footer actions */}
