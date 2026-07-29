@@ -63,12 +63,20 @@ export async function compositePageLayers(pageId: string, layerIds: string[], sa
   }
 
   // Load the tasks and standalone layers
-  const tasks = await Task.find({ _id: { $in: layerIds } }).populate('assignedTo', 'displayName');
-  const standaloneLayers = await Layer.find({ _id: { $in: layerIds } });
+  const tasks = await Task.find({
+    _id: { $in: layerIds },
+    $or: [{ pageId: page._id }, { chapterId: page.chapterId, assignmentLevel: 'chapter' }],
+  }).populate('assignedTo', 'displayName');
+  const standaloneLayers = await Layer.find({ _id: { $in: layerIds }, pageId: page._id });
 
   // Map them for easy lookup
   const taskMap = new Map(tasks.map(t => [t._id.toString(), t]));
   const layerMap = new Map(standaloneLayers.map(l => [l._id.toString(), l]));
+
+  const unknownIds = layerIds.filter(id => !taskMap.has(id) && !layerMap.has(id));
+  if (unknownIds.length > 0) {
+    throw new Error('One or more selected layers do not belong to this page.');
+  }
 
   // Build the ordered list of image buffers/paths from page.layerOrder
   const orderedInputs: Array<{ file: string; type: string; id: string }> = [];
@@ -88,7 +96,7 @@ export async function compositePageLayers(pageId: string, layerIds: string[], sa
     }
   }
 
-  // Append any selected layerIds that were not found in layerOrder (fallback)
+  // Append selected layers that are valid but not yet represented in layerOrder.
   const processedIds = new Set(orderedInputs.map(item => item.id));
   for (const id of layerIds) {
     if (processedIds.has(id)) continue;

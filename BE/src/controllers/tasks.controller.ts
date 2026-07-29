@@ -113,6 +113,13 @@ export async function getAll(req: Request, res: Response): Promise<void> {
       }
     } else if (req.user?.role === 'mangaka') {
       filter.assignedBy = req.user._id;
+    } else if (req.user?.role === 'editor') {
+      const { Series } = await import('../models/Series');
+      const ownedSeries = await Series.find({ editorId: req.user._id }, '_id');
+      filter.seriesId = { $in: ownedSeries.map((s: any) => s._id) };
+    } else if (req.user?.role === 'reader') {
+      // Production tasks are never reader-facing.
+      filter._id = { $exists: false };
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -158,6 +165,35 @@ export async function getById(req: Request, res: Response): Promise<void> {
 export async function create(req: Request, res: Response): Promise<void> {
   try {
     const { seriesId, chapterId, pageId, assignmentLevel = 'page' } = req.body;
+
+    const chapter = await Chapter.findById(chapterId).select('seriesId mangakaId');
+    if (!chapter) {
+      res.status(404).json({ error: 'Chapter not found.' });
+      return;
+    }
+    if (String(chapter.seriesId) !== String(seriesId)) {
+      res.status(400).json({ error: 'chapterId does not belong to seriesId.' });
+      return;
+    }
+    if (assignmentLevel === 'page') {
+      if (!pageId) {
+        res.status(400).json({ error: 'pageId is required for a page-level task.' });
+        return;
+      }
+      const { Page } = await import('../models/Page');
+      const page = await Page.findById(pageId).select('chapterId');
+      if (!page || String(page.chapterId) !== String(chapterId)) {
+        res.status(400).json({ error: 'pageId does not belong to chapterId.' });
+        return;
+      }
+    }
+    if (req.body.assignedTo) {
+      const assignee = await User.findById(req.body.assignedTo).select('role isActive');
+      if (!assignee || assignee.role !== 'assistant' || assignee.isActive === false) {
+        res.status(400).json({ error: 'assignedTo must reference an active assistant.' });
+        return;
+      }
+    }
 
     // Production is also open during the accepted Tantou Editor stage.
     if (seriesId) {
@@ -232,6 +268,8 @@ export async function create(req: Request, res: Response): Promise<void> {
       assignedBy: req.user?._id,
       assignmentLevel,
     };
+    if (taskData.assignedTo) taskData.status = 'assigned';
+    else taskData.status = 'open';
     // Chapter-level tasks don't have a pageId
     if (assignmentLevel === 'chapter') {
       delete taskData.pageId;
@@ -284,21 +322,16 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function acceptTask(req: Request, res: Response): Promise<void> {
   try {
-    const task = await Task.findById(req.params.id);
-    if (!task) { res.status(404).json({ error: 'Task not found.' }); return; }
-    if (task.status !== 'open') { res.status(400).json({ error: 'Task is not available.' }); return; }
-
-    // Verify the task's series is Active before allowing acceptance
-    const { Series } = await import('../models/Series');
-    const series = await Series.findById(task.seriesId);
-    if (!series || series.status !== 'Active') {
-      res.status(400).json({ error: 'Tasks can only be accepted from Active (published) series.' });
+    // Claiming is a compare-and-set operation so two assistants cannot claim the same task.
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, status: 'open', assignedTo: { $exists: false } },
+      { $set: { assignedTo: req.user?._id, status: 'assigned' } },
+      { new: true, runValidators: true }
+    );
+    if (!task) {
+      res.status(409).json({ error: 'Task is no longer available.' });
       return;
     }
-
-    task.assignedTo = req.user?._id as any;
-    task.status = 'assigned';
-    await task.save();
 
     // Cascade update zones
     await cascadeZoneUpdate(task, {
@@ -325,21 +358,55 @@ export async function submitTask(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Handle file upload
+    const finalize = req.body.finalize === true
+      || req.body.finalize === 'true'
+      || req.query.finalize === 'true';
+    const targetPageId = req.body.pageId || req.query.pageId;
+    const isChapterPageUpload = task.assignmentLevel === 'chapter' && Boolean(req.file);
+
+    if (isChapterPageUpload && !targetPageId) {
+      res.status(400).json({ error: 'pageId is required when uploading a chapter task page.' });
+      return;
+    }
+
+    const { Page } = await import('../models/Page');
+    const targetPage = isChapterPageUpload
+      ? await Page.findOne({ _id: targetPageId, chapterId: task.chapterId })
+      : null;
+
+    if (isChapterPageUpload && !targetPage) {
+      res.status(400).json({ error: 'pageId does not belong to this task chapter.' });
+      return;
+    }
+
+    // A chapter upload is only a page artifact. It must not finalize the whole task.
     if (req.file) {
       const { uploadToR2 } = await import('../services/storage.service');
       const fileUrl = await uploadToR2(req.file, 'tasks');
       task.submittedFile = fileUrl;
 
-      const { Page } = await import('../models/Page');
-      if (task.assignmentLevel === 'chapter') {
-        const targetPageId = req.body.pageId || req.query.pageId;
-        if (targetPageId) {
-          await Page.findByIdAndUpdate(targetPageId, { processedImage: fileUrl });
-        }
+      if (isChapterPageUpload && targetPage) {
+        await Page.updateOne({ _id: targetPage._id }, { processedImage: fileUrl });
       } else if (task.pageId) {
         await Page.findByIdAndUpdate(task.pageId, { processedImage: fileUrl });
       }
+    }
+
+    if (task.assignmentLevel === 'chapter' && !finalize) {
+      if (!req.file) {
+        res.status(400).json({ error: 'Upload a page file or explicitly finalize the chapter submission.' });
+        return;
+      }
+
+      await task.save();
+      await syncChapterProgress(task.chapterId);
+      res.json({
+        task,
+        finalized: false,
+        pageId: targetPage?._id,
+        message: 'Chapter page uploaded. The task remains in progress.',
+      });
+      return;
     }
 
     task.status = 'review';
@@ -375,27 +442,35 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
     if (!oldTask) { res.status(404).json({ error: 'Task not found.' }); return; }
 
     const userId = req.user?._id;
-    const isCreator = oldTask.assignedBy.toString() === userId;
-    const isAssignee = oldTask.assignedTo?.toString() === userId;
+    const isCreator = req.user?.role === 'mangaka' && oldTask.assignedBy.toString() === userId;
+    const isAssignee = req.user?.role === 'assistant' && oldTask.assignedTo?.toString() === userId;
 
     if (!isCreator && !isAssignee) {
       res.status(403).json({ error: 'You are not authorized to update this task status.' });
       return;
     }
 
-    if (isAssignee && !isCreator) {
-      if (!['in_progress', 'review'].includes(status)) {
-        res.status(400).json({ error: 'Assistants can only change task status to in_progress or review.' });
-        return;
-      }
+    const allowedStatuses = isAssignee
+      ? (oldTask.status === 'assigned' ? ['in_progress'] : oldTask.status === 'in_progress' ? ['review'] : [])
+      : (oldTask.status === 'review' ? ['done', 'in_progress'] : []);
+    if (!allowedStatuses.includes(status)) {
+      res.status(400).json({
+        error: isAssignee
+          ? 'Invalid assistant transition. Allowed: assigned to in_progress, then in_progress to review.'
+          : 'Invalid mangaka transition. A submitted review can only be completed or returned for revision.',
+      });
+      return;
     }
 
-    const task = await Task.findByIdAndUpdate(
-      req.params.id,
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, status: oldTask.status },
       { status },
       { new: true, runValidators: true }
     );
-    if (!task) { res.status(404).json({ error: 'Task not found.' }); return; }
+    if (!task) {
+      res.status(409).json({ error: 'Task status changed before this update could be applied.' });
+      return;
+    }
 
     // Cascade zone status update
     let zoneProgress = 0;
@@ -428,7 +503,7 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
 export async function update(req: Request, res: Response): Promise<void> {
   try {
     const updateData: any = {};
-    const allowed = ['title', 'description', 'type', 'deadline', 'reviewNotes', 'assignedTo', 'status'];
+    const allowed = ['title', 'description', 'type', 'deadline', 'reviewNotes', 'assignedTo'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) updateData[key] = req.body[key];
     }
@@ -437,6 +512,19 @@ export async function update(req: Request, res: Response): Promise<void> {
     if (!oldTask) {
       res.status(404).json({ error: 'Task not found.' });
       return;
+    }
+
+    if (updateData.assignedTo) {
+      const assignee = await User.findById(updateData.assignedTo).select('role isActive');
+      if (!assignee || assignee.role !== 'assistant' || assignee.isActive === false) {
+        res.status(400).json({ error: 'assignedTo must reference an active assistant.' });
+        return;
+      }
+      if (oldTask.status === 'done') {
+        res.status(400).json({ error: 'Completed tasks cannot be reassigned.' });
+        return;
+      }
+      if (oldTask.status === 'open') updateData.status = 'assigned';
     }
 
     const task = await Task.findByIdAndUpdate(req.params.id, updateData, {
@@ -525,14 +613,18 @@ export async function declineTask(req: Request, res: Response): Promise<void> {
     const previousAssignee = task.assignedTo;
 
     // Reset task assignment using $unset so MongoDB deletes the field completely
-    const updatedTask = await Task.findByIdAndUpdate(
-      task._id,
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: task._id, status: 'assigned', assignedTo: previousAssignee },
       {
         $unset: { assignedTo: 1 },
         status: 'open',
       },
       { new: true }
     );
+    if (!updatedTask) {
+      res.status(409).json({ error: 'Task assignment changed before it could be declined.' });
+      return;
+    }
 
     // Cascade reset all zones
     await cascadeZoneUpdate(task, {
@@ -590,6 +682,13 @@ export async function cancelTask(req: Request, res: Response): Promise<void> {
       status: 'open',
       progress: 0,
     });
+
+    const { Page } = await import('../models/Page');
+    if (task.assignmentLevel === 'chapter') {
+      await Page.updateMany({ chapterId: task.chapterId }, { $pull: { layerOrder: { taskId: task._id } } });
+    } else if (task.pageId) {
+      await Page.updateOne({ _id: task.pageId }, { $pull: { layerOrder: { taskId: task._id } } });
+    }
 
     // 2. Hard delete the task
     await Task.findByIdAndDelete(taskId);

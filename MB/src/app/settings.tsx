@@ -4,7 +4,6 @@ import {
   ActivityIndicator, Alert, useColorScheme, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Shield, Bell, HelpCircle, Save, LogOut, Globe } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
@@ -91,7 +90,7 @@ export default function SettingsScreen() {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={isDark ? ['#0e051d', '#130e2c', '#07020e'] : ['#faf5ff', '#f0f0ff', '#f8fafc']} style={StyleSheet.absoluteFillObject} />
+      <View style={StyleSheet.absoluteFillObject} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <KeyboardAvoidingView
@@ -105,7 +104,7 @@ export default function SettingsScreen() {
           >
             {/* Header */}
             <View style={styles.header}>
-              <ThemedText style={[styles.headerSubtitle, { color: '#8b5cf6' }]}>
+              <ThemedText style={[styles.headerSubtitle, { color: '#7a5a43' }]}>
                 {t('settings.personalization').toUpperCase()}
               </ThemedText>
               <ThemedText type="title" style={[styles.headerTitle, { color: theme.text }]}>
@@ -114,18 +113,18 @@ export default function SettingsScreen() {
             </View>
 
             {/* Profile Avatar Card */}
-            <View style={[styles.profileCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)' }]}>
+            <View style={[styles.profileCard, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#fffaf0', borderColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(28,41,40,0.06)' }]}>
               <View style={styles.avatarContainer}>
                 {avatarUrl ? (
                   <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
                 ) : (
-                  <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#f1f5f9' }]}>
+                  <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? 'rgba(255,250,240,0.1)' : '#eee2cf' }]}>
                     <ThemedText style={[styles.avatarText, { color: theme.text }]}>
                       {(user?.displayName || 'M').charAt(0).toUpperCase()}
                     </ThemedText>
                   </View>
                 )}
-                <View style={[styles.roleBadge, { backgroundColor: '#8b5cf6' }]}>
+                <View style={[styles.roleBadge, { backgroundColor: '#7a5a43' }]}>
                   <ThemedText style={styles.roleBadgeText}>
                     {roleLabels[user?.role || ''] || t('roles.reader')}
                   </ThemedText>
@@ -141,7 +140,7 @@ export default function SettingsScreen() {
                 {t('settings.displayName')}
               </ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: theme.text }]}
+                style={[styles.input, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#fffaf0', borderColor: isDark ? 'rgba(255,250,240,0.1)' : 'rgba(28,41,40,0.1)', color: theme.text }]}
                 value={displayName}
                 onChangeText={setDisplayName}
                 placeholder={t('settings.displayNamePlaceholder')}
@@ -154,7 +153,7 @@ export default function SettingsScreen() {
                 {t('settings.bio')}
               </ThemedText>
               <TextInput
-                style={[styles.inputMultiline, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: theme.text }]}
+                style={[styles.inputMultiline, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#fffaf0', borderColor: isDark ? 'rgba(255,250,240,0.1)' : 'rgba(28,41,40,0.1)', color: theme.text }]}
                 value={bio}
                 onChangeText={setBio}
                 placeholder={t('settings.bioPlaceholder')}
@@ -169,7 +168,7 @@ export default function SettingsScreen() {
                 {t('settings.avatarUrl')}
               </ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', color: theme.text }]}
+                style={[styles.input, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#fffaf0', borderColor: isDark ? 'rgba(255,250,240,0.1)' : 'rgba(28,41,40,0.1)', color: theme.text }]}
                 value={avatar}
                 onChangeText={setAvatar}
                 placeholder="https://example.com/avatar.jpg"
@@ -180,15 +179,15 @@ export default function SettingsScreen() {
 
             {/* Save Buttons */}
             <Pressable
-              style={[styles.saveBtn, { backgroundColor: '#8b5cf6' }]}
+              style={[styles.saveBtn, { backgroundColor: '#7a5a43' }]}
               onPress={handleSave}
               disabled={saving}
             >
               {saving ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#fffaf0" />
               ) : (
                 <>
-                  <Save size={18} color="#fff" />
+                  <Save size={18} color="#fffaf0" />
                   <ThemedText style={styles.saveBtnText}>
                     {t('settings.saveChanges')}
                   </ThemedText>
@@ -201,25 +200,25 @@ export default function SettingsScreen() {
               <ThemedText style={styles.groupTitle}>
                 {t('settings.appSettings')}
               </ThemedText>
-              <View style={[styles.groupCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#fff', borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)' }]}>
+              <View style={[styles.groupCard, { backgroundColor: isDark ? 'rgba(255,250,240,0.03)' : '#fffaf0', borderColor: isDark ? 'rgba(255,250,240,0.05)' : 'rgba(28,41,40,0.06)' }]}>
                 
                 {/* Language Toggler */}
                 <Pressable style={[styles.settingItem, styles.borderBottom]} onPress={toggleLanguage}>
-                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#eee2cf' }]}>
                     <Globe size={16} color={theme.textSecondary} />
                   </View>
                   <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
                       {t('settings.language')}
                     </ThemedText>
-                    <ThemedText style={{ color: '#8b5cf6', fontSize: 13, fontWeight: '700' }}>
+                    <ThemedText style={{ color: '#7a5a43', fontSize: 13, fontWeight: '700' }}>
                       {i18n.language === 'vi' ? t('settings.vietnamese') : t('settings.english')}
                     </ThemedText>
                   </View>
                 </Pressable>
 
                 <View style={[styles.settingItem, styles.borderBottom]}>
-                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#eee2cf' }]}>
                     <Shield size={16} color={theme.textSecondary} />
                   </View>
                   <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
@@ -227,7 +226,7 @@ export default function SettingsScreen() {
                   </ThemedText>
                 </View>
                 <View style={[styles.settingItem, styles.borderBottom]}>
-                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#eee2cf' }]}>
                     <Bell size={16} color={theme.textSecondary} />
                   </View>
                   <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
@@ -235,7 +234,7 @@ export default function SettingsScreen() {
                   </ThemedText>
                 </View>
                 <View style={styles.settingItem}>
-                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(255,250,240,0.05)' : '#eee2cf' }]}>
                     <HelpCircle size={16} color={theme.textSecondary} />
                   </View>
                   <ThemedText style={[styles.settingLabel, { color: theme.text }]}>
@@ -247,10 +246,10 @@ export default function SettingsScreen() {
 
             {/* Logout Button */}
             <Pressable
-              style={[styles.logoutBtn, { borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.5)' }]}
+              style={[styles.logoutBtn, { borderColor: isDark ? 'rgba(164,58,50,0.3)' : 'rgba(164,58,50,0.5)' }]}
               onPress={handleLogout}
             >
-              <LogOut size={18} color="#ef4444" />
+              <LogOut size={18} color="#a43a32" />
               <ThemedText style={styles.logoutBtnText}>
                 {t('settings.logout')}
               </ThemedText>
@@ -276,7 +275,7 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 32, fontWeight: '800' },
   roleBadge: { position: 'absolute', bottom: -6, alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
-  roleBadgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  roleBadgeText: { color: '#fffaf0', fontSize: 10, fontWeight: 'bold' },
   profileName: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
   profileEmail: { fontSize: 13 },
 
@@ -286,16 +285,16 @@ const styles = StyleSheet.create({
   inputMultiline: { height: 80, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, textAlignVertical: 'top' },
 
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, borderRadius: 14, marginTop: 10 },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  saveBtnText: { color: '#fffaf0', fontSize: 15, fontWeight: 'bold' },
 
   groupContainer: { marginTop: 10 },
-  groupTitle: { color: '#94a3b8', fontSize: 12, fontWeight: '700', marginBottom: 10, marginLeft: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  groupTitle: { color: '#9aa39a', fontSize: 12, fontWeight: '700', marginBottom: 10, marginLeft: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   groupCard: { borderRadius: 16, borderWidth: 1 },
   settingItem: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
-  borderBottom: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(148,163,184,0.15)' },
+  borderBottom: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(154,163,154,0.15)' },
   iconBox: { width: 28, height: 28, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   settingLabel: { fontSize: 14, fontWeight: '500' },
 
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, borderRadius: 14, borderWidth: 1, marginTop: 10 },
-  logoutBtnText: { color: '#ef4444', fontSize: 15, fontWeight: 'bold' },
+  logoutBtnText: { color: '#a43a32', fontSize: 15, fontWeight: 'bold' },
 });

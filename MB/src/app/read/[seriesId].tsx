@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -13,25 +13,18 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Download,
   Heart,
-  Maximize2,
   MessageCircle,
   MoonStar,
   PanelTop,
-  Play,
   Sparkles,
   Star,
-  Share2,
-  Volume2,
-  ZoomIn,
   ThumbsUp,
   X,
   Send,
@@ -39,16 +32,13 @@ import {
   Sliders,
   Sun,
   Activity,
-  ZoomOut,
   ChevronDown,
-  Pause,
   Bell,
 } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/constants/theme';
 import { seriesAPI, chaptersAPI, pagesAPI, commentsAPI, readerAPI, getImageUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from 'react-i18next';
@@ -60,54 +50,53 @@ const { width: screenWidth } = Dimensions.get('window');
 // Curated Harmonies / Premium Design Themes
 const themes = {
   light: {
-    bg: '#ffffff',
-    text: '#0f172a',
-    subText: '#475569',
-    cardBg: 'rgba(241,245,249,0.92)',
-    cardBorder: 'rgba(226,232,240,0.8)',
-    inputBg: 'rgba(0,0,0,0.05)',
-    inputText: '#000000',
-    primary: '#fb7185',
-    glowColors: ['#f8fafc', '#f1f5f9'] as [string, string],
+    bg: '#fffaf0',
+    text: '#1c2928',
+    subText: '#59615b',
+    cardBg: 'rgba(238,226,207,0.92)',
+    cardBorder: 'rgba(217,205,184,0.8)',
+    inputBg: 'rgba(28,41,40,0.05)',
+    inputText: '#1c2928',
+    primary: '#c85745',
+    glowColors: ['#f6efdf', '#eee2cf'] as [string, string],
   },
   dark: {
-    bg: '#07020d',
-    text: '#f8fafc',
-    subText: '#cbd5e1',
-    cardBg: 'rgba(22,17,41,0.85)',
-    cardBorder: 'rgba(255,255,255,0.06)',
-    inputBg: 'rgba(255,255,255,0.06)',
-    inputText: '#ffffff',
-    primary: '#f43f5e',
-    glowColors: ['#0e051d', '#07020e'] as [string, string],
+    bg: '#1c2928',
+    text: '#f6efdf',
+    subText: '#c9c8b8',
+    cardBg: 'rgba(39,52,49,0.85)',
+    cardBorder: 'rgba(255,250,240,0.06)',
+    inputBg: 'rgba(255,250,240,0.06)',
+    inputText: '#fffaf0',
+    primary: '#b94234',
+    glowColors: ['#1c2928', '#1c2928'] as [string, string],
   },
   sepia: {
-    bg: '#f4ece1',
-    text: '#433422',
-    subText: '#5f4b32',
-    cardBg: 'rgba(235,224,209,0.92)',
+    bg: '#f1e6d3',
+    text: '#6f5735',
+    subText: '#6f5735',
+    cardBg: 'rgba(234,226,207,0.92)',
     cardBorder: 'rgba(67,52,34,0.15)',
-    inputBg: 'rgba(0,0,0,0.04)',
-    inputText: '#433422',
-    primary: '#ea580c',
-    glowColors: ['#faf7f2', '#f4ece1'] as [string, string],
+    inputBg: 'rgba(28,41,40,0.04)',
+    inputText: '#6f5735',
+    primary: '#b65f2b',
+    glowColors: ['#f6efdf', '#f1e6d3'] as [string, string],
   },
   cinema: {
-    bg: '#000000',
-    text: '#e2e8f0',
-    subText: '#94a3b8',
+    bg: '#1c2928',
+    text: '#d9cdb8',
+    subText: '#9aa39a',
     cardBg: 'rgba(15,15,15,0.95)',
-    cardBorder: 'rgba(255,255,255,0.08)',
-    inputBg: 'rgba(255,255,255,0.08)',
-    inputText: '#ffffff',
-    primary: '#fb7185',
-    glowColors: ['#000000', '#000000'] as [string, string],
+    cardBorder: 'rgba(255,250,240,0.08)',
+    inputBg: 'rgba(255,250,240,0.08)',
+    inputText: '#fffaf0',
+    primary: '#c85745',
+    glowColors: ['#1c2928', '#1c2928'] as [string, string],
   },
 };
 
 export default function ReaderScreen() {
   const { t, i18n } = useTranslation();
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const {
     seriesId,
@@ -160,7 +149,6 @@ export default function ReaderScreen() {
   const [brightnessLevel, setBrightnessLevel] = useState(100); // 20% to 100%
   const [autoScroll, setAutoScroll] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(2); // 1 to 5
-  const [zoomScale, setZoomScale] = useState(1); // 1x, 1.25x, 1.5x, 2x
   const [showSettings, setShowSettings] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(() => Math.min(100, Math.max(0, Number(progressParam) || 0)));
 
@@ -180,6 +168,7 @@ export default function ReaderScreen() {
   const [seriesData, setSeriesData] = useState<any>(null);
   const [chapters, setChapters] = useState<any[]>([]);
   const [activeChapterIndex, setActiveChapterIndex] = useState(0);
+  const [showChapterPicker, setShowChapterPicker] = useState(false);
   const [pages, setPages] = useState<string[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
 
@@ -187,8 +176,12 @@ export default function ReaderScreen() {
   const hasIncrementedView = useRef<string | null>(null);
 
   // Fetch series details and chapters
-  const loadSeriesData = () => {
-    if (!seriesId || seriesId === 'undefined') return;
+  const loadSeriesData = useCallback(() => {
+    if (!seriesId || seriesId === 'undefined') {
+      setError(t('mobile.reader.serverError'));
+      setLoading(false);
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -205,7 +198,7 @@ export default function ReaderScreen() {
           ratingCount: ratingData.ratingCount,
         });
         setUserRating(ratingData.userRating || 0);
-        const chs = (cData.chapters || [])
+        const chs = (Array.isArray(cData?.chapters) ? cData.chapters : [])
           .filter((c: any) => c.status === 'Published')
           .sort((a: any, b: any) => a.chapterNumber - b.chapterNumber);
         setChapters(chs);
@@ -221,11 +214,11 @@ export default function ReaderScreen() {
         setError(err.message || t('mobile.reader.serverError'));
       })
       .finally(() => setLoading(false));
-  };
+  }, [chapterIndexParam, seriesId, t]);
 
   useEffect(() => {
-    loadSeriesData();
-  }, [seriesId]);
+    void loadSeriesData();
+  }, [loadSeriesData]);
 
   // Sync activeChapterIndex when chapterIndexParam or chapters changes (e.g. when returning to series detail and choosing another chapter)
   useEffect(() => {
@@ -288,12 +281,12 @@ export default function ReaderScreen() {
       commentsAPI.getByChapter(currentChapter._id)
     ])
       .then(([pData, cData]) => {
-        const fetchedPages = (pData.pages || [])
+        const fetchedPages = (Array.isArray(pData?.pages) ? pData.pages : [])
           .map((p: any) => getImageUrl(p.originalImage || p.processedImage || p.imageUrl))
           .filter((url): url is string => !!url);
         setPages(fetchedPages);
 
-        const fetchedComments = (cData.comments || []).map((c: any) => ({
+        const fetchedComments = (Array.isArray(cData?.comments) ? cData.comments : []).map((c: any) => ({
           id: c._id,
           user: c.userId?.displayName || t('mobile.reader.community'),
           initials: (c.userId?.displayName || t('mobile.reader.community')).slice(0, 2).toUpperCase(),
@@ -301,7 +294,7 @@ export default function ReaderScreen() {
           text: c.text || '',
           likes: c.likes || 0,
           liked: false,
-          color: ['#fb7185', '#f43f5e'],
+          color: ['#c85745', '#b94234'],
           replies: []
         }));
         setComments(fetchedComments);
@@ -324,7 +317,7 @@ export default function ReaderScreen() {
         author: '...',
         mood: t('mobile.reader.mood'),
         publishedDate: '...',
-        cover: 'https://picsum.photos/800/1200',
+        cover: '',
         totalPages: 0,
         rating: 0,
         ratingCount: 0,
@@ -339,7 +332,7 @@ export default function ReaderScreen() {
       author: seriesData.mangakaId?.displayName || t('mobile.reader.unknownAuthor'),
       mood: seriesData.genre?.join(', ') || t('mobile.reader.mood'),
       publishedDate: currentChapter ? new Date(currentChapter.createdAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US') : t('mobile.reader.newUpdated'),
-      cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesData._id}/800/1200`,
+      cover: getImageUrl(seriesData.coverImage) || '',
       totalPages: pages.length,
       rating: seriesData.averageRating || 0,
       ratingCount: seriesData.ratingCount || 0,
@@ -361,25 +354,19 @@ export default function ReaderScreen() {
     }
   }, [activeChapterIndex, readingMode]);
 
-  const handleNextChapter = () => {
-    if (activeChapterIndex < chapters.length - 1) {
-      setActiveChapterIndex((idx) => idx + 1);
-      setCurrentPage(0);
-      setScrollProgress(0);
-      scrollYRef.current = 0;
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-    }
+  const handleSelectChapter = (chapterIndex: number) => {
+    if (chapterIndex < 0 || chapterIndex >= chapters.length || chapterIndex === activeChapterIndex) return;
+
+    setActiveChapterIndex(chapterIndex);
+    setCurrentPage(0);
+    setScrollProgress(0);
+    scrollYRef.current = 0;
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
-  const handlePrevChapter = () => {
-    if (activeChapterIndex > 0) {
-      setActiveChapterIndex((idx) => idx - 1);
-      setCurrentPage(0);
-      setScrollProgress(0);
-      scrollYRef.current = 0;
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-    }
-  };
+  const handleNextChapter = () => handleSelectChapter(activeChapterIndex + 1);
+
+  const handlePrevChapter = () => handleSelectChapter(activeChapterIndex - 1);
 
   // Refs to avoid stale closures in PanResponder
   const activeChapterIndexRef = useRef(activeChapterIndex);
@@ -487,7 +474,7 @@ export default function ReaderScreen() {
           text: comment.text || newCommentText,
           likes: 0,
           liked: false,
-          color: ['#fb7185', '#f43f5e'],
+          color: ['#c85745', '#b94234'],
           replies: [],
         };
         setComments((prev) => [newComment, ...prev]);
@@ -516,7 +503,7 @@ export default function ReaderScreen() {
                 text: replyText,
                 likes: 0,
                 liked: false,
-                color: ['#fb7185', '#f43f5e'],
+                color: ['#c85745', '#b94234'],
               },
             ],
           };
@@ -556,7 +543,7 @@ export default function ReaderScreen() {
   return (
     <ThemedView style={[styles.screen, { backgroundColor: currentTheme.bg }]} {...panResponder.panHandlers}>
       {/* Background glow lines */}
-      <LinearGradient colors={currentTheme.glowColors} style={StyleSheet.absoluteFillObject} />
+      <View style={StyleSheet.absoluteFillObject} />
 
       {/* Global Brightness Dimming Overlay */}
       <View
@@ -564,7 +551,7 @@ export default function ReaderScreen() {
         style={[
           StyleSheet.absoluteFillObject,
           {
-            backgroundColor: '#000000',
+            backgroundColor: '#1c2928',
             opacity: Math.max(0, Math.min(0.8, 1 - brightnessLevel / 100)),
             zIndex: 999,
           },
@@ -573,7 +560,7 @@ export default function ReaderScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {/* Immersive Top Bar */}
-        {showUI && (
+        {showUI && (<>
           <View style={[styles.topBar, { backgroundColor: currentTheme.cardBg, borderBottomColor: currentTheme.cardBorder }]}>
             <Pressable onPress={() => router.back()} style={styles.iconCircle}>
               <ChevronLeft size={20} color={currentTheme.text} />
@@ -604,12 +591,12 @@ export default function ReaderScreen() {
                     size={20}
                     color={
                       seriesData?.subscribers?.includes(user._id)
-                        ? '#6366f1'
+                        ? '#52707b'
                         : currentTheme.text
                     }
                     fill={
                       seriesData?.subscribers?.includes(user._id)
-                        ? '#6366f1'
+                        ? '#52707b'
                         : 'none'
                     }
                   />
@@ -617,7 +604,7 @@ export default function ReaderScreen() {
               )}
 
               <Pressable onPress={() => setBookmarked(!bookmarked)} style={styles.iconCircle}>
-                <Heart size={20} color={bookmarked ? '#f43f5e' : currentTheme.text} fill={bookmarked ? '#f43f5e' : 'none'} />
+                <Heart size={20} color={bookmarked ? '#b94234' : currentTheme.text} fill={bookmarked ? '#b94234' : 'none'} />
               </Pressable>
 
               <Pressable onPress={() => setShowCommentsTray(true)} style={styles.iconCircle}>
@@ -626,32 +613,46 @@ export default function ReaderScreen() {
               </Pressable>
             </View>
           </View>
-        )}
 
+          {chapters.length > 0 && (
+            <View style={[styles.chapterNavigator, { backgroundColor: currentTheme.cardBg, borderBottomColor: currentTheme.cardBorder }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('mobile.reader.previousChapter')}
+                disabled={activeChapterIndex === 0}
+                onPress={handlePrevChapter}
+                style={[styles.chapterStepButton, activeChapterIndex === 0 && styles.chapterStepButtonDisabled]}
+              >
+                <ChevronLeft size={18} color={currentTheme.text} />
+              </Pressable>
 
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('mobile.reader.chapter', { number: chapters[activeChapterIndex]?.chapterNumber })}
+                accessibilityState={{ expanded: showChapterPicker }}
+                onPress={() => setShowChapterPicker((visible) => !visible)}
+                style={[styles.chapterDropdownTrigger, { borderColor: currentTheme.cardBorder, backgroundColor: currentTheme.inputBg }]}
+              >
+                <ThemedText style={[styles.chapterDropdownText, { color: currentTheme.text }]} numberOfLines={1}>
+                  {t('mobile.reader.chapterShort', { number: chapters[activeChapterIndex]?.chapterNumber })}
+                </ThemedText>
+                <ChevronDown size={16} color={currentTheme.text} />
+              </Pressable>
 
-        {/* Floating Zoom Panel */}
-        {showUI && (
-          <View style={[styles.floatingZoomPanel, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder }]}>
-            <Pressable
-              onPress={() => setZoomScale((z) => Math.min(2, z + 0.25))}
-              style={styles.zoomPillBtn}
-            >
-              <ZoomIn size={16} color={currentTheme.text} />
-            </Pressable>
-
-            <View style={styles.zoomValueBadge}>
-              <ThemedText style={[styles.zoomValueText, { color: currentTheme.text }]}>{zoomScale}x</ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('mobile.reader.nextChapter')}
+                disabled={activeChapterIndex === chapters.length - 1}
+                onPress={handleNextChapter}
+                style={[styles.chapterStepButton, activeChapterIndex === chapters.length - 1 && styles.chapterStepButtonDisabled]}
+              >
+                <ChevronRight size={18} color={currentTheme.text} />
+              </Pressable>
             </View>
+          )}
+        </>)}
 
-            <Pressable
-              onPress={() => setZoomScale((z) => Math.max(1, z - 0.25))}
-              style={styles.zoomPillBtn}
-            >
-              <ZoomOut size={16} color={currentTheme.text} />
-            </Pressable>
-          </View>
-        )}
+
 
         {/* Immersive HUD toggle feedback indicator */}
         {!showUI && (
@@ -659,7 +660,7 @@ export default function ReaderScreen() {
             onPress={() => setImmersiveMode(false)}
             style={styles.floatingShowUIHint}
           >
-            <ChevronDown size={14} color="#ffffff" />
+            <ChevronDown size={14} color="#fffaf0" />
             <ThemedText style={styles.showUIHintText}>{t('mobile.reader.showMenu')}</ThemedText>
           </Pressable>
         )}
@@ -675,7 +676,7 @@ export default function ReaderScreen() {
             </View>
           ) : error ? (
             <View style={styles.fullscreenErrorWrap}>
-              <Sparkles size={36} color="#fb7185" style={{ marginBottom: 12 }} />
+              <Sparkles size={36} color="#c85745" style={{ marginBottom: 12 }} />
               <ThemedText style={styles.fullscreenErrorTitle}>{t('mobile.reader.loadError')}</ThemedText>
               <ThemedText style={styles.fullscreenErrorText}>{error}</ThemedText>
               <Pressable onPress={loadSeriesData} style={styles.fullscreenRetryBtn}>
@@ -713,11 +714,11 @@ export default function ReaderScreen() {
               {/* Cover intro strip */}
               <View style={[styles.chapterIntroCard, { borderColor: currentTheme.cardBorder }]}>
                 <ImageBackground source={{ uri: series.cover }} style={styles.introCover} imageStyle={{ borderRadius: 20 }}>
-                  <LinearGradient colors={['transparent', 'rgba(10,5,22,0.96)']} style={styles.introOverlay} />
+                  <View style={styles.introOverlay} />
                   <View style={styles.introDetails}>
                     <View style={styles.badgeWrap}>
-                      <View style={styles.introBadge}><Sparkles size={11} color="#fb7185" /><ThemedText style={styles.introBadgeText}>{t('mobile.reader.immersive')}</ThemedText></View>
-                      <View style={styles.introBadge}><MoonStar size={11} color="#a855f7" /><ThemedText style={styles.introBadgeText}>{series.mood}</ThemedText></View>
+                      <View style={styles.introBadge}><Sparkles size={11} color="#c85745" /><ThemedText style={styles.introBadgeText}>{t('mobile.reader.immersive')}</ThemedText></View>
+                      <View style={styles.introBadge}><MoonStar size={11} color="#7a5a43" /><ThemedText style={styles.introBadgeText}>{series.mood}</ThemedText></View>
                     </View>
                     <ThemedText style={styles.introTitle}>{series.title}</ThemedText>
                     <ThemedText style={styles.introMeta}>
@@ -745,10 +746,10 @@ export default function ReaderScreen() {
                     >
                       <Image
                         source={{ uri: url }}
-                        style={[styles.pageImage, { transform: [{ scale: zoomScale }] }]}
+                        style={styles.pageImage}
                         contentFit="contain"
                       />
-                      <LinearGradient colors={['rgba(255,255,255,0.02)', 'transparent']} style={StyleSheet.absoluteFillObject} />
+                      <View style={StyleSheet.absoluteFillObject} />
                       <View style={styles.pageNumberBadge}>
                         <ThemedText style={styles.pageNumberText}>{idx + 1} / {pages.length}</ThemedText>
                       </View>
@@ -760,7 +761,7 @@ export default function ReaderScreen() {
               {/* Reader Interaction Footers */}
               <View style={styles.interactionWrap}>
                 {/* Five star rating widget */}
-                <LinearGradient colors={[currentTheme.cardBg, 'rgba(39,29,74,0.1)']} style={[styles.ratingCard, { borderColor: currentTheme.cardBorder }]}>
+                <View style={[styles.ratingCard, { borderColor: currentTheme.cardBorder }]}>
                   <View style={styles.ratingCardHeader}>
                 <ThemedText style={[styles.ratingCardTitle, { color: currentTheme.text }]}>{t('mobile.reader.rateSeries', 'Rate this series')}</ThemedText>
                     <ThemedText style={[styles.ratingCount, { color: currentTheme.subText }]}>{t('mobile.reader.ratingCount', { rating: series.rating, count: series.ratingCount })}</ThemedText>
@@ -784,14 +785,14 @@ export default function ReaderScreen() {
                         }}
                         style={styles.starPressable}
                       >
-                        <Star size={32} color={star <= userRating ? '#fbbf24' : '#4b5563'} fill={star <= userRating ? '#fbbf24' : 'none'} />
+                        <Star size={32} color={star <= userRating ? '#c6942d' : '#59615b'} fill={star <= userRating ? '#c6942d' : 'none'} />
                       </Pressable>
                     ))}
                   </View>
                   {userRating > 0 && (
                     <ThemedText style={styles.userRatingMessage}>{t('mobile.reader.ratingThanks', { count: userRating })}</ThemedText>
                   )}
-                </LinearGradient>
+                </View>
 
                 {/* Next chapter CTA */}
                 <View style={[styles.nextChapterCard, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder }]}>
@@ -803,7 +804,7 @@ export default function ReaderScreen() {
                   </ThemedText>
                   {activeChapterIndex < chapters.length - 1 && (
                     <Pressable onPress={handleNextChapter} style={styles.nextBtn}>
-                      <ChevronUp size={16} color="#0a051d" />
+                      <ChevronUp size={16} color="#1c2928" />
                       <ThemedText style={styles.nextBtnText}>{t('mobile.reader.nextChapter')}</ThemedText>
                     </Pressable>
                   )}
@@ -858,13 +859,13 @@ export default function ReaderScreen() {
                         >
                           <Image
                             source={{ uri: url }}
-                            style={[styles.cinemaImage, { transform: [{ scale: zoomScale }] }]}
+                            style={styles.cinemaImage}
                             contentFit="contain"
                           />
                         </Pressable>
                       ))}
                     </ScrollView>
-                    <LinearGradient colors={['transparent', 'rgba(10,5,22,0.65)']} style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]} />
+                    <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]} />
 
                     <View style={styles.cinemaPagerBadge}>
                       <ThemedText style={styles.cinemaPageText}>
@@ -900,10 +901,7 @@ export default function ReaderScreen() {
 
         {/* Ambient Reading Progress Bar */}
         <View style={styles.ambientProgressBarContainer}>
-          <LinearGradient
-            colors={['#fb7185', '#a855f7']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <View
             style={[
               styles.ambientProgressBarFill,
               { width: `${readingMode === 'scroll' ? scrollProgress : ((currentPage + 1) / pages.length) * 100}%` }
@@ -917,11 +915,11 @@ export default function ReaderScreen() {
         {showCommentsTray && (
           <View style={styles.drawerOverlay}>
             <Pressable style={styles.drawerDismissHotspot} onPress={() => setShowCommentsTray(false)} />
-            <View style={[styles.drawerContentCard, { backgroundColor: currentTheme.bg === '#ffffff' ? '#f8fafc' : '#130d2d', borderColor: currentTheme.cardBorder }]}>
+            <View style={[styles.drawerContentCard, { backgroundColor: currentTheme.bg === '#fffaf0' ? '#f6efdf' : '#1c2928', borderColor: currentTheme.cardBorder }]}>
               {/* Header */}
               <View style={[styles.drawerHeader, { borderBottomColor: currentTheme.cardBorder }]}>
                 <View style={styles.drawerHeaderTitle}>
-                  <MessageCircle size={18} color="#fb7185" />
+                  <MessageCircle size={18} color="#c85745" />
                   <ThemedText style={[styles.drawerHeaderTitleText, { color: currentTheme.text }]}>{t('mobile.reader.commentsTitle', { count: comments.length })}</ThemedText>
                 </View>
                 <Pressable onPress={() => setShowCommentsTray(false)} style={styles.drawerCloseBtn}>
@@ -935,9 +933,9 @@ export default function ReaderScreen() {
                   <View key={comment.id} style={[styles.commentCascadeItem, { borderBottomColor: currentTheme.cardBorder }]}>
                     {/* Parent Comment */}
                     <View style={styles.commentBodyRow}>
-                      <LinearGradient colors={comment.color as [string, string]} style={styles.avatarCircle}>
+                      <View style={styles.avatarCircle}>
                         <ThemedText style={styles.avatarInitials}>{comment.initials}</ThemedText>
-                      </LinearGradient>
+                      </View>
                       <View style={styles.commentContentCol}>
                         <View style={styles.commentHeaderWrap}>
                           <ThemedText style={[styles.commentUsername, { color: currentTheme.text }]}>{comment.user}</ThemedText>
@@ -951,8 +949,8 @@ export default function ReaderScreen() {
                             onPress={() => handleLikeComment(comment.id)}
                             style={styles.commentLikeBtn}
                           >
-                            <ThumbsUp size={11} color={comment.liked ? '#fb7185' : '#94a3b8'} fill={comment.liked ? '#fb7185' : 'none'} />
-                            <ThemedText style={[styles.commentActionText, comment.liked && { color: '#fb7185' }]}>
+                            <ThumbsUp size={11} color={comment.liked ? '#c85745' : '#9aa39a'} fill={comment.liked ? '#c85745' : 'none'} />
+                            <ThemedText style={[styles.commentActionText, comment.liked && { color: '#c85745' }]}>
                               {comment.likes} {t('mobile.reader.likes')}
                             </ThemedText>
                           </Pressable>
@@ -970,13 +968,13 @@ export default function ReaderScreen() {
                           <View style={styles.replyBoxForm}>
                             <TextInput
                               placeholder={t('mobile.reader.replyPlaceholder', { name: comment.user })}
-                              placeholderTextColor="#94a3b8"
+                              placeholderTextColor="#9aa39a"
                               style={[styles.trayWebInput, { backgroundColor: currentTheme.inputBg, color: currentTheme.text }]}
                               value={replyText}
                               onChangeText={setReplyText}
                             />
                             <Pressable onPress={() => handleAddReply(comment.id)} style={styles.sendReplyBtn}>
-                              <Send size={12} color="#fff" />
+                              <Send size={12} color="#fffaf0" />
                             </Pressable>
                           </View>
                         )}
@@ -986,7 +984,7 @@ export default function ReaderScreen() {
                     {/* Replies Thread */}
                     {comment.replies.map((reply: any) => (
                       <View key={reply.id} style={[styles.replyCascadeItem, { borderLeftColor: currentTheme.cardBorder }]}>
-                        <LinearGradient colors={reply.color as [string, string]} style={[styles.avatarCircle, { width: 24, height: 24 }]} />
+                        <View style={[styles.avatarCircle, { width: 24, height: 24 }]} />
                         <View style={styles.commentContentCol}>
                           <View style={styles.commentHeaderWrap}>
                             <ThemedText style={[styles.commentUsername, { color: currentTheme.text }]}>{reply.user}</ThemedText>
@@ -998,8 +996,8 @@ export default function ReaderScreen() {
                               onPress={() => handleLikeComment(comment.id, reply.id)}
                               style={styles.commentLikeBtn}
                             >
-                              <ThumbsUp size={10} color={reply.liked ? '#fb7185' : '#94a3b8'} fill={reply.liked ? '#fb7185' : 'none'} />
-                              <ThemedText style={[styles.commentActionText, reply.liked && { color: '#fb7185' }]}>
+                              <ThumbsUp size={10} color={reply.liked ? '#c85745' : '#9aa39a'} fill={reply.liked ? '#c85745' : 'none'} />
+                              <ThemedText style={[styles.commentActionText, reply.liked && { color: '#c85745' }]}>
                                 {reply.likes} {t('mobile.reader.likes')}
                               </ThemedText>
                             </Pressable>
@@ -1013,18 +1011,18 @@ export default function ReaderScreen() {
 
               {/* New Comment Posting Form footer */}
               <View style={[styles.newCommentFooter, { paddingBottom: insets.bottom + 12, borderTopColor: currentTheme.cardBorder }]}>
-                <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']} style={[styles.inputWrap, { borderColor: currentTheme.cardBorder }]}>
+                <View style={[styles.inputWrap, { borderColor: currentTheme.cardBorder }]}>
                   <TextInput
                     placeholder={t('mobile.reader.commentPlaceholder')}
-                    placeholderTextColor="#a5b4fc"
+                    placeholderTextColor="#b9b59e"
                     style={[styles.commentWebInput, { color: currentTheme.text }]}
                     value={newCommentText}
                     onChangeText={setNewCommentText}
                   />
                   <Pressable onPress={handleAddComment} style={[styles.sendBtn, { backgroundColor: currentTheme.text }]}>
-                    <Send size={16} color={currentTheme.bg === '#ffffff' ? '#ffffff' : '#0a051d'} />
+                    <Send size={16} color={currentTheme.bg === '#fffaf0' ? '#fffaf0' : '#1c2928'} />
                   </Pressable>
-                </LinearGradient>
+                </View>
               </View>
             </View>
           </View>
@@ -1034,11 +1032,11 @@ export default function ReaderScreen() {
         {showSettings && (
           <View style={styles.drawerOverlay}>
             <Pressable style={styles.drawerDismissHotspot} onPress={() => setShowSettings(false)} />
-            <View style={[styles.settingsDrawerCard, { backgroundColor: bgTheme === 'light' ? '#ffffff' : '#130d2d', borderColor: currentTheme.cardBorder }]}>
+            <View style={[styles.settingsDrawerCard, { backgroundColor: bgTheme === 'light' ? '#fffaf0' : '#1c2928', borderColor: currentTheme.cardBorder }]}>
               {/* Settings Header */}
               <View style={[styles.drawerHeader, { borderBottomColor: currentTheme.cardBorder }]}>
                 <View style={styles.drawerHeaderTitle}>
-                  <Sliders size={18} color="#fb7185" />
+                  <Sliders size={18} color="#c85745" />
                   <ThemedText style={[styles.drawerHeaderTitleText, { color: currentTheme.text }]}>{t('mobile.reader.experienceSettings')}</ThemedText>
                 </View>
                 <Pressable onPress={() => setShowSettings(false)} style={styles.drawerCloseBtn}>
@@ -1053,10 +1051,10 @@ export default function ReaderScreen() {
                   <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>{t('mobile.reader.backgroundTheme')}</ThemedText>
                   <View style={styles.themeSelectorRow}>
                     {[
-                      { key: 'light', label: t('mobile.reader.light'), dot: '#ffffff' },
-                      { key: 'sepia', label: 'Sepia', dot: '#f4ece1' },
-                      { key: 'dark', label: t('mobile.reader.dark'), dot: '#07020d' },
-                      { key: 'cinema', label: 'Cinema', dot: '#000000' },
+                      { key: 'light', label: t('mobile.reader.light'), dot: '#fffaf0' },
+                      { key: 'sepia', label: 'Sepia', dot: '#f1e6d3' },
+                      { key: 'dark', label: t('mobile.reader.dark'), dot: '#1c2928' },
+                      { key: 'cinema', label: 'Cinema', dot: '#1c2928' },
                     ].map((themeOption) => {
                       const active = bgTheme === themeOption.key;
                       return (
@@ -1065,10 +1063,10 @@ export default function ReaderScreen() {
                           onPress={() => setBgTheme(themeOption.key as any)}
                           style={[
                             styles.themeOptionBtn,
-                            active && { borderColor: '#fb7185', backgroundColor: 'rgba(251,113,133,0.1)' }
+                            active && { borderColor: '#c85745', backgroundColor: 'rgba(200,87,69,0.1)' }
                           ]}
                         >
-                          <View style={[styles.themeColorDot, { backgroundColor: themeOption.dot, borderColor: '#ccc', borderWidth: themeOption.key === 'light' ? 1 : 0 }]} />
+                          <View style={[styles.themeColorDot, { backgroundColor: themeOption.dot, borderColor: '#cbbda5', borderWidth: themeOption.key === 'light' ? 1 : 0 }]} />
                           <ThemedText style={[styles.themeOptionText, { color: currentTheme.text }]}>{themeOption.label}</ThemedText>
                         </Pressable>
                       );
@@ -1091,11 +1089,11 @@ export default function ReaderScreen() {
                           onPress={() => setBrightnessLevel(level)}
                           style={[
                             styles.brightnessPresetBtn,
-                            active && { backgroundColor: '#fb7185' },
+                            active && { backgroundColor: '#c85745' },
                           ]}
                         >
-                          <Sun size={12} color={active ? '#0a051d' : currentTheme.text} />
-                          <ThemedText style={[styles.brightnessPresetText, { color: active ? '#0a051d' : currentTheme.text }]}>
+                          <Sun size={12} color={active ? '#1c2928' : currentTheme.text} />
+                          <ThemedText style={[styles.brightnessPresetText, { color: active ? '#1c2928' : currentTheme.text }]}>
                             {level}%
                           </ThemedText>
                         </Pressable>
@@ -1115,11 +1113,11 @@ export default function ReaderScreen() {
                       }}
                       style={[
                         styles.modeOptionBtn,
-                        readingMode === 'scroll' && { backgroundColor: '#fb7185' },
+                        readingMode === 'scroll' && { backgroundColor: '#c85745' },
                       ]}
                     >
-                      <BookOpen size={16} color={readingMode === 'scroll' ? '#0a051d' : currentTheme.text} />
-                      <ThemedText style={[styles.modeOptionText, { color: readingMode === 'scroll' ? '#0a051d' : currentTheme.text }]}>
+                      <BookOpen size={16} color={readingMode === 'scroll' ? '#1c2928' : currentTheme.text} />
+                      <ThemedText style={[styles.modeOptionText, { color: readingMode === 'scroll' ? '#1c2928' : currentTheme.text }]}>
                         {t('mobile.reader.verticalScroll')}
                       </ThemedText>
                     </Pressable>
@@ -1131,11 +1129,11 @@ export default function ReaderScreen() {
                       }}
                       style={[
                         styles.modeOptionBtn,
-                        readingMode === 'cinema' && { backgroundColor: '#fb7185' },
+                        readingMode === 'cinema' && { backgroundColor: '#c85745' },
                       ]}
                     >
-                      <PanelTop size={16} color={readingMode === 'cinema' ? '#0a051d' : currentTheme.text} />
-                      <ThemedText style={[styles.modeOptionText, { color: readingMode === 'cinema' ? '#0a051d' : currentTheme.text }]}>
+                      <PanelTop size={16} color={readingMode === 'cinema' ? '#1c2928' : currentTheme.text} />
+                      <ThemedText style={[styles.modeOptionText, { color: readingMode === 'cinema' ? '#1c2928' : currentTheme.text }]}>
                         {t('mobile.reader.horizontalCinema')}
                       </ThemedText>
                     </Pressable>
@@ -1147,14 +1145,14 @@ export default function ReaderScreen() {
                   <View style={styles.settingGroup}>
                     <View style={styles.settingHeaderRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Activity size={14} color="#fb7185" />
+                        <Activity size={14} color="#c85745" />
                         <ThemedText style={[styles.settingLabel, { color: currentTheme.subText }]}>{t('mobile.reader.autoScroll')}</ThemedText>
                       </View>
                       <Pressable
                         onPress={() => setAutoScroll(!autoScroll)}
                         style={[
                           styles.autoScrollToggleBtn,
-                          autoScroll && { backgroundColor: '#22c55e' }
+                          autoScroll && { backgroundColor: '#357053' }
                         ]}
                       >
                         <ThemedText style={styles.autoScrollToggleText}>{autoScroll ? t('mobile.reader.autoOn') : t('mobile.reader.autoOff')}</ThemedText>
@@ -1173,10 +1171,10 @@ export default function ReaderScreen() {
                                 onPress={() => setScrollSpeed(speed)}
                                 style={[
                                   styles.speedOptionBtn,
-                                  active && { backgroundColor: '#fb7185' }
+                                  active && { backgroundColor: '#c85745' }
                                 ]}
                               >
-                                <ThemedText style={[styles.speedOptionText, { color: active ? '#0a051d' : currentTheme.text }]}>
+                                <ThemedText style={[styles.speedOptionText, { color: active ? '#1c2928' : currentTheme.text }]}>
                                   {speed}x
                                 </ThemedText>
                               </Pressable>
@@ -1191,6 +1189,50 @@ export default function ReaderScreen() {
             </View>
           </View>
         )}
+
+        {showChapterPicker && (
+          <View style={styles.chapterPickerLayer}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+              onPress={() => setShowChapterPicker(false)}
+              style={styles.chapterPickerBackdrop}
+            />
+            <View style={[styles.chapterPickerMenu, { backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder }]}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chapterPickerList}>
+                {chapters.map((chapter, index) => {
+                  const isActive = index === activeChapterIndex;
+                  return (
+                    <Pressable
+                      key={chapter._id}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('mobile.reader.chapter', { number: chapter.chapterNumber })}
+                      accessibilityState={{ selected: isActive }}
+                      onPress={() => {
+                        handleSelectChapter(index);
+                        setShowChapterPicker(false);
+                      }}
+                      style={[
+                        styles.chapterPickerOption,
+                        { borderColor: currentTheme.cardBorder },
+                        isActive && { backgroundColor: currentTheme.primary, borderColor: currentTheme.primary },
+                      ]}
+                    >
+                      <ThemedText style={[styles.chapterPickerOptionText, { color: isActive ? '#fffaf0' : currentTheme.text }]}>
+                        {t('mobile.reader.chapter', { number: chapter.chapterNumber })}
+                      </ThemedText>
+                      {!!chapter.title && (
+                        <ThemedText style={[styles.chapterPickerOptionTitle, { color: isActive ? '#fffaf0' : currentTheme.subText }]} numberOfLines={1}>
+                          {chapter.title}
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -1200,92 +1242,100 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   safeArea: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, zIndex: 10 },
-  iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
+  iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,250,240,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,250,240,0.04)' },
   topTitleCol: { flex: 1, marginLeft: 10, marginRight: 10 },
   topTitleText: { fontSize: 14, fontWeight: '900' },
   topSubtitleText: { fontSize: 11 },
   topActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  commentsDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fb7185', position: 'absolute', top: 0, right: 0 },
+  chapterNavigator: { flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingHorizontal: 12, gap: 8, borderBottomWidth: 1, zIndex: 10 },
+  chapterStepButton: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,250,240,0.1)' },
+  chapterStepButtonDisabled: { opacity: 0.32 },
+  chapterDropdownTrigger: { flex: 1, minWidth: 0, height: 34, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  chapterDropdownText: { flex: 1, fontSize: 11, fontWeight: '800', textAlign: 'center' },
+  chapterPickerLayer: { ...StyleSheet.absoluteFillObject, zIndex: 1100 },
+  chapterPickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,41,40,0.3)' },
+  chapterPickerMenu: { position: 'absolute', top: 104, left: 54, right: 54, maxHeight: 320, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  chapterPickerList: { padding: 8, gap: 6 },
+  chapterPickerOption: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, justifyContent: 'center' },
+  chapterPickerOptionText: { fontSize: 12, fontWeight: '800' },
+  chapterPickerOptionTitle: { marginTop: 2, fontSize: 10 },
+  commentsDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#c85745', position: 'absolute', top: 0, right: 0 },
   displayArea: { flex: 1 },
   scrollReaderContent: { paddingHorizontal: 12, paddingVertical: 16, gap: Spacing.four },
   chapterIntroCard: { borderRadius: 24, overflow: 'hidden', borderWidth: 1 },
   introCover: { minHeight: 220, justifyContent: 'flex-end' },
-  introOverlay: { ...StyleSheet.absoluteFillObject },
+  introOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,41,40,0.72)' },
   introDetails: { padding: 16, gap: 8 },
   badgeWrap: { flexDirection: 'row', gap: 6 },
-  introBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)' },
-  introBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  introTitle: { color: '#fff', fontSize: 22, fontWeight: '900' },
-  introMeta: { color: '#cbd5e1', fontSize: 11 },
+  introBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,250,240,0.1)' },
+  introBadgeText: { color: '#fffaf0', fontSize: 10, fontWeight: '700' },
+  introTitle: { color: '#fffaf0', fontSize: 22, fontWeight: '900' },
+  introMeta: { color: '#c9c8b8', fontSize: 11 },
   pagesCascade: { gap: 8 },
   pageCard: { width: '100%', height: 520, borderRadius: 16, overflow: 'hidden', borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   pageImage: { width: '100%', height: '100%' },
-  pageNumberBadge: { position: 'absolute', bottom: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.6)' },
-  pageNumberText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  pageNumberBadge: { position: 'absolute', bottom: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(28,41,40,0.6)' },
+  pageNumberText: { color: '#fffaf0', fontSize: 10, fontWeight: '700' },
   interactionWrap: { gap: 12, marginTop: 10 },
-  ratingCard: { borderRadius: 20, padding: 16, borderWidth: 1, gap: 12 },
+  ratingCard: { borderRadius: 20, padding: 16, borderWidth: 1, gap: 12, backgroundColor: 'rgba(255,250,240,0.06)' },
   ratingCardTitle: { fontSize: 14, fontWeight: '800' },
   ratingCount: { fontSize: 12 },
   ratingCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   starRow: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
   starPressable: { padding: 4 },
-  userRatingMessage: { color: '#fbbf24', fontSize: 12, textAlign: 'center', fontWeight: '700' },
+  userRatingMessage: { color: '#c6942d', fontSize: 12, textAlign: 'center', fontWeight: '700' },
   nextChapterCard: { borderRadius: 20, padding: 20, borderWidth: 1, alignItems: 'center', gap: 8 },
-  nextText: { color: '#fb7185', fontWeight: '900', letterSpacing: 1.5, fontSize: 12 },
+  nextText: { color: '#c85745', fontWeight: '900', letterSpacing: 1.5, fontSize: 12 },
   nextSub: { fontSize: 11, textAlign: 'center' },
-  nextBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 11, borderRadius: 999 },
-  nextBtnText: { color: '#0a051d', fontWeight: '800', fontSize: 13 },
+  nextBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fffaf0', paddingHorizontal: 20, paddingVertical: 11, borderRadius: 999 },
+  nextBtnText: { color: '#1c2928', fontWeight: '800', fontSize: 13 },
   cinemaContainer: { flex: 1, justifyContent: 'space-between' },
   cinemaViewPager: { flex: 1, position: 'relative', justifyContent: 'center', alignItems: 'center' },
   cinemaImage: { width: '100%', height: '100%' },
   cinemaHotspot: { position: 'absolute', top: 0, bottom: 0, width: screenWidth / 3 },
-  cinemaPagerBadge: { position: 'absolute', top: 12, right: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.6)' },
-  cinemaPageText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  cinemaPagerBadge: { position: 'absolute', top: 12, right: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(28,41,40,0.6)' },
+  cinemaPageText: { color: '#fffaf0', fontSize: 11, fontWeight: '700' },
   cinemaThumbnailsBar: { height: 74, borderTopWidth: 1 },
   cinemaThumbRow: { gap: 10, paddingHorizontal: 12, alignItems: 'center' },
   cinemaThumbFrame: { width: 44, height: 52, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
-  cinemaThumbFrameActive: { borderColor: '#fb7185' },
+  cinemaThumbFrameActive: { borderColor: '#c85745' },
   cinemaThumbImage: { width: '100%', height: '100%', opacity: 0.6 },
 
-  drawerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  drawerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: 'rgba(28,41,40,0.6)', justifyContent: 'flex-end' },
   drawerDismissHotspot: { ...StyleSheet.absoluteFillObject },
   drawerContentCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, height: '70%', borderWidth: 1 },
   drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   drawerHeaderTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   drawerHeaderTitleText: { fontSize: 15, fontWeight: '900' },
-  drawerCloseBtn: { padding: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  drawerCloseBtn: { padding: 6, borderRadius: 999, backgroundColor: 'rgba(255,250,240,0.08)' },
   commentsListScroll: { flex: 1, padding: 16 },
   commentCascadeItem: { borderBottomWidth: 1, paddingBottom: 16, marginBottom: 16 },
   commentBodyRow: { flexDirection: 'row', gap: 12 },
-  avatarCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  avatarInitials: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  avatarCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#52707b' },
+  avatarInitials: { color: '#fffaf0', fontSize: 10, fontWeight: '800' },
   commentContentCol: { flex: 1, gap: 4 },
   commentHeaderWrap: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   commentUsername: { fontSize: 13, fontWeight: '800' },
-  commentTime: { color: '#64748b', fontSize: 10 },
+  commentTime: { color: '#6f7b74', fontSize: 10 },
   commentText: { fontSize: 12, lineHeight: 18 },
   commentActionsRow: { flexDirection: 'row', gap: 14, marginTop: 4, alignItems: 'center' },
   commentLikeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   commentActionBtn: { paddingVertical: 2 },
-  commentActionText: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
+  commentActionText: { color: '#9aa39a', fontSize: 11, fontWeight: '700' },
   replyBoxForm: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
   trayWebInput: { flex: 1, fontSize: 12, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
-  sendReplyBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#fb7185', alignItems: 'center', justifyContent: 'center' },
+  sendReplyBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#c85745', alignItems: 'center', justifyContent: 'center' },
   replyCascadeItem: { flexDirection: 'row', gap: 10, marginLeft: 36, marginTop: 12, paddingLeft: 10, borderLeftWidth: 1.5 },
   newCommentFooter: { padding: 12, borderTopWidth: 1 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, backgroundColor: 'rgba(255,250,240,0.06)' },
   commentWebInput: { flex: 1, backgroundColor: 'transparent', fontSize: 13 },
   sendBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 
-  // Optimized Reader Custom Styles
-  floatingZoomPanel: { position: 'absolute', right: 12, top: 120, borderRadius: 20, borderWidth: 1, padding: 8, gap: 8, alignItems: 'center', zIndex: 100 },
-  zoomPillBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  zoomValueBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.3)' },
-  zoomValueText: { fontSize: 10, fontWeight: '800' },
-  ambientProgressBarContainer: { width: '100%', height: 3, backgroundColor: 'rgba(255,255,255,0.05)', position: 'relative' },
-  ambientProgressBarFill: { height: '100%' },
-  floatingShowUIHint: { position: 'absolute', top: 16, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.85)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 100, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)' },
-  showUIHintText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
+  // Reader status and immersive controls
+  ambientProgressBarContainer: { width: '100%', height: 3, backgroundColor: 'rgba(255,250,240,0.05)', position: 'relative' },
+  ambientProgressBarFill: { height: '100%', backgroundColor: '#b94234' },
+  floatingShowUIHint: { position: 'absolute', top: 16, alignSelf: 'center', backgroundColor: 'rgba(28,41,40,0.85)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 100, borderWidth: 0.5, borderColor: 'rgba(255,250,240,0.2)' },
+  showUIHintText: { color: '#fffaf0', fontSize: 11, fontWeight: '800' },
 
   // Settings Drawer Sheet Styles
   settingsDrawerCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '60%', borderWidth: 1, paddingBottom: 24 },
@@ -1295,21 +1345,21 @@ const styles = StyleSheet.create({
   settingHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   settingValueText: { fontSize: 12, fontWeight: '800' },
   themeSelectorRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  themeOptionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.05)', backgroundColor: 'rgba(255,255,255,0.02)' },
+  themeOptionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,250,240,0.05)', backgroundColor: 'rgba(255,250,240,0.02)' },
   themeColorDot: { width: 14, height: 14, borderRadius: 7 },
   themeOptionText: { fontSize: 11, fontWeight: '800' },
   brightnessPresetsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
-  brightnessPresetBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' },
+  brightnessPresetBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, backgroundColor: 'rgba(255,250,240,0.05)' },
   brightnessPresetText: { fontSize: 11, fontWeight: '800' },
   modeSelectorRow: { flexDirection: 'row', gap: 10 },
-  modeOptionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' },
+  modeOptionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(255,250,240,0.05)' },
   modeOptionText: { fontSize: 12, fontWeight: '800' },
-  autoScrollToggleBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
-  autoScrollToggleText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
-  speedControlRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, backgroundColor: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 12 },
+  autoScrollToggleBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,250,240,0.08)' },
+  autoScrollToggleText: { color: '#fffaf0', fontSize: 11, fontWeight: '800' },
+  speedControlRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, backgroundColor: 'rgba(255,250,240,0.02)', padding: 10, borderRadius: 12 },
   speedLabel: { fontSize: 11, fontWeight: '800' },
   speedOptionsGrid: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
-  speedOptionBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center' },
+  speedOptionBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(255,250,240,0.05)', alignItems: 'center' },
   speedOptionText: { fontSize: 11, fontWeight: '800' },
   fullscreenErrorWrap: {
     flex: 1,
@@ -1319,13 +1369,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fullscreenErrorTitle: {
-    color: '#fff',
+    color: '#fffaf0',
     fontSize: 18,
     fontWeight: '900',
     marginTop: 8,
   },
   fullscreenErrorText: {
-    color: '#94a3b8',
+    color: '#9aa39a',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
@@ -1333,13 +1383,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   fullscreenRetryBtn: {
-    backgroundColor: '#fb7185',
+    backgroundColor: '#c85745',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 999,
   },
   fullscreenRetryText: {
-    color: '#0a051d',
+    color: '#1c2928',
     fontSize: 13,
     fontWeight: '900',
   },

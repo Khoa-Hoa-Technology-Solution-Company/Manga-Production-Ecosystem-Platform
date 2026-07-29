@@ -9,6 +9,8 @@
     "create": "Tạo mới",
     "search": "Tìm kiếm",
     "all": "Tất cả",
+    "chapter": "Chương",
+    "page": "Trang",
     "filter": "Bộ lọc",
     "viewAll": "Xem tất cả",
     "seeAll": "Xem thêm",
@@ -233,6 +235,7 @@
   },
   "header": {
     "welcomeBack": "Chào mừng trở lại, {{name}}",
+    "currentDate": "{{date}}",
     "chaptersDue": "{{date}} · {{count}} chương cần hoàn thành tuần này",
     "searchPlaceholder": "Tìm series, chương..."
   },
@@ -359,6 +362,11 @@
     "progress": "Tiến độ",
     "all": "Tất cả",
     "searchTasks": "Tìm công việc...",
+    "filterStatus": "Trạng thái công việc",
+    "filterType": "Loại trợ lý",
+    "filterLevel": "Cấp độ phân công",
+    "dedicated": "Chuyên trách",
+    "freelance": "Tự do",
     "available": "Có sẵn",
     "review": "Đang duyệt",
     "startWork": "Bắt đầu làm",
@@ -373,7 +381,9 @@
     "declineTask": "Từ chối",
     "confirmDecline": "Bạn có chắc chắn muốn từ chối công việc được giao này không?",
     "downloadDraft": "Tải bản nháp",
-    "viewManuscript": "Xem bản thảo"
+    "viewManuscript": "Xem bản thảo",
+    "loadError": "Không thể tải công việc. Vui lòng thử lại.",
+    "actionError": "Không thể cập nhật công việc. Vui lòng thử lại."
   },
   "discover": {
     "title": "Khám phá",
@@ -616,6 +626,7 @@
     "title": "Cài đặt tài khoản",
     "subtitle": "Quản lý thông tin cá nhân và cấu hình nhận thông báo của bạn",
     "profileSection": "Thông tin cá nhân",
+    "profileHint": "Cập nhật thông tin nhận diện công khai của bạn.",
     "displayName": "Tên hiển thị",
     "displayNamePlaceholder": "Nhập tên hiển thị mới",
     "bio": "Tiểu sử",
@@ -623,6 +634,7 @@
     "avatarUrl": "Đường dẫn ảnh đại diện",
     "avatarUrlPlaceholder": "https://example.com/avatar.png",
     "notificationSection": "Cài đặt thông báo",
+    "notificationHint": "Chọn cách bạn muốn nhận thông báo.",
     "subscribeNewSeries": "Nhận thông báo khi có series mới",
     "subscribeNewSeriesDesc": "Gửi thông báo hệ thống cho tôi khi một bộ truyện mới được xuất bản trên MangaFlow.",
     "notificationSound": "Bật âm thanh thông báo",

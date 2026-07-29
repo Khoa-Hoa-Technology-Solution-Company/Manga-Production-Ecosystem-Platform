@@ -2,13 +2,54 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { env } from '../config/env';
 import { verifyToken } from '../utils/jwt';
+import mongoose from 'mongoose';
+import { User } from '../models/User';
+import { Chapter } from '../models/Chapter';
+import { Series } from '../models/Series';
+import { Task } from '../models/Task';
+import { canAccessChapterDocument } from '../middleware/chapterAccess';
 
 let io: Server;
 const roomMembers = new Map<string, Map<string, { userId: string; role: string }>>();
+type RoomPermissions = { read: boolean; edit: boolean };
 
 function getRoomMembers(room: string) {
   if (!roomMembers.has(room)) roomMembers.set(room, new Map());
   return roomMembers.get(room)!;
+}
+
+async function resolveRoomPermissions(socket: Socket, room: string): Promise<RoomPermissions> {
+  const user = (socket as any).user;
+  if (!user || typeof room !== 'string') return { read: false, edit: false };
+  const chapterMatch = /^chapter:([a-f\d]{24})$/i.exec(room);
+  if (chapterMatch) {
+    const chapter = await Chapter.findById(chapterMatch[1]).select('seriesId mangakaId collaborators status');
+    const series = chapter ? await Series.findById(chapter.seriesId).select('status editorId editorStatus mangakaId') : null;
+    if (!chapter || !series) return { read: false, edit: false };
+    const documentPermissions = {
+      read: canAccessChapterDocument(chapter, series, user, 'read'),
+      edit: canAccessChapterDocument(chapter, series, user, 'edit'),
+    };
+    if (documentPermissions.read && documentPermissions.edit) return documentPermissions;
+    const assignedAssistant = user.role === 'assistant'
+      && Boolean(await Task.exists({ chapterId: chapter._id, assignedTo: user._id }));
+    return {
+      read: documentPermissions.read || assignedAssistant,
+      edit: documentPermissions.edit || assignedAssistant,
+    };
+  }
+  const seriesMatch = /^series:([a-f\d]{24})$/i.exec(room);
+  if (seriesMatch) {
+    const series = await Series.findById(seriesMatch[1]).select('status mangakaId editorId editorStatus');
+    if (!series) return { read: false, edit: false };
+    const id = String(user._id);
+    const privileged = String(series.mangakaId) === id
+      || (user.role === 'editor' && String(series.editorId) === id && series.editorStatus === 'accepted')
+      || user.role === 'editorial_board';
+    const permitted = privileged || ['Active', 'Completed'].includes(String(series.status));
+    return { read: permitted, edit: permitted };
+  }
+  return { read: false, edit: false };
 }
 
 export function initSocket(httpServer: HttpServer): Server {
@@ -28,8 +69,12 @@ export function initSocket(httpServer: HttpServer): Server {
         return next(new Error('Authentication required'));
       }
       const payload = verifyToken(token as string);
-      (socket as any).userId = payload.userId;
-      (socket as any).userRole = payload.role;
+      if (!mongoose.Types.ObjectId.isValid(String(payload.userId))) return next(new Error('Invalid token'));
+      const user = await User.findById(payload.userId).select('_id role isActive');
+      if (!user || user.isActive === false) return next(new Error('User is inactive'));
+      (socket as any).user = { _id: String(user._id), role: user.role };
+      (socket as any).userId = String(user._id);
+      (socket as any).userRole = user.role;
       next();
     } catch {
       next(new Error('Invalid token'));
@@ -38,6 +83,7 @@ export function initSocket(httpServer: HttpServer): Server {
 
   io.on('connection', (socket: Socket) => {
     const userId = (socket as any).userId;
+    const roomPermissions = new Map<string, RoomPermissions>();
     const userRoom = `user:${userId}`;
     const wasOnline = io.sockets.adapter.rooms.has(userRoom) && io.sockets.adapter.rooms.get(userRoom)!.size > 0;
 
@@ -55,10 +101,16 @@ export function initSocket(httpServer: HttpServer): Server {
     const role = (socket as any).userRole;
     socket.join(`role:${role}`);
 
-    socket.on('join:room', (room: string) => {
+    socket.on('join:room', async (room: string) => {
+      const permissions = await resolveRoomPermissions(socket, room);
+      if (!permissions.read) {
+        socket.emit('room:error', { room, error: 'You do not have access to this room.' });
+        return;
+      }
       socket.join(room);
+      roomPermissions.set(room, permissions);
       console.log(`🔌 Socket ${userId} joined room: ${room}`);
-      getRoomMembers(room).set(userId, { userId, role });
+      getRoomMembers(room).set(socket.id, { userId, role });
       socket.to(room).emit('presence:joined', {
         userId,
         role,
@@ -71,8 +123,9 @@ export function initSocket(httpServer: HttpServer): Server {
 
     socket.on('leave:room', (room: string) => {
       socket.leave(room);
+      roomPermissions.delete(room);
       console.log(`🔌 Socket ${userId} left room: ${room}`);
-      getRoomMembers(room).delete(userId);
+      getRoomMembers(room).delete(socket.id);
       socket.to(room).emit('presence:left', {
         userId,
         role,
@@ -84,7 +137,7 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     socket.on('cursor:move', ({ room, payload }: { room: string; payload: any }) => {
-      if (!room) return;
+      if (!room || !socket.rooms.has(room) || !roomPermissions.get(room)?.read) return;
       socket.to(room).emit('cursor:move', {
         userId,
         role,
@@ -93,7 +146,7 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     socket.on('document:update', ({ room, payload }: { room: string; payload: any }) => {
-      if (!room) return;
+      if (!room || !socket.rooms.has(room) || !roomPermissions.get(room)?.edit) return;
       socket.to(room).emit('document:update', {
         userId,
         role,
@@ -102,7 +155,7 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     socket.on('object:sync', ({ room, payload }: { room: string; payload: any }) => {
-      if (!room) return;
+      if (!room || !socket.rooms.has(room) || !roomPermissions.get(room)?.edit) return;
       socket.to(room).emit('object:sync', {
         userId,
         role,
@@ -111,7 +164,7 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     socket.on('object:focus', ({ room, objectId, action }: { room: string; objectId: string; action: 'focus' | 'blur' }) => {
-      if (!room || !objectId) return;
+      if (!objectId || !room || !socket.rooms.has(room) || !roomPermissions.get(room)?.edit) return;
       socket.to(room).emit('object:focus', {
         userId,
         role,
@@ -121,7 +174,7 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     socket.on('object:lock', ({ room, objectId, action }: { room: string; objectId: string; action: 'lock' | 'unlock' }) => {
-      if (!room || !objectId) return;
+      if (!objectId || !room || !socket.rooms.has(room) || !roomPermissions.get(room)?.edit) return;
       socket.to(room).emit('object:lock', {
         userId,
         role,
@@ -131,9 +184,10 @@ export function initSocket(httpServer: HttpServer): Server {
     });
 
     socket.on('disconnect', () => {
+      roomPermissions.clear();
       for (const [room, members] of roomMembers.entries()) {
-        if (members.has(userId)) {
-          members.delete(userId);
+        if (members.has(socket.id)) {
+          members.delete(socket.id);
           io.to(room).emit('presence:list', {
             room,
             members: Array.from(members.values()),

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/chapters.controller';
 import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/rbac';
-import { requireChapterAccess } from '../middleware/chapterAccess';
+import { requireChapterAccess, requireChapterOwner } from '../middleware/chapterAccess';
 
 const router = Router();
 
@@ -18,7 +18,7 @@ router.put('/:id', requireChapterAccess('edit'), ctrl.update);
 router.delete('/:id', requireChapterAccess('edit'), ctrl.remove);
 router.patch('/:id/status', requireChapterAccess('edit'), ctrl.updateStatus);
 router.post('/:id/submit-review', requireChapterAccess('edit'), ctrl.submitReview);
-router.post('/:id/access', authorize('mangaka'), ctrl.shareAccess);
-router.delete('/:id/access/:userId', authorize('mangaka'), ctrl.removeAccess);
+router.post('/:id/access', requireChapterOwner(), ctrl.shareAccess);
+router.delete('/:id/access/:userId', requireChapterOwner(), ctrl.removeAccess);
 
 export default router;

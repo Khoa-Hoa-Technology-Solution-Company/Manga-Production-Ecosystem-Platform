@@ -8,7 +8,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Bell, BellOff, Check, CheckCheck, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
 
@@ -62,7 +61,7 @@ export default function NotificationsScreen() {
     notificationsAPI
       .getAll()
       .then((data) => {
-        setNotifications(data.notifications || []);
+        setNotifications(Array.isArray(data?.notifications) ? data.notifications : []);
       })
       .catch((err) => {
         console.error('Failed to load notifications on refresh:', err);
@@ -101,7 +100,7 @@ export default function NotificationsScreen() {
     notificationsAPI
       .getAll()
       .then((data) => {
-        setNotifications(data.notifications || []);
+        setNotifications(Array.isArray(data?.notifications) ? data.notifications : []);
       })
       .catch((err) => {
         console.error('Failed to load notifications:', err);
@@ -178,7 +177,7 @@ export default function NotificationsScreen() {
           return;
         }
         const chaptersRes = await chaptersAPI.getBySeries(chapter.seriesId);
-        const chapters = chaptersRes?.chapters || [];
+        const chapters = Array.isArray(chaptersRes?.chapters) ? chaptersRes.chapters : [];
         const chapterIndex = chapters.findIndex((item: any) => item._id === chapter._id);
         router.push({
           pathname: `/read/${chapter.seriesId}` as any,
@@ -227,7 +226,7 @@ export default function NotificationsScreen() {
             const chapter = res?.chapter;
             if (chapter) {
               const chaptersRes = await chaptersAPI.getBySeries(chapter.seriesId);
-              const chapters = chaptersRes?.chapters || [];
+              const chapters = Array.isArray(chaptersRes?.chapters) ? chaptersRes.chapters : [];
               const idx = chapters.findIndex((c: any) => c._id === chapter._id);
               router.push({
                 pathname: `/read/${chapter.seriesId}` as any,
@@ -297,12 +296,12 @@ export default function NotificationsScreen() {
         styles.card,
         {
           backgroundColor: item.read
-            ? (isDark ? 'rgba(22, 17, 41, 0.45)' : '#ffffff')
-            : (isDark ? 'rgba(244, 63, 94, 0.06)' : 'rgba(244, 63, 94, 0.04)'),
+            ? (isDark ? 'rgba(39,52,49, 0.45)' : '#fffaf0')
+            : (isDark ? 'rgba(185,66,52, 0.06)' : 'rgba(185,66,52, 0.04)'),
           borderColor: item.read
-            ? (isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(15, 23, 42, 0.06)')
-            : (isDark ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.2)'),
-          shadowColor: item.read ? '#000' : '#fb7185',
+            ? (isDark ? 'rgba(255,250,240, 0.05)' : 'rgba(28,41,40, 0.06)')
+            : (isDark ? 'rgba(185,66,52, 0.25)' : 'rgba(185,66,52, 0.2)'),
+          shadowColor: item.read ? '#1c2928' : '#c85745',
           shadowOpacity: isDark ? 0 : (item.read ? 0.02 : 0.12),
           shadowOffset: { width: 0, height: 4 },
           shadowRadius: item.read ? 8 : 12,
@@ -312,10 +311,7 @@ export default function NotificationsScreen() {
     >
       {!item.read && (
         <>
-          <LinearGradient
-            colors={isDark ? ['rgba(251,113,133,0.16)', 'rgba(168,85,247,0.08)'] : ['rgba(255,255,255,0.98)', 'rgba(255,245,248,0.94)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <View
             style={styles.unreadCardGlow}
             pointerEvents="none"
           />
@@ -323,8 +319,8 @@ export default function NotificationsScreen() {
         </>
       )}
 
-      <View style={[styles.cardIconWrap, { backgroundColor: item.read ? (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15, 23, 42, 0.04)') : 'rgba(244, 63, 94, 0.12)' }]}>
-        <Bell size={18} color={item.read ? theme.textSecondary : '#fb7185'} />
+      <View style={[styles.cardIconWrap, { backgroundColor: item.read ? (isDark ? 'rgba(255,250,240,0.04)' : 'rgba(28,41,40, 0.04)') : 'rgba(185,66,52, 0.12)' }]}>
+        <Bell size={18} color={item.read ? theme.textSecondary : '#c85745'} />
       </View>
 
       <View style={styles.cardContent}>
@@ -346,7 +342,7 @@ export default function NotificationsScreen() {
           )}
         </View>
         <ThemedText
-          style={[styles.cardMessage, { color: item.read ? theme.textSecondary : (isDark ? '#ddd6fe' : '#6d5b82') }]}
+          style={[styles.cardMessage, { color: item.read ? theme.textSecondary : (isDark ? '#eadcc9' : '#756550') }]}
           numberOfLines={2}
         >
           {item.message}
@@ -362,7 +358,7 @@ export default function NotificationsScreen() {
         </View>
       ) : !item.read ? (
         <View style={styles.cardAction}>
-          <Check size={14} color="#fb7185" />
+          <Check size={14} color="#c85745" />
         </View>
       ) : null}
     </Pressable>
@@ -370,18 +366,13 @@ export default function NotificationsScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <LinearGradient
-        colors={isDark ? ['#0e051d', '#130e2c', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.background }]} />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {/* Header */}
         <View
           style={[
             styles.header,
-            { borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)' },
+            { borderBottomColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.08)' },
           ]}
         >
           <View>
@@ -401,14 +392,14 @@ export default function NotificationsScreen() {
               disabled={markingAll}
               style={[
                 styles.markAllBtn,
-                { backgroundColor: isDark ? 'rgba(244,63,94,0.12)' : 'rgba(244,63,94,0.08)' },
+                { backgroundColor: isDark ? 'rgba(185,66,52,0.12)' : 'rgba(185,66,52,0.08)' },
               ]}
             >
               {markingAll ? (
-                <ActivityIndicator size="small" color="#fb7185" />
+                <ActivityIndicator size="small" color="#c85745" />
               ) : (
                 <>
-                  <CheckCheck size={14} color="#fb7185" />
+                  <CheckCheck size={14} color="#c85745" />
                   <ThemedText style={styles.markAllText}>{t('mobile.notifications.markAll')}</ThemedText>
                 </>
               )}
@@ -419,7 +410,7 @@ export default function NotificationsScreen() {
         {/* Content */}
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#6366f1" />
+            <ActivityIndicator size="large" color="#52707b" />
           </View>
         ) : (
           <FlatList
@@ -476,7 +467,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
   },
-  markAllText: { fontSize: 13, color: '#fb7185', fontWeight: '600' },
+  markAllText: { fontSize: 13, color: '#c85745', fontWeight: '600' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -502,7 +493,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  unreadCardGlow: { ...StyleSheet.absoluteFillObject },
+  unreadCardGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(185,66,52,0.08)' },
   unreadDot: {
     position: 'absolute',
     top: 13,
@@ -511,7 +502,7 @@ const styles = StyleSheet.create({
     width: 4,
     borderTopRightRadius: 4,
     borderBottomRightRadius: 4,
-    backgroundColor: '#fb7185',
+    backgroundColor: '#c85745',
   },
   cardIconWrap: {
     width: 42,
@@ -533,12 +524,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(244, 63, 94, 0.13)',
+    backgroundColor: 'rgba(185,66,52, 0.13)',
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.2)',
+    borderColor: 'rgba(185,66,52, 0.2)',
   },
-  newBadgeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#fb7185' },
-  newBadgeText: { color: '#e11d48', fontSize: 9, lineHeight: 11, fontWeight: '900', letterSpacing: 0.5 },
+  newBadgeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#c85745' },
+  newBadgeText: { color: '#b94234', fontSize: 9, lineHeight: 11, fontWeight: '900', letterSpacing: 0.5 },
   cardAction: {
     alignItems: 'center',
     justifyContent: 'center',

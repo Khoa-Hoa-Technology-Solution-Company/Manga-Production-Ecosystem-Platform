@@ -11,7 +11,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   BookOpen,
   Eye,
@@ -82,10 +81,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={isDark ? ['#0e051d', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={StyleSheet.absoluteFillObject}
       />
       <SafeAreaView style={styles.safeArea}>
@@ -100,14 +96,11 @@ export default function LoginScreen() {
           >
             {/* Logo & Brand */}
             <View style={styles.brandSection}>
-              <LinearGradient
-                colors={['#f43f5e', '#8b5cf6']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <View
                 style={styles.logoCircle}
               >
-                <BookOpen size={30} color="#fff" />
-              </LinearGradient>
+                <BookOpen size={30} color="#fffaf0" />
+              </View>
               <ThemedText style={styles.brandTitle}>{t('common.appName')}</ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.brandSubtitle}>
                 {t('mobile.login.brandSubtitle')}
@@ -119,8 +112,8 @@ export default function LoginScreen() {
               style={[
                 styles.card,
                 {
-                  backgroundColor: isDark ? 'rgba(22, 17, 41, 0.65)' : 'rgba(255, 255, 255, 0.85)',
-                  borderColor: isDark ? 'rgba(244, 63, 94, 0.12)' : 'rgba(244, 63, 94, 0.15)',
+                  backgroundColor: isDark ? 'rgba(28,41,40, 0.86)' : '#fffaf0',
+                  borderColor: isDark ? 'rgba(255,250,240,0.12)' : '#d9cdb8',
                 },
               ]}
             >
@@ -151,19 +144,19 @@ export default function LoginScreen() {
                     style={[
                       styles.inputRow,
                       {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.04)',
-                        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)',
+                        backgroundColor: isDark ? 'rgba(255,250,240,0.03)' : 'rgba(28,41,40, 0.04)',
+                        borderColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.08)',
                       },
                       nameFocused && styles.inputRowActive,
                     ]}
                   >
-                    <User size={16} color={nameFocused ? '#fb7185' : '#64748b'} />
+                    <User size={16} color={nameFocused ? '#1c2928' : '#656b64'} />
                     <TextInput
                       style={[styles.textInput, { color: theme.text }]}
                       value={displayName}
                       onChangeText={setDisplayName}
                       placeholder={t('mobile.login.displayNamePlaceholder')}
-                      placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
+                      placeholderTextColor={isDark ? '#59615b' : '#9aa39a'}
                       autoCapitalize="words"
                       onFocus={() => setNameFocused(true)}
                       onBlur={() => setNameFocused(false)}
@@ -179,19 +172,19 @@ export default function LoginScreen() {
                   style={[
                     styles.inputRow,
                     {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.04)',
-                      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)',
+                      backgroundColor: isDark ? 'rgba(255,250,240,0.03)' : 'rgba(28,41,40, 0.04)',
+                      borderColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.08)',
                     },
                     emailFocused && styles.inputRowActive,
                   ]}
                 >
-                  <Mail size={16} color={emailFocused ? '#fb7185' : '#64748b'} />
+                  <Mail size={16} color={emailFocused ? '#1c2928' : '#656b64'} />
                   <TextInput
                     style={[styles.textInput, { color: theme.text }]}
                     value={email}
                     onChangeText={setEmail}
                     placeholder="you@example.com"
-                    placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
+                    placeholderTextColor={isDark ? '#59615b' : '#9aa39a'}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoCorrect={false}
@@ -208,19 +201,19 @@ export default function LoginScreen() {
                   style={[
                     styles.inputRow,
                     {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.04)',
-                      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.08)',
+                      backgroundColor: isDark ? 'rgba(255,250,240,0.03)' : 'rgba(28,41,40, 0.04)',
+                      borderColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.08)',
                     },
                     passwordFocused && styles.inputRowActive,
                   ]}
                 >
-                  <Lock size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
+                  <Lock size={16} color={passwordFocused ? '#1c2928' : '#656b64'} />
                   <TextInput
                     style={[styles.textInput, { flex: 1, color: theme.text }]}
                     value={password}
                     onChangeText={setPassword}
                     placeholder="••••••••"
-                    placeholderTextColor={isDark ? '#475569' : '#94a3b8'}
+                    placeholderTextColor={isDark ? '#59615b' : '#9aa39a'}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     onFocus={() => setPasswordFocused(true)}
@@ -228,9 +221,9 @@ export default function LoginScreen() {
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)}>
                     {showPassword ? (
-                      <EyeOff size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
+                        <EyeOff size={16} color={passwordFocused ? '#1c2928' : '#656b64'} />
                     ) : (
-                      <Eye size={16} color={passwordFocused ? '#fb7185' : '#64748b'} />
+                        <Eye size={16} color={passwordFocused ? '#1c2928' : '#656b64'} />
                     )}
                   </Pressable>
                 </View>
@@ -250,8 +243,8 @@ export default function LoginScreen() {
                           style={[
                             styles.roleChip,
                             {
-                              backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(15, 23, 42, 0.02)',
-                              borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.06)',
+                              backgroundColor: isDark ? 'rgba(255,250,240,0.02)' : 'rgba(28,41,40, 0.02)',
+                              borderColor: isDark ? 'rgba(255,250,240,0.06)' : 'rgba(28,41,40, 0.06)',
                             },
                             active && styles.roleChipActive,
                           ]}
@@ -267,7 +260,7 @@ export default function LoginScreen() {
                           <ThemedText
                             style={[
                               styles.roleChipDesc,
-                              active && { color: 'rgba(255,255,255,0.6)' },
+                              active && { color: 'rgba(255,250,240,0.6)' },
                             ]}
                           >
                             {t(opt.descKey)}
@@ -288,23 +281,20 @@ export default function LoginScreen() {
                   (loading || pressed) && { opacity: 0.8 }
                 ]}
               >
-                <LinearGradient
-                  colors={['#f43f5e', '#8b5cf6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+                <View
                   style={styles.submitBtn}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color="#fffaf0" />
                   ) : (
                     <>
                       <ThemedText style={styles.submitText}>
                         {isLogin ? t('mobile.login.submitLogin') : t('mobile.login.submitRegister')}
                       </ThemedText>
-                      <ChevronRight size={16} color="#fff" />
+                      <ChevronRight size={16} color="#fffaf0" />
                     </>
                   )}
-                </LinearGradient>
+                </View>
               </Pressable>
 
               {/* Toggle */}
@@ -333,7 +323,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#07020d' },
+  root: { flex: 1, backgroundColor: '#f6efdf' },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: {
@@ -350,7 +340,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
-    shadowColor: '#f43f5e',
+    backgroundColor: '#b94234',
+    shadowColor: '#1c2928',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -367,28 +358,28 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   card: {
-    backgroundColor: 'rgba(22, 17, 41, 0.65)',
-    borderRadius: 24,
+    backgroundColor: '#fffaf0',
+    borderRadius: 16,
     padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.12)',
+    borderColor: '#d9cdb8',
     gap: 16,
   },
   cardHeader: { gap: 4 },
   cardTitle: { fontSize: 18, fontWeight: '900' },
   cardSubtitle: { fontSize: 12 },
   errorBox: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
+    backgroundColor: '#fffaf0',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)',
+    borderColor: '#e2b09a',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  errorText: { color: '#ef4444', fontSize: 11, fontWeight: '700' },
+  errorText: { color: '#a43a32', fontSize: 11, fontWeight: '700' },
   inputGroup: { gap: 6 },
   inputLabel: {
-    color: '#94a3b8',
+    color: '#59615b',
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -398,20 +389,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: '#f6efdf',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 14,
+    borderColor: '#d9cdb8',
+    borderRadius: 12,
     paddingHorizontal: 14,
     height: 48,
   },
   inputRowActive: {
-    borderColor: '#f43f5e',
-    backgroundColor: 'rgba(244, 63, 94, 0.05)',
+    borderColor: '#1c2928',
+    backgroundColor: '#eee2cf',
   },
   textInput: {
     flex: 1,
-    color: '#fff',
+    color: '#1c2928',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -424,23 +415,23 @@ const styles = StyleSheet.create({
     width: '47%',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderColor: '#d9cdb8',
+    backgroundColor: '#f6efdf',
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 2,
   },
   roleChipActive: {
-    borderColor: '#f43f5e',
-    backgroundColor: 'rgba(244,63,94,0.1)',
+    borderColor: '#1c2928',
+    backgroundColor: '#eee2cf',
   },
   roleChipLabel: {
-    color: '#94a3b8',
+    color: '#59615b',
     fontSize: 12,
     fontWeight: '800',
   },
-  roleChipLabelActive: { color: '#fff' },
-  roleChipDesc: { color: '#475569', fontSize: 10 },
+  roleChipLabelActive: { color: '#1c2928' },
+  roleChipDesc: { color: '#918f83', fontSize: 10 },
   submitBtnWrap: {
     marginTop: 4,
     borderRadius: 14,
@@ -452,14 +443,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 14,
+    backgroundColor: '#1c2928',
   },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  submitText: { color: '#fffaf0', fontSize: 16, fontWeight: '700' },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 4,
   },
-  toggleText: { color: '#64748b', fontSize: 12 },
-  toggleLink: { color: '#f43f5e', fontSize: 12, fontWeight: '800' },
+  toggleText: { color: '#59615b', fontSize: 12 },
+  toggleLink: { color: '#1c2928', fontSize: 12, fontWeight: '800' },
 });

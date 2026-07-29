@@ -46,25 +46,26 @@ export default function AppTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: scheme === 'dark' ? '#10081f' : '#fff8fd',
-          borderTopColor: scheme === 'dark' ? '#2d1b50' : '#f3d5ef',
+          backgroundColor: colors.backgroundElement,
+          borderTopColor: colors.borderGlow,
           borderTopWidth: 1,
-          height: 66,
-          paddingBottom: 9,
+          height: 72,
+          paddingBottom: 10,
           paddingTop: 8,
-          shadowColor: '#a855f7',
-          shadowOpacity: 0.14,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: 10,
+          shadowColor: '#1c2928',
+          shadowOpacity: 0.06,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: -6 },
+          elevation: 6,
         },
         tabBarActiveTintColor: colors.primaryNeon,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '800',
-          letterSpacing: 0.2,
+          fontWeight: '600',
+          letterSpacing: 0,
         },
+        tabBarItemStyle: { paddingHorizontal: 2 },
       }}
     >
       <Tabs.Screen
@@ -81,12 +82,12 @@ export default function AppTabs() {
         }}
       />
 
-      {/* Mangaka Tabs */}
+      {/* Complex studio workflows are web-only. */}
       <Tabs.Screen
         name="studio"
         options={{
           title: t('sidebar.studio'),
-          href: role === 'mangaka' ? undefined : null,
+          href: null,
           tabBarIcon: ({ color }) => (
             <Image
               source={require('@/assets/images/tabIcons/explore.png')}
@@ -101,7 +102,7 @@ export default function AppTabs() {
         name="manage"
         options={{
           title: t('sidebar.manage'),
-          href: role === 'mangaka' ? undefined : null,
+          href: null,
           tabBarIcon: ({ color }) => (
             <Image
               source={require('@/assets/images/tabIcons/explore.png')}
@@ -112,12 +113,12 @@ export default function AppTabs() {
         }}
       />
 
-      {/* Assistant Tab */}
+      {/* Lightweight task management for creators and assistants. */}
       <Tabs.Screen
         name="tasks"
         options={{
-          title: t('sidebar.assistant'),
-          href: role === 'assistant' ? undefined : null,
+          title: t('mobile.tasks.tab'),
+          href: role === 'mangaka' || role === 'assistant' ? undefined : null,
           tabBarIcon: ({ color }) => (
             <Image
               source={require('@/assets/images/tabIcons/explore.png')}
@@ -166,8 +167,8 @@ export default function AppTabs() {
         options={{
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: '#fb7185',
-            color: '#fff',
+            backgroundColor: colors.primaryNeon,
+            color: '#fffaf0',
             fontSize: 9,
             fontWeight: '900',
             minWidth: 18,
@@ -178,7 +179,7 @@ export default function AppTabs() {
             top: -2,
             right: -8,
             borderWidth: 1.5,
-            borderColor: scheme === 'dark' ? '#10081f' : '#fff8fd',
+            borderColor: colors.backgroundElement,
           },
           title: t('notifications.title'),
           tabBarIcon: ({ color }) => (
@@ -231,12 +232,6 @@ export default function AppTabs() {
         }}
       />
 
-      <Tabs.Screen
-        name="editor/review/[id]"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }

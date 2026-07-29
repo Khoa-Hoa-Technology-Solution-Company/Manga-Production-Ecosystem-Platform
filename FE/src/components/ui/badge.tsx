@@ -12,7 +12,7 @@ type BadgeProps = {
 const variants: Record<BadgeVariant, string> = {
   default: 'border-neutral-200 bg-white text-neutral-900',
   secondary: 'border-neutral-200 bg-neutral-100 text-neutral-900',
-  destructive: 'border-red-200 bg-red-50 text-red-600',
+  destructive: 'border-neutral-300 bg-neutral-900 text-white',
 }
 
 export function Badge({ children, className, variant = 'default' }: BadgeProps) {

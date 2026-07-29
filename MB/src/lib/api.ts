@@ -145,8 +145,11 @@ export const authAPI = {
   updateProfile: (data: any) =>
     apiFetch<{ user: any }>('/auth/profile', { method: 'PUT', body: data }),
 
-  search: (q: string) => 
-    apiFetch<{ users: any[] }>(`/auth/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, roles?: string[]) => {
+    const params = new URLSearchParams({ q });
+    if (Array.isArray(roles) && roles.length > 0) params.set('roles', roles.join(','));
+    return apiFetch<{ users: any[] }>(`/auth/search?${params.toString()}`);
+  },
 };
 
 // ── Series API ──────────────────────────────────────
@@ -312,6 +315,23 @@ export type ReaderHome = {
 export const readerAPI = {
   getHome: () => apiFetch<ReaderHome>('/reader/home'),
 
+  getLeaderboard: (period: 'weekly' | 'monthly' = 'weekly') =>
+    apiFetch<{
+      period: 'weekly' | 'monthly';
+      rankings: {
+        rank: number;
+        username: string;
+        avatar?: string;
+        score: number;
+        seriesRead: number;
+        completedChapters: number;
+        activeDays: number;
+      }[];
+    }>(`/reader/leaderboard?period=${period}`),
+
+  getSeriesRankings: (period: 'weekly' | 'monthly' = 'weekly') =>
+    apiFetch<{ period: 'weekly' | 'monthly'; rankings: any[] }>(`/reader/series-rankings?period=${period}`),
+
   getProgress: () =>
     apiFetch<{ continueReading: ContinueReadingItem[] }>('/reader/progress'),
 
@@ -434,9 +454,24 @@ export const ebAPI = {
     apiFetch(`/eb/cancel/${seriesId}`, { method: 'PATCH', body: data }),
 };
 
+export const meetingAPI = {
+  getAll: () => apiFetch<{ meetings: any[] }>('/meetings'),
+  create: (data: {
+    title: string;
+    description?: string;
+    dateTime: string;
+    location?: string;
+    seriesId: string;
+    participants: string[];
+    purpose?: 'proposal_review';
+  }) => apiFetch<{ meeting: any; message: string }>('/meetings', { method: 'POST', body: data }),
+};
+
 // ── Helpers ─────────────────────────────────────────
 export function getImageUrl(path?: string): string | undefined {
-  if (!path) return undefined;
-  if (path.startsWith('http')) return path;
-  return `${API_BASE_URL}${path}`;
+  if (typeof path !== 'string') return undefined;
+  const normalizedPath = path.trim();
+  if (!normalizedPath) return undefined;
+  if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) return normalizedPath;
+  return `${API_BASE_URL}${normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`}`;
 }

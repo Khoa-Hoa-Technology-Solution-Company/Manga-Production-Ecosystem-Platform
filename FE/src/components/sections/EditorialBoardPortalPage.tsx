@@ -339,14 +339,14 @@ export function EditorialBoardPortalPage() {
         ebAPI.getPerformanceRankings(rankingPeriod, 'asc').catch(() => ({ data: { rankings: [] } })),
         ebAPI.getDashboard().catch(() => ({ data: { stats: { pendingCount: 0, activeCount: 0, cancellationRiskCount: 0, totalDecisions: 0, overdueCount: 0 }, atRiskSeries: [], recentDecisions: [], overdueChapters: [] } })),
         meetingAPI.getAll().catch(() => ({ data: { meetings: [] } })),
-        rubricTemplateAPI.getAll().catch(() => ({ data: { rubrics: [] } })),
+        rubricTemplateAPI.getAll().catch(() => ({ data: { templates: [] } })),
         seriesAPI.getAll({ status: 'Pending_Editor', limit: '100' }).catch(() => ({ data: { series: [] } })),
         seriesAPI.getEditors().catch(() => ({ data: { editors: [] } })),
       ])
 
       setPendingSeries(pendingRes.data.series || [])
       setActiveTemplate(pendingRes.data.activeTemplate || null)
-      setRubricTemplates(rubricsRes.data?.rubrics || [])
+      setRubricTemplates(rubricsRes.data?.templates || [])
 
       // Filter series that do not have an editor assigned yet
       const unassigned = (pendingEditorRes.data.series || []).filter((s: any) => !s.editorId);

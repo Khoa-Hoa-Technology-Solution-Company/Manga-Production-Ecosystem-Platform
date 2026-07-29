@@ -9,6 +9,8 @@
     "create": "Create",
     "search": "Search",
     "all": "All",
+    "chapter": "Chapter",
+    "page": "Page",
     "filter": "Filter",
     "viewAll": "View all",
     "seeAll": "See all",
@@ -233,6 +235,7 @@
   },
   "header": {
     "welcomeBack": "Welcome back, {{name}}",
+    "currentDate": "{{date}}",
     "chaptersDue": "{{date}} · {{count}} chapters due this week",
     "searchPlaceholder": "Search series, chapters..."
   },
@@ -359,6 +362,11 @@
     "progress": "Progress",
     "all": "All",
     "searchTasks": "Search tasks...",
+    "filterStatus": "Task status",
+    "filterType": "Assistant type",
+    "filterLevel": "Assignment level",
+    "dedicated": "Dedicated",
+    "freelance": "Freelance",
     "available": "Available",
     "review": "Review",
     "startWork": "Start Working",
@@ -373,7 +381,9 @@
     "declineTask": "Decline",
     "confirmDecline": "Are you sure you want to decline this assigned task?",
     "downloadDraft": "Download Draft",
-    "viewManuscript": "View Manuscript"
+    "viewManuscript": "View Manuscript",
+    "loadError": "Could not load tasks. Please try again.",
+    "actionError": "The task could not be updated. Please try again."
   },
   "discover": {
     "title": "Discover",
@@ -615,6 +625,7 @@
     "title": "Account Settings",
     "subtitle": "Manage your profile details and notification preferences",
     "profileSection": "Personal Profile",
+    "profileHint": "Update your public identity details.",
     "displayName": "Display Name",
     "displayNamePlaceholder": "Enter display name",
     "bio": "Bio",
@@ -622,6 +633,7 @@
     "avatarUrl": "Avatar URL",
     "avatarUrlPlaceholder": "https://example.com/avatar.png",
     "notificationSection": "Notification Settings",
+    "notificationHint": "Configure how you want to be notified.",
     "subscribeNewSeries": "Notify on New Series Release",
     "subscribeNewSeriesDesc": "Receive a system notification when a brand new series is published on MangaFlow.",
     "notificationSound": "Enable notification sound",

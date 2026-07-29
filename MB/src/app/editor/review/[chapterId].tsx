@@ -3,7 +3,6 @@ import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert } fro
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, Check, X } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -29,7 +28,7 @@ function ManuscriptReviewScreen() {
     if (chapterId) {
       setLoading(true);
       pagesAPI.getByChapter(chapterId as string)
-        .then(data => setPages(data?.pages || []))
+        .then(data => setPages(Array.isArray(data?.pages) ? data.pages : []))
         .catch(err => setError(err.message || t('editor.loadError')))
         .finally(() => setLoading(false));
     }
@@ -55,10 +54,7 @@ function ManuscriptReviewScreen() {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      <LinearGradient
-        colors={['#0e051d', '#130e2c', '#07020e']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={StyleSheet.absoluteFillObject}
       />
       
@@ -66,7 +62,7 @@ function ManuscriptReviewScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <ChevronLeft size={24} color="#fff" />
+            <ChevronLeft size={24} color="#fffaf0" />
           </Pressable>
           <ThemedText type="subtitle" style={styles.headerTitle}>
             {t('editor.viewDraft')}
@@ -88,7 +84,7 @@ function ManuscriptReviewScreen() {
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
-            <ActivityIndicator size="large" color="#a855f7" style={{ marginTop: 50 }} />
+            <ActivityIndicator size="large" color="#7a5a43" style={{ marginTop: 50 }} />
           ) : pages.length === 0 ? (
             <View style={styles.emptyState}>
               <ThemedText style={styles.emptyText}>
@@ -102,7 +98,7 @@ function ManuscriptReviewScreen() {
                   {t('editor.pageNumber', { number: index + 1 })}
                 </ThemedText>
                 <Image 
-                  source={{ uri: getImageUrl(page.imageUrl) }} 
+                  source={{ uri: getImageUrl(page.originalImage || page.processedImage) }}
                   style={styles.pageImage} 
                   contentFit="contain"
                 />
@@ -119,7 +115,7 @@ function ManuscriptReviewScreen() {
               onPress={() => handleDecision('Draft')}
               disabled={submitting}
             >
-              <X size={20} color="#fff" />
+              <X size={20} color="#fffaf0" />
               <ThemedText style={styles.actionBtnText}>
                 {t('editor.reject')}
               </ThemedText>
@@ -129,7 +125,7 @@ function ManuscriptReviewScreen() {
               onPress={() => handleDecision('Approved')}
               disabled={submitting}
             >
-              <Check size={20} color="#fff" />
+              <Check size={20} color="#fffaf0" />
               <ThemedText style={styles.actionBtnText}>
                 {t('editor.approve')}
               </ThemedText>
@@ -151,22 +147,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three, 
     paddingVertical: Spacing.three,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)'
+    borderBottomColor: 'rgba(255,250,240,0.05)'
   },
   backBtn: { padding: 4 },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  errorBanner: { backgroundColor: 'rgba(244,63,94,0.15)', padding: 12, marginHorizontal: Spacing.three, borderRadius: 8, marginTop: Spacing.three },
-  errorText: { color: '#fb7185', fontSize: 13, fontWeight: 'bold' },
+  headerTitle: { color: '#fffaf0', fontSize: 18, fontWeight: '800' },
+  errorBanner: { backgroundColor: 'rgba(185,66,52,0.15)', padding: 12, marginHorizontal: Spacing.three, borderRadius: 8, marginTop: Spacing.three },
+  errorText: { color: '#c85745', fontSize: 13, fontWeight: 'bold' },
   content: { width: '100%', gap: Spacing.four, paddingTop: Spacing.three },
   emptyState: { alignItems: 'center', marginTop: 60 },
-  emptyText: { color: '#94a3b8', fontSize: 14 },
+  emptyText: { color: '#9aa39a', fontSize: 14 },
   pageContainer: { 
     width: '100%', 
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    backgroundColor: 'rgba(255,250,240,0.02)',
     paddingVertical: 10
   },
-  pageNumber: { color: '#94a3b8', fontSize: 12, marginBottom: 8 },
+  pageNumber: { color: '#9aa39a', fontSize: 12, marginBottom: 8 },
   pageImage: { width: '100%', aspectRatio: 0.7 },
   actionBar: {
     position: 'absolute',
@@ -174,9 +170,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-    backgroundColor: 'rgba(10,5,22,0.95)',
+    backgroundColor: 'rgba(28,41,40,0.95)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
+    borderTopColor: 'rgba(255,250,240,0.05)',
     gap: 12,
   },
   actionBtn: {
@@ -188,9 +184,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  rejectBtn: { backgroundColor: '#f43f5e' },
-  approveBtn: { backgroundColor: '#22c55e' },
-  actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 }
+  rejectBtn: { backgroundColor: '#b94234' },
+  approveBtn: { backgroundColor: '#357053' },
+  actionBtnText: { color: '#fffaf0', fontWeight: '800', fontSize: 15 }
 });
 
 export default withProtectedEditorRoute(ManuscriptReviewScreen);

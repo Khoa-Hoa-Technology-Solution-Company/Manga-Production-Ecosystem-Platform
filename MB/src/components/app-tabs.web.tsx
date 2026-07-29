@@ -7,12 +7,12 @@ import {
   TabListProps,
 } from 'expo-router/ui';
 import React from 'react';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import { Pressable, View, StyleSheet } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from 'react-i18next';
 
@@ -30,20 +30,9 @@ export default function AppTabs() {
             <TabButton>{t('readerHome.title')}</TabButton>
           </TabTrigger>
 
-          {role === 'mangaka' && (
-            <TabTrigger name="studio" href="/studio" asChild>
-              <TabButton>{t('sidebar.studio')}</TabButton>
-            </TabTrigger>
-          )}
-          {role === 'mangaka' && (
-            <TabTrigger name="manage" href="/manage" asChild>
-              <TabButton>{t('sidebar.manage')}</TabButton>
-            </TabTrigger>
-          )}
-
-          {role === 'assistant' && (
+          {(role === 'mangaka' || role === 'assistant') && (
             <TabTrigger name="tasks" href="/tasks" asChild>
-              <TabButton>{t('sidebar.assistant')}</TabButton>
+              <TabButton>{t('mobile.tasks.tab')}</TabButton>
             </TabTrigger>
           )}
 
@@ -79,9 +68,6 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-
   return (
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
@@ -111,9 +97,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
-    backgroundColor: 'rgba(22, 17, 41, 0.95)', // match theme background
+    backgroundColor: 'rgba(39,52,49, 0.95)', // match theme background
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,250,240,0.1)',
   },
   pressed: {
     opacity: 0.7,

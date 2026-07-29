@@ -44,17 +44,19 @@ const styles = StyleSheet.create({
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: 500,
+    fontWeight: 400,
   },
   title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+    fontSize: 32,
+    fontWeight: 700,
+    lineHeight: 38,
+    letterSpacing: -0.8,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: 700,
+    letterSpacing: -0.4,
   },
   link: {
     lineHeight: 30,
@@ -63,7 +65,7 @@ const styles = StyleSheet.create({
   linkPrimary: {
     lineHeight: 30,
     fontSize: 14,
-    color: '#3c87f7',
+    color: '#3d7183',
   },
   code: {
     fontFamily: Fonts.mono,

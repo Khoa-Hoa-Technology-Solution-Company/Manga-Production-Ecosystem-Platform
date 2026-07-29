@@ -9,7 +9,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
@@ -68,7 +67,11 @@ export default function SeriesDetailScreen() {
 
   // ── Load data ────────────────────────────────────
   const loadData = useCallback(() => {
-    if (!seriesId || seriesId === 'undefined') return;
+    if (!seriesId || seriesId === 'undefined') {
+      setError(t('mobile.series.loadErrorTitle'));
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -78,7 +81,7 @@ export default function SeriesDetailScreen() {
     ])
       .then(([sData, cData]) => {
         setSeriesData(sData.series ?? sData);
-        const allChapters: any[] = cData.chapters || [];
+        const allChapters: any[] = Array.isArray(cData?.chapters) ? cData.chapters : [];
         const published = allChapters
           .filter((c) => c.status === 'Published')
           .sort((a, b) => a.chapterNumber - b.chapterNumber);
@@ -102,16 +105,16 @@ export default function SeriesDetailScreen() {
       title: seriesData.title || t('mobile.series.untitled'),
       description: seriesData.description || t('mobile.series.noDescription'),
       author: seriesData.mangakaId?.displayName || t('mobile.series.unknownAuthor'),
-      genres: seriesData.genre || [],
-      cover: getImageUrl(seriesData.coverImage) || `https://picsum.photos/seed/${seriesId}/600/900`,
-      subscribers: seriesData.subscribers || [],
+      genres: Array.isArray(seriesData.genre) ? seriesData.genre.filter((genre: unknown): genre is string => typeof genre === 'string') : [],
+      cover: getImageUrl(seriesData.coverImage) || '',
+      subscribers: Array.isArray(seriesData.subscribers) ? seriesData.subscribers : [],
       readerCount: seriesData.readerCount || 0,
       status: seriesData.status || t('mobile.series.ongoing'),
     };
-  }, [seriesData, seriesId, t]);
+  }, [seriesData, t]);
 
   const isSubscribed = useMemo(
-    () => !!user && !!series && series.subscribers.includes(user._id),
+    () => !!user && !!series && series.subscribers.some((subscriber: any) => (typeof subscriber === 'string' ? subscriber : subscriber?._id) === user._id),
     [user, series]
   );
 
@@ -143,7 +146,7 @@ export default function SeriesDetailScreen() {
     return (
       <ThemedView style={styles.screen}>
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#f43f5e" />
+          <ActivityIndicator size="large" color="#b94234" />
         </View>
       </ThemedView>
     );
@@ -158,7 +161,7 @@ export default function SeriesDetailScreen() {
             <ArrowLeft size={20} color={theme.text} />
           </Pressable>
           <View style={styles.center}>
-            <Sparkles size={36} color="#fb7185" />
+            <Sparkles size={36} color="#c85745" />
             <ThemedText style={[styles.errorTitle, { color: theme.text }]}>{t('mobile.series.loadErrorTitle')}</ThemedText>
             <ThemedText style={[styles.errorSub, { color: theme.textSecondary }]}>{error}</ThemedText>
             <Pressable onPress={loadData} style={styles.retryBtn}>
@@ -173,13 +176,8 @@ export default function SeriesDetailScreen() {
   // ── Render: Main ──────────────────────────────────
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      {/* Dynamic gradient background */}
-      <LinearGradient
-        colors={isDark ? ['#0e051d', '#130e2c', '#07020e'] : ['#fff5f6', '#faf5ff', '#f8fafc']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      {/* Dynamic flat color background */}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.background }]} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
@@ -196,10 +194,7 @@ export default function SeriesDetailScreen() {
               style={styles.heroCover}
               contentFit="cover"
             />
-            <LinearGradient
-              colors={isDark ? ['rgba(0,0,0,0.1)', 'rgba(7,2,14,0.85)', '#07020e'] : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.85)', theme.background]}
-              style={StyleSheet.absoluteFillObject}
-            />
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(28,41,40,0.68)' }]} />
 
             {/* Back button */}
             <Pressable
@@ -208,13 +203,13 @@ export default function SeriesDetailScreen() {
                 styles.backBtn,
                 {
                   top: insets.top + 8,
-                  backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.85)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+                  backgroundColor: isDark ? 'rgba(28,41,40,0.45)' : 'rgba(255,250,240,0.85)',
+                  borderColor: isDark ? 'rgba(255,250,240,0.08)' : 'rgba(28,41,40,0.08)',
                   borderWidth: 1,
                 }
               ]}
             >
-              <ArrowLeft size={20} color={isDark ? '#ffffff' : '#0f172a'} />
+              <ArrowLeft size={20} color={isDark ? '#fffaf0' : '#1c2928'} />
             </Pressable>
 
             {/* Hero info */}
@@ -227,16 +222,16 @@ export default function SeriesDetailScreen() {
                     style={[
                       styles.tag,
                       {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.04)',
-                        borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.1)',
+                        backgroundColor: isDark ? 'rgba(255,250,240,0.08)' : 'rgba(28,41,40,0.04)',
+                        borderColor: isDark ? 'rgba(255,250,240,0.2)' : 'rgba(28,41,40,0.1)',
                       }
                     ]}
                   >
-                    <ThemedText style={[styles.tagText, { color: isDark ? 'rgba(255,255,255,0.85)' : '#475569' }]}>{g}</ThemedText>
+                    <ThemedText style={[styles.tagText, { color: isDark ? 'rgba(255,250,240,0.85)' : '#59615b' }]}>{g}</ThemedText>
                   </View>
                 ))}
-                <View style={[styles.tag, { borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)' }]}>
-                  <ThemedText style={[styles.tagText, { color: isDark ? '#a5b4fc' : '#4f46e5' }]}>{series.status}</ThemedText>
+                <View style={[styles.tag, { borderColor: '#52707b', backgroundColor: 'rgba(82,112,123,0.08)' }]}>
+                  <ThemedText style={[styles.tagText, { color: isDark ? '#b9b59e' : '#52707b' }]}>{series.status}</ThemedText>
                 </View>
               </View>
 
@@ -250,18 +245,18 @@ export default function SeriesDetailScreen() {
                 style={[
                   styles.statsContainer,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.8)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)',
+                    backgroundColor: isDark ? 'rgba(255,250,240, 0.05)' : 'rgba(255,250,240, 0.8)',
+                    borderColor: isDark ? 'rgba(255,250,240, 0.08)' : 'rgba(28,41,40, 0.08)',
                   }
                 ]}
               >
                 <View style={styles.statChip}>
-                  <Eye size={13} color={isDark ? '#a5b4fc' : '#4f46e5'} />
+                  <Eye size={13} color={isDark ? '#b9b59e' : '#52707b'} />
                   <ThemedText style={[styles.statText, { color: theme.text }]}>{formatCount(series.readerCount)} {t('mobile.series.readers')}</ThemedText>
                 </View>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(15, 23, 42, 0.15)' }]} />
+                <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,250,240, 0.15)' : 'rgba(28,41,40, 0.15)' }]} />
                 <View style={styles.statChip}>
-                  <BookOpen size={13} color="#10b981" />
+                  <BookOpen size={13} color="#357053" />
                   <ThemedText style={[styles.statText, { color: theme.text }]}>{chapters.length} {t('mobile.series.chapters')}</ThemedText>
                 </View>
               </View>
@@ -274,10 +269,10 @@ export default function SeriesDetailScreen() {
                   style={styles.readBtn}
                   disabled={chapters.length === 0}
                 >
-                  <LinearGradient colors={['#f43f5e', '#8b5cf6']} style={styles.readBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                    <Play size={16} color="#fff" />
+                  <View style={styles.readBtnGrad}>
+                    <Play size={16} color="#fffaf0" />
                     <ThemedText style={styles.readBtnText}>{t('mobile.series.readNow')}</ThemedText>
-                  </LinearGradient>
+                  </View>
                 </Pressable>
 
                 {/* Subscribe button */}
@@ -288,18 +283,18 @@ export default function SeriesDetailScreen() {
                     styles.iconBtn,
                     {
                       backgroundColor: isSubscribed
-                        ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)')
-                        : (isDark ? 'rgba(22, 17, 41, 0.65)' : '#ffffff'),
+                        ? (isDark ? 'rgba(82,112,123,0.15)' : 'rgba(82,112,123,0.1)')
+                        : (isDark ? 'rgba(39,52,49, 0.65)' : '#fffaf0'),
                       borderColor: isSubscribed
-                        ? 'rgba(99,102,241,0.4)'
-                        : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)'),
+                        ? 'rgba(82,112,123,0.4)'
+                        : (isDark ? 'rgba(255,250,240, 0.08)' : 'rgba(28,41,40, 0.08)'),
                     }
                   ]}
                 >
                   {subscribing ? (
-                    <ActivityIndicator size="small" color="#6366f1" />
+                    <ActivityIndicator size="small" color="#52707b" />
                   ) : (
-                    <Bell size={18} color={isSubscribed ? '#6366f1' : (isDark ? '#ffffff' : '#475569')} fill={isSubscribed ? '#6366f1' : 'none'} />
+                    <Bell size={18} color={isSubscribed ? '#52707b' : (isDark ? '#fffaf0' : '#59615b')} fill={isSubscribed ? '#52707b' : 'none'} />
                   )}
                 </Pressable>
 
@@ -308,7 +303,7 @@ export default function SeriesDetailScreen() {
           </View>
 
           {/* ── Tabs ── */}
-          <View style={[styles.tabBar, { borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }]}>
+          <View style={[styles.tabBar, { borderBottomColor: isDark ? 'rgba(255,250,240,0.08)' : 'rgba(28,41,40,0.08)' }]}>
             {(['chapters', 'about'] as const).map((tab) => (
               <Pressable
                 key={tab}
@@ -318,7 +313,7 @@ export default function SeriesDetailScreen() {
                 <ThemedText
                   style={[
                     styles.tabLabel,
-                    { color: activeTab === tab ? '#f43f5e' : theme.textSecondary },
+                    { color: activeTab === tab ? '#b94234' : theme.textSecondary },
                   ]}
                 >
                   {tab === 'chapters' ? t('mobile.series.chapterTab', { count: chapters.length }) : t('mobile.series.about')}
@@ -345,9 +340,9 @@ export default function SeriesDetailScreen() {
                     style={[
                       styles.chapterRow,
                       {
-                        backgroundColor: isDark ? 'rgba(22, 17, 41, 0.45)' : '#ffffff',
-                        borderColor: isDark ? 'rgba(139, 92, 246, 0.08)' : 'rgba(15, 23, 42, 0.06)',
-                        shadowColor: '#000',
+                        backgroundColor: isDark ? 'rgba(39,52,49, 0.45)' : '#fffaf0',
+                        borderColor: isDark ? 'rgba(122,90,67, 0.08)' : 'rgba(28,41,40, 0.06)',
+                        shadowColor: '#1c2928',
                         shadowOpacity: isDark ? 0 : 0.04,
                         shadowOffset: { width: 0, height: 4 },
                         shadowRadius: 8,
@@ -359,8 +354,8 @@ export default function SeriesDetailScreen() {
                       style={[
                         styles.chapterNumBadge,
                         {
-                          backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : 'rgba(244, 63, 94, 0.06)',
-                          borderColor: isDark ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.15)',
+                          backgroundColor: isDark ? 'rgba(185,66,52, 0.1)' : 'rgba(185,66,52, 0.06)',
+                          borderColor: isDark ? 'rgba(185,66,52, 0.25)' : 'rgba(185,66,52, 0.15)',
                         }
                       ]}
                     >
@@ -393,8 +388,8 @@ export default function SeriesDetailScreen() {
                   {
                     backgroundColor: theme.backgroundElement,
                     borderWidth: isDark ? 0 : 1,
-                    borderColor: 'rgba(15, 23, 42, 0.06)',
-                    shadowColor: '#000',
+                    borderColor: 'rgba(28,41,40, 0.06)',
+                    shadowColor: '#1c2928',
                     shadowOpacity: isDark ? 0 : 0.02,
                     shadowOffset: { width: 0, height: 4 },
                     shadowRadius: 8,
@@ -440,9 +435,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: 'rgba(244,63,94,0.15)',
+    backgroundColor: 'rgba(185,66,52,0.15)',
   },
-  retryText: { color: '#f43f5e', fontWeight: '600', fontSize: 14 },
+  retryText: { color: '#b94234', fontWeight: '600', fontSize: 14 },
 
   // Hero
   heroWrap: { height: 480, position: 'relative' },
@@ -454,7 +449,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(28,41,40,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -472,26 +467,26 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,250,240,0.2)',
+    backgroundColor: 'rgba(255,250,240,0.08)',
   },
-  tagText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
-  heroTitle: { fontSize: 26, fontWeight: '800', color: '#ffffff', lineHeight: 32 },
+  tagText: { fontSize: 11, color: 'rgba(255,250,240,0.85)', fontWeight: '600' },
+  heroTitle: { fontSize: 26, fontWeight: '800', color: '#fffaf0', lineHeight: 32 },
   heroAuthor: { fontSize: 14 },
   statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255,250,240, 0.05)',
     borderRadius: 14,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255,250,240, 0.08)',
     gap: 12,
   },
-  statDivider: { width: 1, height: 14, backgroundColor: 'rgba(255, 255, 255, 0.15)' },
+  statDivider: { width: 1, height: 14, backgroundColor: 'rgba(255,250,240, 0.15)' },
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, justifyContent: 'center' },
-  statText: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: '600' },
+  statText: { fontSize: 13, color: 'rgba(255,250,240,0.75)', fontWeight: '600' },
   actionRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 4 },
   readBtn: { flex: 1, borderRadius: 14, overflow: 'hidden' },
   readBtnGrad: {
@@ -501,21 +496,22 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     paddingHorizontal: 16,
+    backgroundColor: '#b94234',
   },
-  readBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
+  readBtnText: { color: '#fffaf0', fontWeight: '700', fontSize: 15 },
   iconBtn: {
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: 'rgba(22, 17, 41, 0.65)',
+    backgroundColor: 'rgba(39,52,49, 0.65)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255,250,240, 0.08)',
   },
   iconBtnActive: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
-    borderColor: 'rgba(99,102,241,0.4)',
+    backgroundColor: 'rgba(82,112,123,0.15)',
+    borderColor: 'rgba(82,112,123,0.4)',
   },
 
   // Tabs
@@ -525,7 +521,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 0,
   },
   tabItem: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#f43f5e' },
+  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#b94234' },
   tabLabel: { fontSize: 14, fontWeight: '600' },
 
   // Chapter list
@@ -545,22 +541,22 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 6,
     borderRadius: 16,
-    backgroundColor: 'rgba(22, 17, 41, 0.45)',
+    backgroundColor: 'rgba(39,52,49, 0.45)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.08)',
+    borderColor: 'rgba(122,90,67, 0.08)',
     gap: 12,
   },
   chapterNumBadge: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+    backgroundColor: 'rgba(185,66,52, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.25)',
+    borderColor: 'rgba(185,66,52, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chapterNum: { fontSize: 14, fontWeight: '700', color: '#f43f5e' },
+  chapterNum: { fontSize: 14, fontWeight: '700', color: '#b94234' },
   chapterInfo: { flex: 1 },
   chapterTitle: { fontSize: 14, fontWeight: '600' },
   chapterMeta: { fontSize: 12, marginTop: 3 },

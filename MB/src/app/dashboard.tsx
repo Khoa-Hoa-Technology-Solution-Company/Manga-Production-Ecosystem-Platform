@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BookOpen, CheckSquare, DollarSign, Star, ArrowUp } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -51,8 +50,6 @@ function DashboardScreen() {
 
   return (
     <ThemedView style={[styles.screen, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={['#0e051d', '#130e2c', '#07020e']} style={StyleSheet.absoluteFillObject} />
-      
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <View>
@@ -70,11 +67,11 @@ function DashboardScreen() {
             {metrics.map((item, index) => {
               const Icon = item.icon;
               return (
-                <View key={index} style={styles.kpiCard}>
+                <View key={index} style={[styles.kpiCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
                   <View style={styles.kpiHeader}>
-                    <ThemedText style={styles.kpiLabel}>{item.label}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.kpiLabel}>{item.label}</ThemedText>
                     <View style={styles.iconBox}>
-                      <Icon size={16} color="#94a3b8" />
+                      <Icon size={16} color={theme.textSecondary} />
                     </View>
                   </View>
                   
@@ -83,7 +80,7 @@ function DashboardScreen() {
                       <ThemedText style={styles.kpiValue}>{item.value}</ThemedText>
                       {item.delta && (
                         <View style={styles.deltaBox}>
-                          <ArrowUp size={12} color="#10b981" />
+                          <ArrowUp size={12} color="#357053" />
                           <ThemedText style={styles.deltaText}>{item.delta}</ThemedText>
                         </View>
                       )}
@@ -99,7 +96,7 @@ function DashboardScreen() {
                         </View>
                       )}
                     </View>
-                    <ThemedText style={styles.kpiNote}>{item.note}</ThemedText>
+                    <ThemedText themeColor="textSecondary" style={styles.kpiNote}>{item.note}</ThemedText>
                   </View>
                 </View>
               );
@@ -107,15 +104,15 @@ function DashboardScreen() {
           </View>
 
           {/* Workflow Board Placeholder */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
             <ThemedText style={styles.sectionTitle}>{t('mobile.dashboard.workflow')}</ThemedText>
-            <ThemedText style={styles.placeholderText}>{t('mobile.dashboard.noWorkflow')}</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.placeholderText}>{t('mobile.dashboard.noWorkflow')}</ThemedText>
           </View>
 
           {/* Series Ranking Placeholder */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.backgroundElement, borderColor: theme.borderGlow }]}>
             <ThemedText style={styles.sectionTitle}>{t('mobile.dashboard.ranking')}</ThemedText>
-            <ThemedText style={styles.placeholderText}>{t('mobile.dashboard.noRanking')}</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.placeholderText}>{t('mobile.dashboard.noRanking')}</ThemedText>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -127,39 +124,37 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
-  headerSubtitle: { color: '#38bdf8', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  headerTitle: { color: '#fff', fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  headerSubtitle: { color: '#59615b', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2 },
+  headerTitle: { color: '#1c2928', fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.7 },
   content: { maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center', paddingHorizontal: Spacing.three, gap: Spacing.three },
   
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   kpiCard: { 
     width: '48%', 
-    backgroundColor: 'rgba(255,255,255,0.05)', 
-    borderRadius: 16, 
+    borderRadius: 14,
     padding: 16, 
     borderWidth: 1, 
-    borderColor: 'rgba(255,255,255,0.05)',
     marginBottom: 10,
   },
   kpiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  kpiLabel: { color: '#94a3b8', fontSize: 12, fontWeight: '600' },
-  iconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  kpiLabel: { fontSize: 12, fontWeight: '600' },
+  iconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#eee2cf', alignItems: 'center', justifyContent: 'center' },
   kpiContent: { gap: 4 },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  kpiValue: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
+  kpiValue: { fontSize: 22, fontWeight: '700', letterSpacing: -0.4 },
   deltaBox: { flexDirection: 'row', alignItems: 'center' },
-  deltaText: { color: '#10b981', fontSize: 12, fontWeight: 'bold' },
+  deltaText: { color: '#357053', fontSize: 12, fontWeight: 'bold' },
   badgeBox: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  badgeDestructive: { backgroundColor: 'rgba(239,68,68,0.2)' },
-  badgeSecondary: { backgroundColor: 'rgba(16,185,129,0.2)' },
+  badgeDestructive: { backgroundColor: 'rgba(164,58,50,0.2)' },
+  badgeSecondary: { backgroundColor: 'rgba(53,112,83,0.2)' },
   badgeText: { fontSize: 10, fontWeight: 'bold' },
-  badgeTextDestructive: { color: '#ef4444' },
-  badgeTextSecondary: { color: '#10b981' },
-  kpiNote: { color: '#64748b', fontSize: 11 },
+  badgeTextDestructive: { color: '#a43a32' },
+  badgeTextSecondary: { color: '#357053' },
+  kpiNote: { fontSize: 11 },
 
-  sectionCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', marginTop: 10 },
-  sectionTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
-  placeholderText: { color: '#64748b', fontSize: 14, textAlign: 'center', marginVertical: 20 },
+  sectionCard: { borderRadius: 14, padding: 20, borderWidth: 1, marginTop: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  placeholderText: { fontSize: 14, textAlign: 'center', marginVertical: 20 },
 });
 
 export default withProtectedReaderRoute(DashboardScreen);

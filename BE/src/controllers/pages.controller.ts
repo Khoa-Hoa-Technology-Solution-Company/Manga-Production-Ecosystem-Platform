@@ -59,6 +59,16 @@ export async function remove(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: 'Page not found.' });
       return;
     }
+    const [{ Zone }, { Annotation }] = await Promise.all([
+      import('../models/Zone'),
+      import('../models/Annotation'),
+    ]);
+    await Promise.all([
+      Task.deleteMany({ pageId: page._id }),
+      Layer.deleteMany({ pageId: page._id }),
+      Zone.deleteMany({ pageId: page._id }),
+      Annotation.deleteMany({ pageId: page._id }),
+    ]);
     // Update chapter total pages count
     const totalPages = await Page.countDocuments({ chapterId: page.chapterId });
     await Chapter.findByIdAndUpdate(page.chapterId, { totalPages });
@@ -82,6 +92,21 @@ export async function updateLayerOrder(req: Request, res: Response): Promise<voi
     const page = await Page.findById(pageId);
     if (!page) {
       res.status(404).json({ error: 'Page not found.' });
+      return;
+    }
+
+    const validTaskIds = await Task.find({
+      $or: [{ pageId: page._id }, { chapterId: page.chapterId, assignmentLevel: 'chapter' }],
+    }).distinct('_id');
+    const validLayerIds = await Layer.find({ pageId: page._id }).distinct('_id');
+    const validTasks = new Set(validTaskIds.map((id: any) => String(id)));
+    const validLayers = new Set(validLayerIds.map((id: any) => String(id)));
+    if (layerOrder.some((item: any) => item.taskId && !validTasks.has(String(item.taskId)))) {
+      res.status(400).json({ error: 'layerOrder contains a task that does not belong to this page.' });
+      return;
+    }
+    if (layerOrder.some((item: any) => item.layerId && !validLayers.has(String(item.layerId)))) {
+      res.status(400).json({ error: 'layerOrder contains a layer that does not belong to this page.' });
       return;
     }
 
@@ -115,7 +140,11 @@ export async function downloadLayer(req: Request, res: Response): Promise<void> 
       imageUrl = page.originalImage;
       fileName = `page-${page.pageNumber}-base`;
     } else {
-      const task = await Task.findById(taskId);
+      const page = await Page.findById(pageId).select('chapterId pageNumber');
+      const task = await Task.findOne({
+        _id: taskId,
+        $or: [{ pageId }, { chapterId: page?.chapterId, assignmentLevel: 'chapter' }],
+      });
       if (task) {
         if (!task.submittedFile) {
           res.status(400).json({ error: 'No file submitted for this task yet.' });
@@ -124,7 +153,7 @@ export async function downloadLayer(req: Request, res: Response): Promise<void> 
         imageUrl = task.submittedFile;
         fileName = `page-${pageId}-layer-${task.type}`;
       } else {
-        const layer = await Layer.findById(taskId);
+        const layer = await Layer.findOne({ _id: taskId, pageId });
         if (!layer) {
           res.status(404).json({ error: 'Layer or Task not found.' });
           return;
@@ -281,11 +310,24 @@ export async function removeLayer(req: Request, res: Response): Promise<void> {
     }
 
     if (layerType === 'standalone') {
+      const layer = await Layer.findOne({ _id: layerId, pageId: page._id });
+      if (!layer) {
+        res.status(404).json({ error: 'Layer not found on this page.' });
+        return;
+      }
       page.layerOrder = page.layerOrder.filter(
         (item) => !item.layerId || item.layerId.toString() !== layerId
       );
-      await Layer.findByIdAndDelete(layerId);
+      await Layer.deleteOne({ _id: layerId, pageId: page._id });
     } else {
+      const task = await Task.findOne({
+        _id: layerId,
+        $or: [{ pageId: page._id }, { chapterId: page.chapterId, assignmentLevel: 'chapter' }],
+      });
+      if (!task) {
+        res.status(404).json({ error: 'Task layer not found on this page.' });
+        return;
+      }
       page.layerOrder = page.layerOrder.filter(
         (item) => !item.taskId || item.taskId.toString() !== layerId
       );
